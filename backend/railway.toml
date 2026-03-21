@@ -1,9 +1,3 @@
-[build]
-builder = "NIXPACKS"
-
-[build.nixpacksPlan.phases.setup]
-nixPkgs = ["libmagic"]   # dependência do python-magic para validar magic bytes
-
 [deploy]
 startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1 --loop uvloop"
 healthcheckPath = "/health"
