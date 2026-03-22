@@ -1,947 +1,210 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="mobile-web-app-capable" content="yes">
-  <title>Admin — Retro Score Ranking</title>
-  <link rel="stylesheet" href="style.css">
-  <style>
-    /* ── Layout admin ── */
-    .admin-page {
-      min-height: 100dvh;
-      display: grid;
-      grid-template-rows: auto auto 1fr;
-    }
-
-    /* ── Login gate ── */
-    .login-gate {
-      min-height: 100dvh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: var(--space-lg);
-    }
-    .login-card {
-      width: 100%;
-      max-width: 380px;
-      background: var(--color-bg-surface);
-      border: var(--border-width) solid var(--color-border);
-      border-radius: var(--radius-lg);
-      padding: var(--space-xl);
-    }
-    .login-title {
-      font-family: var(--font-display);
-      font-size: var(--text-sm);
-      color: var(--color-primary);
-      margin-bottom: var(--space-lg);
-      text-align: center;
-      line-height: 1.6;
-    }
-    .login-error {
-      font-size: var(--text-xs);
-      color: var(--color-error);
-      text-align: center;
-      margin-bottom: var(--space-md);
-      display: none;
-    }
-    .login-error.visible { display: block; }
-
-    /* ── Top bar ── */
-    .admin-topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: var(--space-md) var(--space-lg);
-      background: var(--color-bg-surface);
-      border-bottom: var(--border-width) solid var(--color-border);
-      gap: var(--space-md);
-      flex-wrap: wrap;
-    }
-    .topbar-title {
-      font-family: var(--font-display);
-      font-size: var(--text-xs);
-      color: var(--color-primary);
-      letter-spacing: 0.08em;
-    }
-    .topbar-right {
-      display: flex;
-      align-items: center;
-      gap: var(--space-md);
-    }
-    .btn-logout {
-      font-size: var(--text-xs);
-      color: var(--color-text-muted);
-      cursor: pointer;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      padding: var(--space-xs) var(--space-sm);
-      border-radius: var(--radius-sm);
-      transition: color var(--transition);
-      background: none; border: none;
-      font-family: var(--font-body);
-    }
-    .btn-logout:hover { color: var(--color-error); }
-
-    /* ── Abas de navegação ── */
-    .admin-tabs {
-      display: flex;
-      gap: 0;
-      border-bottom: var(--border-width) solid var(--color-border);
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-      background: var(--color-bg-surface);
-    }
-    .admin-tabs::-webkit-scrollbar { display: none; }
-
-    .admin-tab {
-      flex-shrink: 0;
-      padding: var(--space-md) var(--space-lg);
-      font-size: var(--text-sm);
-      font-weight: var(--weight-bold);
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--color-text-muted);
-      cursor: pointer;
-      border-bottom: 2px solid transparent;
-      transition: all var(--transition);
-      background: none; border-top: none; border-left: none; border-right: none;
-      font-family: var(--font-body);
-      position: relative;
-    }
-    .admin-tab:hover { color: var(--color-text); }
-    .admin-tab.active {
-      color: var(--color-secondary);
-      border-bottom-color: var(--color-secondary);
-    }
-    .tab-badge {
-      position: absolute;
-      top: 8px; right: 8px;
-      min-width: 18px; height: 18px;
-      background: var(--color-error);
-      color: #fff;
-      font-size: 10px;
-      font-weight: 700;
-      border-radius: var(--radius-full);
-      display: flex; align-items: center; justify-content: center;
-      padding: 0 4px;
-    }
-
-    /* ── Conteúdo das abas ── */
-    .tab-content {
-      display: none;
-      padding: var(--space-lg);
-      max-width: 1200px;
-      margin: 0 auto;
-      width: 100%;
-    }
-    .tab-content.active { display: block; }
-
-    /* ── Section header ── */
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: var(--space-lg);
-      gap: var(--space-md);
-      flex-wrap: wrap;
-    }
-    .section-title {
-      font-size: var(--text-lg);
-      font-weight: var(--weight-bold);
-      color: var(--color-text);
-    }
-    .section-count {
-      font-size: var(--text-sm);
-      color: var(--color-text-muted);
-    }
-
-    /* ── Card de entrada (feed + pendentes) ── */
-    .entrada-card {
-      background: var(--color-bg-surface);
-      border: var(--border-width) solid var(--color-border);
-      border-radius: var(--radius-md);
-      padding: var(--space-md);
-      margin-bottom: var(--space-sm);
-      display: grid;
-      grid-template-columns: 64px 1fr auto;
-      gap: var(--space-md);
-      align-items: center;
-      transition: border-color var(--transition);
-    }
-    .entrada-card:hover { border-color: var(--color-border-hover); }
-    .entrada-card.oculta { opacity: 0.45; }
-    .entrada-card.pendente-card { border-color: rgba(94,43,130,0.4); }
-
-    .entrada-foto {
-      width: 64px; height: 64px;
-      border-radius: var(--radius-sm);
-      object-fit: cover;
-      border: var(--border-width) solid var(--color-border);
-      flex-shrink: 0;
-    }
-    .entrada-foto-placeholder {
-      width: 64px; height: 64px;
-      border-radius: var(--radius-sm);
-      background: var(--color-bg-surface2);
-      border: var(--border-width) solid var(--color-border);
-      display: flex; align-items: center; justify-content: center;
-      font-family: var(--font-display);
-      font-size: var(--text-sm);
-      color: var(--color-text-muted);
-      flex-shrink: 0;
-    }
-
-    .entrada-info { min-width: 0; }
-    .entrada-nick {
-      font-size: var(--text-md);
-      font-weight: var(--weight-bold);
-      color: var(--color-text);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .entrada-meta {
-      font-size: var(--text-xs);
-      color: var(--color-text-muted);
-      margin-top: 2px;
-      display: flex; gap: var(--space-sm); flex-wrap: wrap;
-    }
-    .entrada-score {
-      font-family: var(--font-mono);
-      font-size: var(--text-md);
-      color: var(--color-accent);
-      font-weight: var(--weight-bold);
-    }
-
-    .entrada-actions {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-xs);
-      flex-shrink: 0;
-    }
-
-    .btn-action {
-      padding: 6px 14px;
-      border-radius: var(--radius-sm);
-      font-size: var(--text-xs);
-      font-weight: var(--weight-bold);
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      cursor: pointer;
-      font-family: var(--font-body);
-      transition: all var(--transition);
-      border: var(--border-width) solid transparent;
-      white-space: nowrap;
-    }
-    .btn-ocultar  { background: rgba(240,64,96,0.12); color: var(--color-error); border-color: rgba(240,64,96,0.3); }
-    .btn-ocultar:hover  { background: rgba(240,64,96,0.25); }
-    .btn-reativar { background: rgba(95,187,80,0.12); color: var(--color-success); border-color: rgba(95,187,80,0.3); }
-    .btn-reativar:hover { background: rgba(95,187,80,0.25); }
-    .btn-aprovar  { background: rgba(95,187,80,0.12); color: var(--color-success); border-color: rgba(95,187,80,0.3); }
-    .btn-aprovar:hover  { background: rgba(95,187,80,0.25); }
-    .btn-rejeitar { background: rgba(240,64,96,0.12); color: var(--color-error); border-color: rgba(240,64,96,0.3); }
-    .btn-rejeitar:hover { background: rgba(240,64,96,0.25); }
-
-    /* ── Filtros do feed ── */
-    .feed-filters {
-      display: flex;
-      gap: var(--space-sm);
-      margin-bottom: var(--space-md);
-      flex-wrap: wrap;
-    }
-    .filter-pill {
-      padding: 6px 14px;
-      border-radius: var(--radius-full);
-      font-size: var(--text-xs);
-      font-weight: var(--weight-bold);
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      cursor: pointer;
-      font-family: var(--font-body);
-      background: var(--color-bg-surface);
-      border: var(--border-width) solid var(--color-border);
-      color: var(--color-text-muted);
-      transition: all var(--transition);
-    }
-    .filter-pill.active {
-      background: var(--color-secondary);
-      border-color: var(--color-secondary);
-      color: #fff;
-    }
-
-    /* ── Tabela de jogos ── */
-    .jogos-grid {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-sm);
-      margin-bottom: var(--space-xl);
-    }
-    .jogo-card {
-      background: var(--color-bg-surface);
-      border: var(--border-width) solid var(--color-border);
-      border-radius: var(--radius-md);
-      padding: var(--space-md);
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: var(--space-md);
-      align-items: center;
-    }
-    .jogo-card.inativo { opacity: 0.5; }
-    .jogo-nome { font-size: var(--text-md); font-weight: var(--weight-bold); }
-    .jogo-meta { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; }
-    .jogo-actions { display: flex; gap: var(--space-xs); align-items: center; }
-
-    .toggle-ativo {
-      width: 44px; height: 24px;
-      border-radius: var(--radius-full);
-      background: var(--color-bg-surface2);
-      border: var(--border-width) solid var(--color-border);
-      cursor: pointer;
-      position: relative;
-      transition: background var(--transition);
-      flex-shrink: 0;
-    }
-    .toggle-ativo.on { background: var(--color-secondary); border-color: var(--color-secondary); }
-    .toggle-ativo::after {
-      content: '';
-      position: absolute;
-      top: 2px; left: 2px;
-      width: 18px; height: 18px;
-      border-radius: 50%;
-      background: #fff;
-      transition: transform var(--transition);
-    }
-    .toggle-ativo.on::after { transform: translateX(20px); }
-
-    /* ── Formulário criar jogo ── */
-    .criar-jogo-form {
-      background: var(--color-bg-surface);
-      border: var(--border-width) solid var(--color-border);
-      border-radius: var(--radius-md);
-      padding: var(--space-lg);
-    }
-    .form-title {
-      font-size: var(--text-md);
-      font-weight: var(--weight-bold);
-      margin-bottom: var(--space-md);
-      color: var(--color-secondary);
-    }
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--space-md);
-    }
-    @media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
-
-    /* ── Config do evento ── */
-    .config-grid {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-sm);
-    }
-    .config-item {
-      background: var(--color-bg-surface);
-      border: var(--border-width) solid var(--color-border);
-      border-radius: var(--radius-md);
-      padding: var(--space-md);
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: var(--space-md);
-      align-items: start;
-    }
-    .config-chave {
-      font-family: var(--font-mono);
-      font-size: var(--text-xs);
-      color: var(--color-accent);
-      margin-bottom: 4px;
-      letter-spacing: 0.06em;
-    }
-    .config-descricao {
-      font-size: var(--text-xs);
-      color: var(--color-text-muted);
-      margin-bottom: var(--space-sm);
-    }
-    .config-input {
-      width: 100%;
-      padding: var(--space-sm) var(--space-md);
-      background: var(--color-bg-surface2);
-      border: var(--border-width) solid var(--color-border);
-      border-radius: var(--radius-sm);
-      color: var(--color-text);
-      font-family: var(--font-body);
-      font-size: var(--text-sm);
-      outline: none;
-      transition: border-color var(--transition);
-    }
-    .config-input:focus { border-color: var(--color-border-active); }
-    .btn-salvar-config {
-      padding: 8px 16px;
-      background: var(--color-primary);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius-sm);
-      font-size: var(--text-xs);
-      font-weight: var(--weight-bold);
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      cursor: pointer;
-      font-family: var(--font-body);
-      transition: filter var(--transition);
-      white-space: nowrap;
-      align-self: flex-end;
-    }
-    .btn-salvar-config:hover { filter: brightness(1.2); }
-    .btn-salvar-config.saved {
-      background: var(--color-success);
-      color: #fff;
-    }
-
-    /* ── Empty state ── */
-    .empty-admin {
-      text-align: center;
-      padding: var(--space-2xl) var(--space-lg);
-      color: var(--color-text-muted);
-    }
-    .empty-admin-icon { font-size: 48px; margin-bottom: var(--space-md); }
-    .empty-admin-text { font-size: var(--text-md); font-weight: var(--weight-bold); color: var(--color-text-dim); }
-
-    /* ── Polling indicator ── */
-    .polling-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--color-text-dim);
-      animation: pulse 2s ease-in-out infinite;
-    }
-
-    /* ── Responsivo mobile ── */
-    @media (max-width: 600px) {
-      .tab-content { padding: var(--space-md); }
-      .entrada-card { grid-template-columns: 48px 1fr; }
-      .entrada-actions { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; }
-      .admin-tab { padding: var(--space-sm) var(--space-md); font-size: 10px; }
-      .config-item { grid-template-columns: 1fr; }
-      .btn-salvar-config { width: 100%; }
-    }
-  </style>
-</head>
-<body>
-
-<!-- ── LOGIN GATE ── -->
-<div class="login-gate" id="login-gate">
-  <div class="login-card">
-    <h1 class="login-title">ADMIN<br>PANEL</h1>
-    <p class="login-error" id="login-error">Senha incorreta</p>
-    <div class="field">
-      <label class="field-label" for="senha-input">Senha de acesso</label>
-      <input class="field-input" type="password" id="senha-input"
-             placeholder="••••••••" autocomplete="current-password">
-    </div>
-    <button class="btn-primary" id="login-btn">ENTRAR</button>
-  </div>
-</div>
-
-<!-- ── PAINEL ADMIN ── -->
-<div class="admin-page" id="admin-panel" style="display:none">
-
-  <!-- Top bar -->
-  <div class="admin-topbar">
-    <span class="topbar-title">ADMIN PANEL</span>
-    <div class="topbar-right">
-      <div class="polling-dot" id="polling-dot" title="Atualizando..."></div>
-      <button class="btn-logout" id="logout-btn">Sair</button>
-    </div>
-  </div>
-
-  <!-- Abas -->
-  <div class="admin-tabs">
-    <button class="admin-tab active" data-tab="feed">
-      Feed
-      <span class="tab-badge" id="badge-feed" style="display:none">0</span>
-    </button>
-    <button class="admin-tab" data-tab="pendentes">
-      Pendentes
-      <span class="tab-badge" id="badge-pendentes" style="display:none">0</span>
-    </button>
-    <button class="admin-tab" data-tab="jogos">Jogos</button>
-    <button class="admin-tab" data-tab="config">Evento</button>
-  </div>
-
-  <!-- ── ABA: FEED ── -->
-  <div class="tab-content active" id="tab-feed">
-    <div class="section-header">
-      <span class="section-title">Entradas recentes</span>
-      <span class="section-count" id="feed-count"></span>
-    </div>
-    <div class="feed-filters">
-      <button class="filter-pill active" data-filter="todos">Todos</button>
-      <button class="filter-pill" data-filter="visiveis">Visíveis</button>
-      <button class="filter-pill" data-filter="ocultos">Ocultos</button>
-    </div>
-    <div id="feed-list"></div>
-  </div>
-
-  <!-- ── ABA: PENDENTES ── -->
-  <div class="tab-content" id="tab-pendentes">
-    <div class="section-header">
-      <span class="section-title">Aguardando aprovação</span>
-      <span class="section-count" id="pendentes-count"></span>
-    </div>
-    <div id="pendentes-list"></div>
-  </div>
-
-  <!-- ── ABA: JOGOS ── -->
-  <div class="tab-content" id="tab-jogos">
-    <div class="section-header">
-      <span class="section-title">Jogos cadastrados</span>
-    </div>
-    <div class="jogos-grid" id="jogos-list"></div>
-
-    <div class="criar-jogo-form">
-      <p class="form-title">+ Novo jogo</p>
-      <div class="form-row">
-        <div class="field">
-          <label class="field-label" for="jogo-nome">Nome</label>
-          <input class="field-input" type="text" id="jogo-nome" placeholder="Ex: Pac-Man">
-        </div>
-        <div class="field">
-          <label class="field-label" for="jogo-slug">Slug (URL)</label>
-          <input class="field-input" type="text" id="jogo-slug" placeholder="Ex: pac-man">
-        </div>
-      </div>
-      <div class="field">
-        <label class="field-label" for="jogo-score-max">Score máximo (opcional)</label>
-        <input class="field-input" type="number" id="jogo-score-max" placeholder="Ex: 999990 — deixe vazio para sem limite">
-      </div>
-      <button class="btn-primary" id="criar-jogo-btn">CRIAR JOGO</button>
-    </div>
-  </div>
-
-  <!-- ── ABA: CONFIG ── -->
-  <div class="tab-content" id="tab-config">
-    <div class="section-header">
-      <span class="section-title">Configurações do evento</span>
-    </div>
-    <div class="config-grid" id="config-list"></div>
-  </div>
-
-</div>
-
-<!-- Toast -->
-<div class="toast" id="toast"></div>
-
-<script>
-// ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
-const API_URL = 'https://retro-score-ranking-production.up.railway.app';
-const POLL_INTERVAL = 10000; // 10 segundos
-
-// ── ESTADO ────────────────────────────────────────────────────────────────────
-let adminSecret = '';
-let feedFilter  = 'todos';
-let feedData    = [];
-let pollTimer   = null;
-
-// ── LOGIN ─────────────────────────────────────────────────────────────────────
-document.getElementById('login-btn').addEventListener('click', fazerLogin);
-document.getElementById('senha-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') fazerLogin();
-});
-
-async function fazerLogin() {
-  const senha = document.getElementById('senha-input').value.trim();
-  if (!senha) return;
-
-  const btn = document.getElementById('login-btn');
-  btn.disabled = true;
-  btn.textContent = 'VERIFICANDO...';
-
-  try {
-    const resp = await fetch(`${API_URL}/api/admin/feed?limit=1`, {
-      headers: { 'Authorization': `Bearer ${senha}` }
-    });
-
-    if (resp.status === 401) {
-      document.getElementById('login-error').classList.add('visible');
-      btn.disabled = false;
-      btn.textContent = 'ENTRAR';
-      return;
-    }
-
-    adminSecret = senha;
-    sessionStorage.setItem('admin_secret', senha);
-    mostrarPainel();
-
-  } catch {
-    showToast('Erro ao conectar com o servidor', 'error');
-    btn.disabled = false;
-    btn.textContent = 'ENTRAR';
-  }
-}
-
-document.getElementById('logout-btn').addEventListener('click', () => {
-  sessionStorage.removeItem('admin_secret');
-  adminSecret = '';
-  clearInterval(pollTimer);
-  document.getElementById('admin-panel').style.display = 'none';
-  document.getElementById('login-gate').style.display = 'flex';
-  document.getElementById('senha-input').value = '';
-});
-
-// Restaura sessão se existir
-const savedSecret = sessionStorage.getItem('admin_secret');
-if (savedSecret) {
-  adminSecret = savedSecret;
-  mostrarPainel();
-}
-
-// ── PAINEL ────────────────────────────────────────────────────────────────────
-function mostrarPainel() {
-  document.getElementById('login-gate').style.display = 'none';
-  document.getElementById('admin-panel').style.display = 'grid';
-  carregarTudo();
-  pollTimer = setInterval(carregarTudo, POLL_INTERVAL);
-}
-
-async function carregarTudo() {
-  const dot = document.getElementById('polling-dot');
-  dot.style.background = 'var(--color-accent)';
-  await Promise.all([carregarFeed(), carregarPendentes(), carregarJogos(), carregarConfig()]);
-  setTimeout(() => dot.style.background = 'var(--color-text-dim)', 500);
-}
-
-// ── ABAS ──────────────────────────────────────────────────────────────────────
-document.querySelectorAll('.admin-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
-  });
-});
-
-// ── FEED ──────────────────────────────────────────────────────────────────────
-async function carregarFeed() {
-  try {
-    const resp = await apiFetch('/api/admin/feed?limit=100');
-    feedData = await resp.json();
-    renderFeed();
-    // Badge: entradas nas últimas 2 min
-    const recentes = feedData.filter(e => Date.now() - new Date(e.criado_em) < 120000).length;
-    atualizarBadge('feed', recentes);
-  } catch { /* silencioso */ }
-}
-
-document.querySelectorAll('.filter-pill').forEach(p => {
-  p.addEventListener('click', () => {
-    document.querySelectorAll('.filter-pill').forEach(x => x.classList.remove('active'));
-    p.classList.add('active');
-    feedFilter = p.dataset.filter;
-    renderFeed();
-  });
-});
-
-function renderFeed() {
-  const container = document.getElementById('feed-list');
-  let lista = feedData;
-
-  if (feedFilter === 'visiveis') lista = feedData.filter(e => e.no_ranking && !e.pendente);
-  if (feedFilter === 'ocultos')  lista = feedData.filter(e => !e.no_ranking);
-
-  document.getElementById('feed-count').textContent = `${lista.length} entrada${lista.length !== 1 ? 's' : ''}`;
-
-  if (lista.length === 0) {
-    container.innerHTML = emptyState('Nenhuma entrada encontrada');
-    return;
-  }
-
-  container.innerHTML = lista.map(e => cardEntrada(e, 'feed')).join('');
-  bindCardActions(container, 'feed');
-}
-
-// ── PENDENTES ─────────────────────────────────────────────────────────────────
-async function carregarPendentes() {
-  try {
-    const resp = await apiFetch('/api/admin/pendentes');
-    const lista = await resp.json();
-    renderPendentes(lista);
-    atualizarBadge('pendentes', lista.length);
-  } catch { /* silencioso */ }
-}
-
-function renderPendentes(lista) {
-  const container = document.getElementById('pendentes-list');
-  document.getElementById('pendentes-count').textContent =
-    `${lista.length} aguardando${lista.length !== 1 ? '' : ''}`;
-
-  if (lista.length === 0) {
-    container.innerHTML = emptyState('Nenhuma entrada pendente');
-    return;
-  }
-
-  container.innerHTML = lista.map(e => cardEntrada(e, 'pendente')).join('');
-  bindCardActions(container, 'pendente');
-}
-
-// ── JOGOS ─────────────────────────────────────────────────────────────────────
-async function carregarJogos() {
-  try {
-    const resp = await apiFetch('/api/admin/jogos-todos');
-    if (!resp.ok) {
-      // Fallback: usa endpoint público se admin-específico não existir
-      const r2 = await fetch(`${API_URL}/api/jogos`);
-      const jogos = await r2.json();
-      renderJogos(jogos);
-      return;
-    }
-    const jogos = await resp.json();
-    renderJogos(jogos);
-  } catch { /* silencioso */ }
-}
-
-function renderJogos(jogos) {
-  const container = document.getElementById('jogos-list');
-  if (jogos.length === 0) {
-    container.innerHTML = emptyState('Nenhum jogo cadastrado');
-    return;
-  }
-  container.innerHTML = jogos.map(j => `
-    <div class="jogo-card ${j.ativo === false ? 'inativo' : ''}" data-id="${j.id}">
-      <div>
-        <div class="jogo-nome">${escapar(j.nome)}</div>
-        <div class="jogo-meta">
-          slug: ${j.slug}
-          ${j.score_max ? ` · máx: ${j.score_max.toLocaleString('pt-BR')}` : ' · sem limite de score'}
-        </div>
-      </div>
-      <div class="jogo-actions">
-        <div class="toggle-ativo ${j.ativo !== false ? 'on' : ''}"
-             data-id="${j.id}" data-ativo="${j.ativo !== false}"
-             title="${j.ativo !== false ? 'Ativo — clique para desativar' : 'Inativo — clique para ativar'}">
-        </div>
-      </div>
-    </div>
-  `).join('');
-
-  container.querySelectorAll('.toggle-ativo').forEach(toggle => {
-    toggle.addEventListener('click', async () => {
-      const id    = toggle.dataset.id;
-      const ativo = toggle.dataset.ativo === 'true';
-      try {
-        await apiFetch(`/api/admin/jogos/${id}`, 'PATCH', { ativo: !ativo });
-        showToast(!ativo ? 'Jogo ativado' : 'Jogo desativado', 'success');
-        carregarJogos();
-      } catch { showToast('Erro ao atualizar jogo', 'error'); }
-    });
-  });
-}
-
-// Slug automático ao digitar nome
-document.getElementById('jogo-nome').addEventListener('input', e => {
-  document.getElementById('jogo-slug').value = e.target.value
-    .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-});
-
-document.getElementById('criar-jogo-btn').addEventListener('click', async () => {
-  const nome      = document.getElementById('jogo-nome').value.trim();
-  const slug      = document.getElementById('jogo-slug').value.trim();
-  const scoreMax  = parseInt(document.getElementById('jogo-score-max').value) || null;
-
-  if (!nome || !slug) { showToast('Nome e slug são obrigatórios', 'error'); return; }
-
-  try {
-    const resp = await apiFetch('/api/admin/jogos', 'POST', { nome, slug, score_max: scoreMax });
-    if (!resp.ok) {
-      const err = await resp.json();
-      showToast(err.detail || 'Erro ao criar jogo', 'error');
-      return;
-    }
-    document.getElementById('jogo-nome').value = '';
-    document.getElementById('jogo-slug').value = '';
-    document.getElementById('jogo-score-max').value = '';
-    showToast(`Jogo "${nome}" criado!`, 'success');
-    carregarJogos();
-  } catch { showToast('Erro ao criar jogo', 'error'); }
-});
-
-// ── CONFIG ────────────────────────────────────────────────────────────────────
-async function carregarConfig() {
-  try {
-    const resp = await apiFetch('/api/admin/config');
-    const cfg  = await resp.json();
-    renderConfig(cfg);
-  } catch { /* silencioso */ }
-}
-
-function renderConfig(cfg) {
-  const container = document.getElementById('config-list');
-  const items = Object.entries(cfg);
-  if (items.length === 0) {
-    container.innerHTML = emptyState('Nenhuma configuração encontrada');
-    return;
-  }
-
-  container.innerHTML = items.map(([chave, item]) => `
-    <div class="config-item">
-      <div>
-        <div class="config-chave">${chave}</div>
-        <div class="config-descricao">${item.descricao || ''}</div>
-        <input class="config-input" type="text"
-               id="config-${chave}"
-               value="${escapar(item.valor)}"
-               data-original="${escapar(item.valor)}">
-      </div>
-      <button class="btn-salvar-config" data-chave="${chave}">Salvar</button>
-    </div>
-  `).join('');
-
-  container.querySelectorAll('.btn-salvar-config').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const chave = btn.dataset.chave;
-      const valor = document.getElementById(`config-${chave}`).value;
-      try {
-        await apiFetch(`/api/admin/config/${chave}`, 'PATCH', { valor });
-        btn.textContent = '✓ Salvo';
-        btn.classList.add('saved');
-        setTimeout(() => { btn.textContent = 'Salvar'; btn.classList.remove('saved'); }, 2000);
-      } catch { showToast('Erro ao salvar configuração', 'error'); }
-    });
-  });
-}
-
-// ── CARD DE ENTRADA ───────────────────────────────────────────────────────────
-function cardEntrada(e, tipo) {
-  const foto = e.foto_url
-    ? `<img class="entrada-foto" src="${e.foto_url}" alt="${e.nick}" loading="lazy">`
-    : `<div class="entrada-foto-placeholder">${e.nick.charAt(0).toUpperCase()}</div>`;
-
-  const oculta  = !e.no_ranking && !e.pendente;
-  const classes = `entrada-card ${oculta ? 'oculta' : ''} ${e.pendente ? 'pendente-card' : ''}`;
-
-  let acoes = '';
-  if (tipo === 'feed') {
-    acoes = e.no_ranking
-      ? `<button class="btn-action btn-ocultar" data-id="${e.id}">Ocultar</button>`
-      : `<button class="btn-action btn-reativar" data-id="${e.id}">Reativar</button>`;
-  } else if (tipo === 'pendente') {
-    acoes = `
-      <button class="btn-action btn-aprovar"  data-id="${e.id}">Aprovar</button>
-      <button class="btn-action btn-rejeitar" data-id="${e.id}">Rejeitar</button>
-    `;
-  }
-
-  const status = e.pendente
-    ? '<span class="badge badge-pending">pendente</span>'
-    : (!e.no_ranking ? '<span class="badge badge-error">oculto</span>' : '');
-
-  return `
-    <div class="${classes}" data-id="${e.id}">
-      ${foto}
-      <div class="entrada-info">
-        <div class="entrada-nick">${escapar(e.nick)} ${status}</div>
-        <div class="entrada-meta">
-          <span>${e.jogo_nome || ''}</span>
-          <span class="entrada-score">${(e.pontuacao || 0).toLocaleString('pt-BR')} pts</span>
-          <span>${tempoRelativo(e.criado_em)}</span>
-        </div>
-      </div>
-      <div class="entrada-actions">${acoes}</div>
-    </div>
-  `;
-}
-
-function bindCardActions(container, tipo) {
-  if (tipo === 'feed') {
-    container.querySelectorAll('.btn-ocultar').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        await moderarEntrada(btn.dataset.id, false);
-      });
-    });
-    container.querySelectorAll('.btn-reativar').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        await moderarEntrada(btn.dataset.id, true);
-      });
-    });
-  } else if (tipo === 'pendente') {
-    container.querySelectorAll('.btn-aprovar').forEach(btn => {
-      btn.addEventListener('click', async () => await resolverPendente(btn.dataset.id, true));
-    });
-    container.querySelectorAll('.btn-rejeitar').forEach(btn => {
-      btn.addEventListener('click', async () => await resolverPendente(btn.dataset.id, false));
-    });
-  }
-}
-
-async function moderarEntrada(id, noRanking) {
-  try {
-    await apiFetch(`/api/admin/entradas/${id}`, 'PATCH', { no_ranking: noRanking });
-    showToast(noRanking ? 'Entrada reativada' : 'Entrada ocultada', 'success');
-    carregarFeed();
-  } catch { showToast('Erro ao moderar entrada', 'error'); }
-}
-
-async function resolverPendente(id, aprovar) {
-  try {
-    await apiFetch(`/api/admin/entradas/${id}/pendente`, 'PATCH', { aprovar });
-    showToast(aprovar ? 'Entrada aprovada!' : 'Entrada rejeitada', aprovar ? 'success' : 'error');
-    carregarPendentes();
-    carregarFeed();
-  } catch { showToast('Erro ao resolver pendente', 'error'); }
-}
-
-// ── HELPERS ───────────────────────────────────────────────────────────────────
-async function apiFetch(path, method = 'GET', body = null) {
-  const opts = {
-    method,
-    headers: {
-      'Authorization': `Bearer ${adminSecret}`,
-      'Content-Type': 'application/json',
-    },
-  };
-  if (body) opts.body = JSON.stringify(body);
-  return fetch(`${API_URL}${path}`, opts);
-}
-
-function atualizarBadge(tab, count) {
-  const badge = document.getElementById(`badge-${tab}`);
-  if (count > 0) {
-    badge.textContent = count > 99 ? '99+' : count;
-    badge.style.display = 'flex';
-  } else {
-    badge.style.display = 'none';
-  }
-}
-
-function emptyState(msg) {
-  return `<div class="empty-admin">
-    <div class="empty-admin-icon">👾</div>
-    <div class="empty-admin-text">${msg}</div>
-  </div>`;
-}
-
-function tempoRelativo(iso) {
-  if (!iso) return '';
-  const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 60000)   return 'agora mesmo';
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}min atrás`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h atrás`;
-  return `${Math.floor(diff / 86400000)}d atrás`;
-}
-
-function escapar(str = '') {
-  return String(str)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-}
-
-function showToast(msg, tipo = 'success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `toast ${tipo} show`;
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove('show'), 3000);
-}
-</script>
-</body>
-</html>
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, UUID4
+from middleware.auth import require_admin
+from utils.db import get_pool
+from services.sse import broker
+import repositories.entrada as entrada_repo
+import repositories.jogo as jogo_repo
+import structlog
+
+log = structlog.get_logger()
+
+router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+# ── SCHEMAS ───────────────────────────────────────────────────────────────────
+
+class AtualizarVisibilidade(BaseModel):
+    no_ranking: bool
+
+class ResolverPendente(BaseModel):
+    aprovar: bool
+
+class CriarJogo(BaseModel):
+    nome: str
+    slug: str
+    score_max: int | None = None
+
+class AtualizarJogo(BaseModel):
+    ativo: bool | None = None
+    score_max: int | None = None
+
+
+# ── FEED ──────────────────────────────────────────────────────────────────────
+
+@router.get("/feed")
+async def feed_entradas(
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
+    pool=Depends(get_pool),
+    _: str = Depends(require_admin),
+):
+    """Feed de todas as entradas recentes, incluindo ocultas e pendentes."""
+    return await entrada_repo.listar_feed_admin(pool, limit=limit, offset=offset)
+
+
+@router.get("/pendentes")
+async def listar_pendentes(
+    pool=Depends(get_pool),
+    _: str = Depends(require_admin),
+):
+    """Entradas aguardando decisão do moderador (vieram pelo rate limit)."""
+    return await entrada_repo.listar_pendentes(pool)
+
+
+# ── MODERAÇÃO DE ENTRADAS ─────────────────────────────────────────────────────
+
+@router.patch("/entradas/{entrada_id}")
+async def moderar_entrada(
+    entrada_id: UUID4,
+    body: AtualizarVisibilidade,
+    pool=Depends(get_pool),
+    moderador: str = Depends(require_admin),
+):
+    """
+    Oculta (no_ranking=false) ou reativa (no_ranking=true) uma entrada.
+    A foto nunca é deletada — evidência sempre preservada.
+    Emite evento SSE para os clientes do ranking.
+    """
+    entrada = await entrada_repo.atualizar_visibilidade(
+        pool, str(entrada_id), body.no_ranking, moderador
+    )
+    if not entrada:
+        raise HTTPException(status_code=404, detail="Entrada não encontrada")
+
+    # Busca o slug para o SSE
+    row = await pool.fetchrow("SELECT slug FROM jogos WHERE id = $1", entrada["jogo_id"])
+    slug = row["slug"] if row else str(entrada["jogo_id"])
+
+    if body.no_ranking:
+        await broker.publish(slug, "reativar", {
+            "id": str(entrada_id),
+            "entrada": {
+                "id":        str(entrada["id"]),
+                "nick":      entrada["nick"],
+                "pontuacao": entrada["pontuacao"],
+                "foto_url":  entrada["foto_url"],
+            }
+        })
+    else:
+        await broker.publish(slug, "ocultar", {"id": str(entrada_id)})
+
+    log.info(
+        "moderacao",
+        entrada_id=str(entrada_id),
+        no_ranking=body.no_ranking,
+        moderador=moderador,
+    )
+
+    return entrada
+
+
+@router.patch("/entradas/{entrada_id}/pendente")
+async def resolver_pendente(
+    entrada_id: UUID4,
+    body: ResolverPendente,
+    pool=Depends(get_pool),
+    moderador: str = Depends(require_admin),
+):
+    """
+    Resolve uma entrada pendente:
+    - aprovar=true  → pendente=false, no_ranking=true  (aparece no ranking)
+    - aprovar=false → pendente=false, no_ranking=false (fica oculta)
+    """
+    entrada = await entrada_repo.resolver_pendente(
+        pool, str(entrada_id), body.aprovar, moderador
+    )
+    if not entrada:
+        raise HTTPException(
+            status_code=404,
+            detail="Entrada não encontrada ou não está pendente",
+        )
+
+    if body.aprovar:
+        row = await pool.fetchrow("SELECT slug FROM jogos WHERE id = $1", entrada["jogo_id"])
+        slug = row["slug"] if row else str(entrada["jogo_id"])
+        await broker.publish(slug, "novo_registro", {
+            "id":        str(entrada["id"]),
+            "nick":      entrada["nick"],
+            "pontuacao": entrada["pontuacao"],
+            "foto_url":  entrada["foto_url"],
+            "criado_em": str(entrada["criado_em"]),
+        })
+
+    log.info(
+        "pendente_resolvido",
+        entrada_id=str(entrada_id),
+        aprovado=body.aprovar,
+        moderador=moderador,
+    )
+
+    return entrada
+
+
+# ── GESTÃO DE JOGOS ───────────────────────────────────────────────────────────
+
+@router.post("/jogos", status_code=201)
+async def criar_jogo(
+    body: CriarJogo,
+    pool=Depends(get_pool),
+    _: str = Depends(require_admin),
+):
+    """Cria um novo jogo para o evento."""
+    try:
+        return await jogo_repo.criar(pool, body.nome, body.slug, body.score_max)
+    except Exception as exc:
+        if "unique" in str(exc).lower():
+            raise HTTPException(status_code=409, detail=f"Slug '{body.slug}' já existe")
+        raise HTTPException(status_code=500, detail="Erro ao criar jogo")
+
+
+@router.patch("/jogos/{jogo_id}")
+async def atualizar_jogo(
+    jogo_id: UUID4,
+    body: AtualizarJogo,
+    pool=Depends(get_pool),
+    _: str = Depends(require_admin),
+):
+    """Ativa/desativa um jogo ou atualiza seu score_max."""
+    jogo = await jogo_repo.atualizar(pool, str(jogo_id), body.ativo, body.score_max)
+    if not jogo:
+        raise HTTPException(status_code=404, detail="Jogo não encontrado ou nada para atualizar")
+    return jogo
+
+@router.get("/jogos-todos")
+async def listar_jogos_todos(
+    pool=Depends(get_pool),
+    _: str = Depends(require_admin),
+):
+    """Lista todos os jogos incluindo inativos — para o painel admin."""
+    return await jogo_repo.listar_todos(pool)
+
+
+# ── CONFIGURAÇÃO DO EVENTO ────────────────────────────────────────────────────
+
+import repositories.evento_config as config_repo
+
+class AtualizarConfig(BaseModel):
+    valor: str
+
+@router.get("/config")
+async def listar_config(
+    pool=Depends(get_pool),
+    _: str = Depends(require_admin),
+):
+    """Lista todas as configurações do evento."""
+    return await config_repo.listar(pool)
+
+
+@router.patch("/config/{chave}")
+async def atualizar_config(
+    chave: str,
+    body: AtualizarConfig,
+    pool=Depends(get_pool),
+    _: str = Depends(require_admin),
+):
+    """Atualiza uma configuração pelo nome da chave."""
+    cfg = await config_repo.atualizar(pool, chave, body.valor)
+    if not cfg:
+        raise HTTPException(status_code=404, detail=f"Configuração '{chave}' não encontrada")
+    return cfg
