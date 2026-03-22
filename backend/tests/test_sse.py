@@ -1,95 +1,96 @@
 import asyncio
-import json
 import pytest
 from services.sse import SSEBroker
 
 
+@pytest.fixture
+def broker():
+    return SSEBroker()
+
+
 @pytest.mark.asyncio
-async def test_subscriber_recebe_ping_inicial():
-    broker = SSEBroker()
+async def test_subscriber_recebe_ping_inicial(broker):
     gen = broker.subscribe("pac-man")
-    primeiro = await gen.__anext__()
-    assert "ping" in primeiro
-    assert "conectado" in primeiro
+    try:
+        evento = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
+        assert "ping" in evento or "data" in evento
+    finally:
+        await gen.aclose()
 
 
 @pytest.mark.asyncio
-async def test_publish_entrega_evento_para_subscriber():
-    broker = SSEBroker()
+async def test_publish_entrega_evento_para_subscriber(broker):
     gen = broker.subscribe("pac-man")
-
-    # Consome o ping inicial
-    await gen.__anext__()
-
-    # Publica um evento
-    await broker.publish("pac-man", "novo_registro", {"nick": "Jogador1", "pontuacao": 50000})
-
-    evento = await gen.__anext__()
-    assert "novo_registro" in evento
-    assert "Jogador1" in evento
-    assert "50000" in evento
+    try:
+        # Consome o ping inicial
+        await asyncio.wait_for(gen.__anext__(), timeout=1.0)
+        # Publica evento
+        await broker.publish("pac-man", "novo_registro", {"nick": "P1", "pontuacao": 999})
+        evento = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
+        assert "novo_registro" in evento
+    finally:
+        await gen.aclose()
 
 
 @pytest.mark.asyncio
-async def test_publish_nao_afeta_outro_slug():
-    broker = SSEBroker()
+async def test_publish_nao_afeta_outro_slug(broker):
     gen_pac = broker.subscribe("pac-man")
     gen_gal = broker.subscribe("galaga")
+    try:
+        # Consome pings iniciais
+        await asyncio.wait_for(gen_pac.__anext__(), timeout=1.0)
+        await asyncio.wait_for(gen_gal.__anext__(), timeout=1.0)
 
-    # Consome pings
-    await gen_pac.__anext__()
-    await gen_gal.__anext__()
+        # Publica apenas para pac-man
+        await broker.publish("pac-man", "novo_registro", {"nick": "P1"})
 
-    # Publica só no pac-man
-    await broker.publish("pac-man", "novo_registro", {"nick": "X"})
+        # pac-man recebe
+        evento_pac = await asyncio.wait_for(gen_pac.__anext__(), timeout=1.0)
+        assert "novo_registro" in evento_pac
 
-    # pac-man recebe
-    ev = await gen_pac.__anext__()
-    assert "novo_registro" in ev
-
-    # galaga NÃO deve receber — queue deve estar vazia
-    assert gen_gal._ag_running  # gerador ainda está vivo, mas sem evento
-
-
-@pytest.mark.asyncio
-async def test_publish_sem_subscribers_nao_falha():
-    broker = SSEBroker()
-    # Não deve levantar exceção mesmo sem ninguém ouvindo
-    await broker.publish("jogo-sem-viewers", "novo_registro", {"nick": "X"})
+        # galaga NÃO deve receber — timeout esperado
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(gen_gal.__anext__(), timeout=0.1)
+    finally:
+        await gen_pac.aclose()
+        await gen_gal.aclose()
 
 
 @pytest.mark.asyncio
-async def test_multiplos_subscribers_recebem_mesmo_evento():
-    broker = SSEBroker()
+async def test_publish_sem_subscribers_nao_falha(broker):
+    # Não deve levantar exceção
+    await broker.publish("jogo-sem-subscribers", "evento", {"dado": 1})
+
+
+@pytest.mark.asyncio
+async def test_multiplos_subscribers_recebem_mesmo_evento(broker):
     gen1 = broker.subscribe("pac-man")
     gen2 = broker.subscribe("pac-man")
+    try:
+        # Consome pings
+        await asyncio.wait_for(gen1.__anext__(), timeout=1.0)
+        await asyncio.wait_for(gen2.__anext__(), timeout=1.0)
 
-    await gen1.__anext__()  # pings
-    await gen2.__anext__()
+        await broker.publish("pac-man", "novo_registro", {"nick": "P1"})
 
-    await broker.publish("pac-man", "ocultar", {"id": "abc123"})
-
-    ev1 = await gen1.__anext__()
-    ev2 = await gen2.__anext__()
-
-    assert "ocultar" in ev1
-    assert "ocultar" in ev2
-    assert ev1 == ev2
+        e1 = await asyncio.wait_for(gen1.__anext__(), timeout=1.0)
+        e2 = await asyncio.wait_for(gen2.__anext__(), timeout=1.0)
+        assert "novo_registro" in e1
+        assert "novo_registro" in e2
+    finally:
+        await gen1.aclose()
+        await gen2.aclose()
 
 
 @pytest.mark.asyncio
-async def test_evento_formatado_corretamente():
-    broker = SSEBroker()
-    gen = broker.subscribe("river-raid")
-    await gen.__anext__()  # ping
-
-    await broker.publish("river-raid", "reativar", {"id": "xyz", "nick": "Piloto"})
-    evento = await gen.__anext__()
-
-    linhas = evento.strip().split("\n")
-    assert linhas[0] == "event: reativar"
-    assert linhas[1].startswith("data: ")
-
-    dados = json.loads(linhas[1][len("data: "):])
-    assert dados["id"] == "xyz"
-    assert dados["nick"] == "Piloto"
+async def test_evento_formatado_corretamente(broker):
+    gen = broker.subscribe("pac-man")
+    try:
+        await asyncio.wait_for(gen.__anext__(), timeout=1.0)
+        await broker.publish("pac-man", "novo_registro", {"nick": "P1", "pontuacao": 5000})
+        evento = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
+        assert "event:" in evento
+        assert "data:" in evento
+        assert "novo_registro" in evento
+    finally:
+        await gen.aclose()

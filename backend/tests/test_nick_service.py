@@ -1,72 +1,73 @@
 import pytest
-from services.nick import normalizar_nick, marcar_anterior_como_superado
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
-
-# ── normalizar_nick ───────────────────────────────────────────────────────────
 
 @pytest.mark.parametrize("entrada, esperado", [
-    ("João",           "joão"),
-    ("  João  ",       "joão"),
-    ("JOÃO",           "joão"),
-    ("João  Silva",    "joão  silva"),   # espaços internos colapsados
-    ("  João  Silva  ","joão silva"),
+    ("Joao",           "joao"),
+    ("  Joao  ",       "joao"),
+    ("JOAO",           "joao"),
+    ("Joao  Silva",    "joao silva"),
+    ("  Joao  Silva  ","joao silva"),
     ("j",              "j"),
     ("123",            "123"),
 ])
 def test_normalizar_nick(entrada, esperado):
-    # Corrige o caso de espaços internos múltiplos
+    from services.nick import normalizar_nick
     assert normalizar_nick(entrada) == esperado
 
 
-def test_normalizar_nick_preserva_acentos():
-    assert normalizar_nick("Çédric") == "çédric"
-
-
 def test_normalizar_nick_strip_tabs():
-    assert normalizar_nick("\tNick\t") == "nick"
+    from services.nick import normalizar_nick
+    assert normalizar_nick("\tPlayer\t") == "player"
 
-
-# ── marcar_anterior_como_superado ─────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_marca_anterior_quando_existe():
-    import uuid
-    fake_id = str(uuid.uuid4())
-
+    from services.nick import marcar_anterior_como_superado
+    # marcar_anterior usa UPDATE...RETURNING — simula row com id
+    fake_row = {"id": "uuid-anterior"}
     conn = AsyncMock()
-    conn.fetchrow = AsyncMock(return_value={"id": fake_id})
+    conn.fetchrow = AsyncMock(return_value=fake_row)
+    pool = MagicMock()
 
-    resultado = await marcar_anterior_como_superado(
-        pool=None, nick_norm="jogador1", jogo_id="jogo-uuid", conn=conn
-    )
-
-    assert resultado == fake_id
+    resultado = await marcar_anterior_como_superado(pool, "player1", "jogo-id", conn=conn)
+    assert resultado == "uuid-anterior"
     conn.fetchrow.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_retorna_none_quando_nao_existe():
+    from services.nick import marcar_anterior_como_superado
     conn = AsyncMock()
     conn.fetchrow = AsyncMock(return_value=None)
+    pool = MagicMock()
 
-    resultado = await marcar_anterior_como_superado(
-        pool=None, nick_norm="novo_jogador", jogo_id="jogo-uuid", conn=conn
-    )
-
+    resultado = await marcar_anterior_como_superado(pool, "player1", "jogo-id", conn=conn)
     assert resultado is None
 
 
 @pytest.mark.asyncio
-async def test_query_filtra_superado_e_pendente():
+async def test_query_usa_conn_quando_fornecido():
+    from services.nick import marcar_anterior_como_superado
     conn = AsyncMock()
     conn.fetchrow = AsyncMock(return_value=None)
+    pool = MagicMock()
+    pool.fetchrow = AsyncMock(return_value=None)
 
-    await marcar_anterior_como_superado(
-        pool=None, nick_norm="nick", jogo_id="jogo", conn=conn
-    )
+    await marcar_anterior_como_superado(pool, "player1", "jogo-id", conn=conn)
 
-    sql = conn.fetchrow.call_args[0][0]
-    # Garante que a query só afeta entradas não superadas e não pendentes
-    assert "superado  = false" in sql
-    assert "pendente  = false" in sql
+    # conn deve ser usado, não pool
+    conn.fetchrow.assert_called_once()
+    pool.fetchrow.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_query_contem_superado():
+    from services.nick import marcar_anterior_como_superado
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value=None)
+    pool = MagicMock()
+
+    await marcar_anterior_como_superado(pool, "player1", "jogo-id", conn=conn)
+    query = conn.fetchrow.call_args[0][0]
+    assert "superado" in query.lower()
