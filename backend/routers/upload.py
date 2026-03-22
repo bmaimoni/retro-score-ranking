@@ -105,7 +105,8 @@ async def upload(
 
     # ── 6. Notifica SSE se visível imediatamente ──────────────────────────────
     if not pendente:
-        jogo = await jogo_repo.buscar_por_slug(pool, _slug_from_id(pool, str(jogo_id)))
+        slug = await _slug_from_id(pool, str(jogo_id))
+        jogo = await jogo_repo.buscar_por_slug(pool, slug)
         slug = jogo["slug"] if jogo else str(jogo_id)
         await broker.publish(slug, "novo_registro", {
             "id":        str(entrada["id"]),
