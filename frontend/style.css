@@ -1,5 +1,5 @@
 /* ============================================================
-   RETRO SCORE RANKING — Design Tokens
+   RETRO SCORE RANKING — Design Tokens — Canal3
    ============================================================
    COMO CUSTOMIZAR:
    Troque qualquer valor abaixo para mudar o visual do app.
@@ -15,59 +15,73 @@
 
 /* ── 1. CORES ──────────────────────────────────────────────── */
 :root {
-  /* Fundo */
-  --color-bg:           #0a0a0f;   /* fundo principal da página */
-  --color-bg-surface:   #13131f;   /* cards, painéis */
-  --color-bg-surface2:  #1e1e30;   /* inputs, campos */
-  --color-bg-overlay:   rgba(10, 10, 15, 0.85); /* overlays */
+  /* ── Paleta Canal3 ──────────────────────────────────────── */
+  --canal3-navy:    #0b1331;   /* azul marinho escuro */
+  --canal3-indigo:  #1e184e;   /* índigo médio */
+  --canal3-purple:  #5e2b82;   /* roxo vivo */
+  --canal3-green:   #5fbb50;   /* verde claro */
+  --canal3-forest:  #1c8542;   /* verde floresta */
+  --canal3-aqua:    #72cddd;   /* azul-água */
 
-  /* Cores de destaque (néon retrô) */
-  --color-primary:      #fc3f6e;   /* cor principal — botões, destaques */
-  --color-primary-glow: rgba(252, 63, 110, 0.25);
-  --color-secondary:    #3ff0c8;   /* cor secundária — acentos, bordas ativas */
-  --color-secondary-glow: rgba(63, 240, 200, 0.2);
-  --color-accent:       #ffe642;   /* amarelo arcade — pontuações, ouro */
-  --color-accent-glow:  rgba(255, 230, 66, 0.2);
+  /* ── Fundo ───────────────────────────────────────────────── */
+  --color-bg:           var(--canal3-navy);
+  --color-bg-surface:   var(--canal3-indigo);
+  --color-bg-surface2:  #141038;   /* entre navy e indigo, para inputs */
+  --color-bg-overlay:   rgba(11, 19, 49, 0.88);
 
-  /* Pódio */
-  --color-gold:         #ffd700;
-  --color-silver:       #c0c0c0;
-  --color-bronze:       #cd7f32;
+  /* ── Cores de destaque ───────────────────────────────────── */
+  --color-primary:      var(--canal3-purple);
+  --color-primary-glow: rgba(94, 43, 130, 0.30);
 
-  /* Texto */
-  --color-text:         #f0f0ff;   /* texto principal */
-  --color-text-muted:   #7070aa;   /* texto secundário, labels */
-  --color-text-dim:     #404060;   /* texto desabilitado */
+  --color-secondary:    var(--canal3-green);
+  --color-secondary-glow: rgba(95, 187, 80, 0.22);
 
-  /* Bordas */
-  --color-border:       rgba(63, 240, 200, 0.15);
-  --color-border-hover: rgba(63, 240, 200, 0.4);
-  --color-border-active:var(--color-secondary);
+  --color-accent:       var(--canal3-aqua);
+  --color-accent-glow:  rgba(114, 205, 221, 0.22);
 
-  /* Estados */
-  --color-success:      #3ff0c8;
-  --color-warning:      #ffe642;
-  --color-error:        #fc3f6e;
-  --color-pending:      #b060ff;
+  /* ── Pódio (mantém ouro/prata/bronze universais) ─────────── */
+  --color-gold:   #ffd700;
+  --color-silver: #c0c0c0;
+  --color-bronze: #cd7f32;
+
+  /* ── Texto ───────────────────────────────────────────────── */
+  --color-text:       #f0f0ff;
+  --color-text-muted: #8888bb;
+  --color-text-dim:   #3a3a6a;
+
+  /* ── Bordas ──────────────────────────────────────────────── */
+  --color-border:        rgba(114, 205, 221, 0.14);
+  --color-border-hover:  rgba(114, 205, 221, 0.35);
+  --color-border-active: var(--canal3-aqua);
+
+  /* ── Estados semânticos ──────────────────────────────────── */
+  --color-success: var(--canal3-green);
+  --color-warning: #f0c040;
+  --color-error:   #f04060;
+  --color-pending: var(--canal3-purple);
 }
 
 /* ── 2. TIPOGRAFIA ─────────────────────────────────────────── */
 :root {
-  /* Fontes — troque aqui para mudar a família inteira */
-  --font-display:  'Press Start 2P', monospace;  /* títulos, placar */
-  --font-body:     'Orbitron', sans-serif;        /* corpo, labels */
-  --font-mono:     'Share Tech Mono', monospace;  /* números, código */
+  /* Fontes Canal3
+     - Press Start 2P : títulos arcade, placar
+     - Poppins         : corpo, labels, navegação
+     - Pixel Operator  : alternativa display retro
+     - Segoe UI        : fallback sistema Windows     */
+  --font-display: 'Press Start 2P', 'Pixel Operator', monospace;
+  --font-body:    'Poppins', 'Segoe UI', sans-serif;
+  --font-mono:    'Share Tech Mono', 'Courier New', monospace;
 
   /* Tamanhos */
-  --text-xs:    0.65rem;
-  --text-sm:    0.75rem;
-  --text-base:  0.875rem;
-  --text-md:    1rem;
-  --text-lg:    1.25rem;
-  --text-xl:    1.5rem;
-  --text-2xl:   2rem;
-  --text-3xl:   2.5rem;
-  --text-4xl:   3.5rem;
+  --text-xs:   0.65rem;
+  --text-sm:   0.75rem;
+  --text-base: 0.875rem;
+  --text-md:   1rem;
+  --text-lg:   1.25rem;
+  --text-xl:   1.5rem;
+  --text-2xl:  2rem;
+  --text-3xl:  2.5rem;
+  --text-4xl:  3.5rem;
 
   /* Pesos */
   --weight-normal: 400;
@@ -93,47 +107,42 @@
 
 /* ── 4. EFEITOS E ANIMAÇÕES ────────────────────────────────── */
 :root {
-  /* Velocidades de animação */
   --anim-fast:   0.15s;
   --anim-normal: 0.3s;
   --anim-slow:   0.6s;
 
-  /* Scanline — efeito de TV retro (coloque 0 para desativar) */
-  --scanline-opacity: 0.04;
+  /* Scanline — efeito TV retro (0 para desativar) */
+  --scanline-opacity: 0.035;
 
-  /* Brilho dos néons (coloque 0 para desativar todos os glows) */
+  /* Intensidade dos glows (0 para desativar todos) */
   --glow-intensity: 1;
 
-  /* Transição padrão */
   --transition: var(--anim-normal) ease;
 }
 
 /* ── 5. COMPONENTES ────────────────────────────────────────── */
 :root {
-  /* Card de jogador no ranking */
-  --card-height-mobile: auto;
-  --card-height-tv:     88px;
-  --card-gap:           12px;
+  --card-height-tv:   88px;
+  --card-gap:         12px;
 
-  /* Foto no card */
-  --photo-size-mobile:  56px;
-  --photo-size-tv:      64px;
+  --photo-size-mobile: 56px;
+  --photo-size-tv:     64px;
 
-  /* Tamanho do placar no ranking */
-  --score-size-mobile:  var(--text-lg);
-  --score-size-tv:      var(--text-2xl);
+  --score-size-mobile: var(--text-lg);
+  --score-size-tv:     var(--text-2xl);
 
-  /* Largura máxima do conteúdo */
-  --max-width-upload:   480px;
-  --max-width-ranking:  1400px;
+  --max-width-upload:  480px;
+  --max-width-ranking: 1400px;
 }
 
 /* ============================================================
-   BASE — reset e estilos globais
+   FONTES EXTERNAS
    ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Poppins:wght@400;600;700&family=Share+Tech+Mono&display=swap');
 
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
-
+/* ============================================================
+   BASE
+   ============================================================ */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -155,7 +164,7 @@ body {
   overflow-x: hidden;
 }
 
-/* Efeito scanline (TV retro) */
+/* Scanline retro */
 body::after {
   content: '';
   position: fixed;
@@ -171,26 +180,13 @@ body::after {
   z-index: 9999;
 }
 
-img {
-  display: block;
-  max-width: 100%;
-}
-
-button {
-  cursor: pointer;
-  font-family: var(--font-body);
-  border: none;
-  background: none;
-}
-
-input, select, textarea {
-  font-family: var(--font-body);
-}
+img   { display: block; max-width: 100%; }
+button { cursor: pointer; font-family: var(--font-body); border: none; background: none; }
+input, select, textarea { font-family: var(--font-body); }
 
 /* ============================================================
    UTILITÁRIOS
    ============================================================ */
-
 .visually-hidden {
   position: absolute;
   width: 1px; height: 1px;
@@ -201,7 +197,6 @@ input, select, textarea {
   border: 0;
 }
 
-/* ── Tipografia ── */
 .font-display { font-family: var(--font-display); }
 .font-mono    { font-family: var(--font-mono); }
 
@@ -210,32 +205,16 @@ input, select, textarea {
 .text-accent    { color: var(--color-accent); }
 .text-muted     { color: var(--color-text-muted); }
 
-/* ── Glow helpers ── */
 .glow-primary   { text-shadow: 0 0 20px var(--color-primary-glow); }
 .glow-secondary { text-shadow: 0 0 20px var(--color-secondary-glow); }
 .glow-accent    { text-shadow: 0 0 20px var(--color-accent-glow); }
 
 /* ── Animações ── */
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
-}
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.6; }
-}
-@keyframes newEntry {
-  0%   { background: rgba(63, 240, 200, 0.2); transform: scale(1.01); }
-  100% { background: transparent; transform: scale(1); }
-}
+@keyframes blink    { 0%,100%{opacity:1} 50%{opacity:0} }
+@keyframes slideUp  { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeIn   { from{opacity:0} to{opacity:1} }
+@keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:0.5} }
+@keyframes newEntry { 0%{background:rgba(95,187,80,0.18);transform:scale(1.01)} 100%{background:transparent;transform:scale(1)} }
 
 .animate-slide-up { animation: slideUp var(--anim-slow) ease both; }
 .animate-fade-in  { animation: fadeIn var(--anim-normal) ease both; }
@@ -250,14 +229,14 @@ input, select, textarea {
   font-family: var(--font-body);
   font-size: var(--text-base);
   font-weight: var(--weight-bold);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   border-radius: var(--radius-md);
-  transition: all var(--transition);
   border: var(--border-width) solid transparent;
+  transition: all var(--transition);
 }
 .btn-primary:hover {
-  filter: brightness(1.15);
+  filter: brightness(1.2);
   box-shadow: 0 0 24px calc(var(--glow-intensity) * 1px) var(--color-primary-glow);
 }
 .btn-primary:active { transform: scale(0.98); }
@@ -279,7 +258,7 @@ input, select, textarea {
   font-family: var(--font-body);
   font-size: var(--text-base);
   font-weight: var(--weight-bold);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   border-radius: var(--radius-md);
   border: var(--border-width) solid var(--color-secondary);
@@ -298,7 +277,6 @@ input, select, textarea {
   gap: var(--space-xs);
   margin-bottom: var(--space-md);
 }
-
 .field-label {
   font-size: var(--text-xs);
   font-weight: var(--weight-bold);
@@ -306,7 +284,6 @@ input, select, textarea {
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
-
 .field-input {
   width: 100%;
   padding: var(--space-md);
@@ -323,12 +300,12 @@ input, select, textarea {
 .field-input::placeholder { color: var(--color-text-dim); }
 .field-input:focus {
   border-color: var(--color-border-active);
-  box-shadow: 0 0 0 3px var(--color-secondary-glow);
+  box-shadow: 0 0 0 3px rgba(114, 205, 221, 0.15);
 }
 .field-input.error { border-color: var(--color-error); }
 
 select.field-input {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237070aa' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238888bb' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 36px;
@@ -347,9 +324,9 @@ select.field-input option { background: var(--color-bg-surface); }
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
-.badge-success { background: rgba(63,240,200,0.15); color: var(--color-success); border: 1px solid rgba(63,240,200,0.3); }
-.badge-pending { background: rgba(176,96,255,0.15); color: var(--color-pending); border: 1px solid rgba(176,96,255,0.3); }
-.badge-error   { background: rgba(252,63,110,0.15);  color: var(--color-error);   border: 1px solid rgba(252,63,110,0.3); }
+.badge-success { background: rgba(95,187,80,0.15);  color: var(--color-success); border: 1px solid rgba(95,187,80,0.3); }
+.badge-pending { background: rgba(94,43,130,0.20);  color: #c090ff;              border: 1px solid rgba(94,43,130,0.4); }
+.badge-error   { background: rgba(240,64,96,0.15);  color: var(--color-error);   border: 1px solid rgba(240,64,96,0.3); }
 
 /* ── Toast ── */
 .toast {
@@ -370,14 +347,11 @@ select.field-input option { background: var(--color-bg-surface); }
   z-index: 1000;
   pointer-events: none;
 }
-.toast.show {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
+.toast.show    { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.success { border-color: var(--color-success); color: var(--color-success); }
 .toast.error   { border-color: var(--color-error);   color: var(--color-error); }
 
-/* ── Indicador de conexão SSE ── */
+/* ── Indicador SSE ── */
 .connection-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
