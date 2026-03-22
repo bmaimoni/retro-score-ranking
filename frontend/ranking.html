@@ -397,7 +397,13 @@ async function carregarJogos() {
     if (!resp.ok) throw new Error();
     const jogos = await resp.json();
     renderTabs(jogos);
-    if (jogos.length > 0) selecionarJogo(jogos[0]);
+    // Se vier com ?jogo=slug na URL, abre esse jogo direto
+    const params  = new URLSearchParams(window.location.search);
+    const slugUrl = params.get('jogo');
+    const inicial = slugUrl
+      ? jogos.find(j => j.slug === slugUrl) || jogos[0]
+      : jogos[0];
+    if (inicial) selecionarJogo(inicial);
   } catch {
     document.getElementById('game-tabs').innerHTML =
       '<span class="meta-label" style="color:var(--color-error)">Erro ao carregar jogos</span>';
