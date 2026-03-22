@@ -689,6 +689,7 @@ function renderPendentes(lista) {
 
 // ── JOGOS ─────────────────────────────────────────────────────────────────────
 async function carregarJogos() {
+  jogosCarregados = true;
   try {
     const resp = await apiFetch('/api/admin/jogos-todos');
     if (!resp.ok) {
@@ -774,6 +775,7 @@ document.getElementById('criar-jogo-btn').addEventListener('click', async () => 
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 async function carregarConfig() {
+  configCarregada = true;
   try {
     const resp = await apiFetch('/api/admin/config');
     const cfg  = await resp.json();
@@ -815,7 +817,6 @@ function renderConfig(cfg) {
       } catch { showToast('Erro ao salvar configuração', 'error'); }
     });
   });
-  configCarregada = true;
 }
 
 // ── CARD DE ENTRADA ───────────────────────────────────────────────────────────
