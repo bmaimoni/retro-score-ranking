@@ -100,7 +100,7 @@ async def upload(
                 status_code=409,
                 detail="Outro envio deste nick está sendo processado. Tente em instantes.",
             )
-        log.error("upload_db_error", error=str(exc))
+        log.error("upload_db_error", error=str(exc), error_type=type(exc).__name__, error_repr=repr(exc))
         raise HTTPException(status_code=500, detail="Erro interno ao salvar entrada")
 
     # ── 6. Notifica SSE se visível imediatamente ──────────────────────────────
