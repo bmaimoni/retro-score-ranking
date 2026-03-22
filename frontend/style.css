@@ -365,7 +365,7 @@ select.field-input option { background: var(--color-bg-surface); }
 
 /* ── Logo ── */
 .site-logo {
-  height: 48px;        /* altura do logo — ajuste aqui */
+  height: 96px;        /* altura do logo — ajuste aqui */
   width: auto;
   object-fit: contain;
   display: block;
@@ -374,6 +374,6 @@ select.field-input option { background: var(--color-bg-surface); }
 
 /* Logo maior no ranking (TV/monitor) */
 .ranking-title .site-logo {
-  height: 56px;
+  height: 112px;
   margin: 0 auto var(--space-sm);
 }
