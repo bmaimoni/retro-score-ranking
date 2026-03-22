@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#0a0a0f">
-  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Retro Score — Envie sua pontuação</title>
   <link rel="stylesheet" href="style.css">
@@ -240,9 +240,8 @@
 
   <!-- Cabeçalho -->
   <header class="upload-header animate-slide-up">
-    <img src="logo-principal.png" alt="Canal3" class="site-logo">
-    <h1>INSERT COIN</h1>
-    <p>Fotografe seu placar e entre no ranking</p>
+    <h1 id="upload-titulo">INSERT COIN</h1>
+    <p id="upload-subtitulo">Fotografe seu placar e entre no ranking</p>
   </header>
 
   <!-- Formulário de upload -->
@@ -309,7 +308,7 @@
   <!-- Estado de sucesso (oculto até o envio) -->
   <div class="success-state" id="success-state">
     <div class="success-icon">🏆</div>
-    <h2 class="success-title">PONTUAÇÃO<br>REGISTRADA!</h2>
+    <h2 class="success-title" id="success-title">PONTUAÇÃO REGISTRADA!</h2>
     <div class="success-score" id="success-score">000000</div>
     <p class="success-message" id="success-message">
       Você está no ranking! Acompanhe sua posição no telão.
@@ -340,6 +339,7 @@ let jogos    = [];
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  carregarConfig();
   carregarJogos();
   configurarFotoZone();
   configurarForm();
@@ -359,6 +359,33 @@ async function carregarJogos() {
     select.innerHTML = '<option value="">Erro ao carregar jogos</option>';
     showToast('Erro ao conectar com o servidor', 'error');
   }
+}
+
+// ── CONFIG DO EVENTO ─────────────────────────────────────────────────────────
+async function carregarConfig() {
+  try {
+    const resp = await fetch(`${API_URL}/api/jogos/config`);
+    if (!resp.ok) return;
+    const cfg = await resp.json();
+
+    // Aplica textos configuráveis
+    if (cfg.upload_titulo)
+      document.getElementById('upload-titulo').textContent = cfg.upload_titulo;
+    if (cfg.upload_subtitulo)
+      document.getElementById('upload-subtitulo').textContent = cfg.upload_subtitulo;
+    if (cfg.upload_botao)
+      document.getElementById('submit-btn').textContent = '▶ ' + cfg.upload_botao;
+    if (cfg.upload_sucesso)
+      document.getElementById('success-title').textContent = cfg.upload_sucesso;
+    if (cfg.evento_nome)
+      document.title = cfg.evento_nome + ' — Envie sua pontuação';
+
+    // Bloqueia envios se evento inativo
+    if (cfg.evento_ativo === 'false') {
+      document.getElementById('submit-btn').disabled = true;
+      document.getElementById('submit-btn').textContent = '⛔ ENVIOS ENCERRADOS';
+    }
+  } catch { /* silencioso — usa textos padrão */ }
 }
 
 // ── FOTO ──────────────────────────────────────────────────────────────────────

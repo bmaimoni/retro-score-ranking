@@ -532,7 +532,9 @@
 <script>
 // ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
 const API_URL = 'https://retro-score-ranking-production.up.railway.app';
-const POLL_INTERVAL = 10000; // 10 segundos
+const POLL_INTERVAL = 15000; // 15 segundos
+let jogosCarregados = false;
+let configCarregada = false;
 
 // ── ESTADO ────────────────────────────────────────────────────────────────────
 let adminSecret = '';
@@ -604,7 +606,11 @@ function mostrarPainel() {
 async function carregarTudo() {
   const dot = document.getElementById('polling-dot');
   dot.style.background = 'var(--color-accent)';
-  await Promise.all([carregarFeed(), carregarPendentes(), carregarJogos(), carregarConfig()]);
+  // Feed e pendentes sempre atualizam — mudam durante o evento
+  await Promise.all([carregarFeed(), carregarPendentes()]);
+  // Jogos e config só carregam uma vez — raramente mudam
+  if (!jogosCarregados) await carregarJogos();
+  if (!configCarregada) await carregarConfig();
   setTimeout(() => dot.style.background = 'var(--color-text-dim)', 500);
 }
 
@@ -761,6 +767,7 @@ document.getElementById('criar-jogo-btn').addEventListener('click', async () => 
     document.getElementById('jogo-slug').value = '';
     document.getElementById('jogo-score-max').value = '';
     showToast(`Jogo "${nome}" criado!`, 'success');
+    jogosCarregados = false;
     carregarJogos();
   } catch { showToast('Erro ao criar jogo', 'error'); }
 });
@@ -808,6 +815,7 @@ function renderConfig(cfg) {
       } catch { showToast('Erro ao salvar configuração', 'error'); }
     });
   });
+  configCarregada = true;
 }
 
 // ── CARD DE ENTRADA ───────────────────────────────────────────────────────────
