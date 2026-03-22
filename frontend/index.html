@@ -7,6 +7,10 @@
   <meta name="theme-color" content="#0b1331">
   <title>Retro Score — Envie sua pontuação</title>
   <link rel="stylesheet" href="style.css">
+  <!-- Pré-carrega fontes principais para evitar flash e atraso -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Poppins:wght@400;600;700&family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap">
   <style>
     /* ── Página ── */
     .upload-page {
@@ -285,9 +289,33 @@
   </div>
 
   <div class="jogos-lista" id="jogos-lista">
-    <div class="loading-jogos">
-      <span class="loading-blink">▋</span>
-      <span>Carregando jogos...</span>
+    <!-- Skeleton — substituto visual enquanto a API responde -->
+    <div class="jogo-card" style="pointer-events:none;opacity:0.4">
+      <div class="jogo-header">
+        <span class="jogo-icone" style="background:var(--color-bg-surface2);border-radius:6px;width:32px;height:32px;display:block"></span>
+        <div class="jogo-info">
+          <div style="background:var(--color-bg-surface2);height:16px;width:120px;border-radius:4px;margin-bottom:8px"></div>
+          <div style="background:var(--color-bg-surface2);height:12px;width:80px;border-radius:4px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="jogo-card" style="pointer-events:none;opacity:0.3">
+      <div class="jogo-header">
+        <span class="jogo-icone" style="background:var(--color-bg-surface2);border-radius:6px;width:32px;height:32px;display:block"></span>
+        <div class="jogo-info">
+          <div style="background:var(--color-bg-surface2);height:16px;width:100px;border-radius:4px;margin-bottom:8px"></div>
+          <div style="background:var(--color-bg-surface2);height:12px;width:60px;border-radius:4px"></div>
+        </div>
+      </div>
+    </div>
+    <div class="jogo-card" style="pointer-events:none;opacity:0.2">
+      <div class="jogo-header">
+        <span class="jogo-icone" style="background:var(--color-bg-surface2);border-radius:6px;width:32px;height:32px;display:block"></span>
+        <div class="jogo-info">
+          <div style="background:var(--color-bg-surface2);height:16px;width:140px;border-radius:4px;margin-bottom:8px"></div>
+          <div style="background:var(--color-bg-surface2);height:12px;width:90px;border-radius:4px"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -314,12 +342,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ── JOGOS + LÍDERES ───────────────────────────────────────────
 async function carregarJogos() {
   try {
-    const [rJogos, rLideres] = await Promise.all([
+    // Jogos são obrigatórios. Líderes são opcionais — falha silenciosa.
+    const [rJogos, rLideres] = await Promise.allSettled([
       fetch(`${API_URL}/api/jogos`),
       fetch(`${API_URL}/api/ranking/lideres`),
     ]);
-    const jogos   = await rJogos.json();
-    const lideres = rLideres.ok ? await rLideres.json() : {};
+
+    if (rJogos.status === 'rejected' || !rJogos.value.ok) throw new Error();
+
+    const jogos   = await rJogos.value.json();
+    const lideres = (rLideres.status === 'fulfilled' && rLideres.value.ok)
+      ? await rLideres.value.json()
+      : {};
+
     renderJogos(jogos, lideres);
   } catch {
     document.getElementById('jogos-lista').innerHTML =
@@ -372,18 +407,8 @@ function renderJogos(jogos, lideres) {
     </div>`;
   }).join('');
 
-  // Carrega fontes de todos os temas
+  // Inicializa estado dos cards (fontes já carregadas no <head>)
   jogos.forEach(j => {
-    const tema = getTema(j.slug);
-    if (tema.tipografia.font_url) {
-      const id = `font-${j.slug}`;
-      if (!document.getElementById(id)) {
-        const link = document.createElement('link');
-        link.id = id; link.rel = 'stylesheet'; link.href = tema.tipografia.font_url;
-        document.head.appendChild(link);
-      }
-    }
-    // Inicializa estado do card
     estado[j.id] = { fotoFile: null, jogoId: j.id, jogoNome: j.nome, jogoSlug: j.slug };
   });
 }
