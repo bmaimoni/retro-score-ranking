@@ -72,6 +72,10 @@ async def upload(
     # ── 4. Upload da foto (se fornecida) ─────────────────────────────────────
     foto_url = await storage.upload_foto(foto) if foto is not None else None
 
+    # Sem foto → vai para moderação (sem evidência visual do placar)
+    if foto is None:
+        pendente = True
+
     # ── 5. Transação: marcar anterior como superado + inserir nova entrada ────
     nick_normalizado = nick_svc.normalizar_nick(nick)
 
