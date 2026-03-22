@@ -330,10 +330,7 @@
         <span class="meta-value" id="jogo-nome">—</span>
       </div>
 
-      <div class="ranking-title">
-        <img src="logo-principal.png" alt="Canal3" class="site-logo">
-        <span>HIGH SCORES</span>
-      </div>
+      <h1 class="ranking-title">HIGH<br>SCORES</h1>
 
       <div class="ranking-meta ranking-meta-right">
         <div class="connection-status">
@@ -369,7 +366,9 @@
 
 </div>
 
-<script>
+<script type="module">
+import { aplicarTema } from './temas.js';
+
 // ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
 const API_URL      = 'https://retro-score-ranking-production.up.railway.app';
 const UPLOAD_URL   = window.location.origin + '/index.html'; // URL do formulário de upload
@@ -419,6 +418,9 @@ function renderTabs(jogos) {
 
 async function selecionarJogo(jogo) {
   jogoAtual = jogo;
+
+  // Aplica tema do jogo
+  aplicarTema(jogo.slug);
 
   // Atualiza tabs
   document.querySelectorAll('.game-tab').forEach(t => {

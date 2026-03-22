@@ -8,23 +8,20 @@
   <title>Retro Score — Envie sua pontuação</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    .screen {
-      display: none;
-      opacity: 0;
-      transition: opacity 0.4s ease;
+    /* ── Página ── */
+    .upload-page {
       min-height: 100dvh;
+      display: flex;
       flex-direction: column;
       align-items: center;
       padding: var(--space-xl) var(--space-md) var(--space-2xl);
     }
-    .screen.active { display: flex; opacity: 1; }
-    .screen.fade-out { opacity: 0; pointer-events: none; }
 
     .page-header {
       text-align: center;
-      margin-bottom: var(--space-xl);
+      margin-bottom: var(--space-lg);
       width: 100%;
-      max-width: var(--max-width-upload);
+      max-width: 520px;
     }
     .page-logo {
       height: 96px; width: auto; object-fit: contain;
@@ -34,387 +31,563 @@
       font-family: var(--font-display);
       font-size: var(--text-lg);
       color: var(--color-primary);
-      line-height: 1.4; margin-bottom: var(--space-sm);
-      transition: color 0.4s ease;
+      line-height: 1.4; margin-bottom: var(--space-xs);
     }
     .page-subtitle { font-size: var(--text-sm); color: var(--color-text-muted); }
 
-    /* ── Tela 1: lista de jogos ── */
-    #screen-jogos { justify-content: flex-start; }
+    /* ── Lista de jogos ── */
     .jogos-lista {
-      width: 100%; max-width: var(--max-width-upload);
-      display: flex; flex-direction: column; gap: var(--space-sm);
+      width: 100%;
+      max-width: 520px;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
     }
-    .jogo-item {
-      display: flex; align-items: center; gap: var(--space-md);
-      padding: var(--space-md) var(--space-lg);
-      background: var(--color-bg-surface);
-      border: var(--border-width) solid var(--color-border);
+
+    /* ── Card de jogo (colapsado) ── */
+    .jogo-card {
       border-radius: var(--radius-md);
-      cursor: pointer; transition: all 0.2s ease;
-      position: relative; overflow: hidden;
-    }
-    .jogo-item::before {
-      content: ''; position: absolute;
-      left: 0; top: 0; bottom: 0; width: 4px;
-      background: var(--jogo-cor, var(--color-primary));
-      border-radius: 4px 0 0 4px; transition: width 0.2s ease;
-    }
-    .jogo-item:hover::before { width: 6px; }
-    .jogo-item:hover { border-color: var(--jogo-cor, var(--color-border-hover)); transform: translateX(2px); }
-    .jogo-item:active { transform: scale(0.98); }
-    .jogo-icone { font-size: 28px; line-height: 1; flex-shrink: 0; width: 40px; text-align: center; }
-    .jogo-info { flex: 1; min-width: 0; }
-    .jogo-nome { font-size: var(--text-md); font-weight: var(--weight-bold); color: var(--color-text); letter-spacing: 0.04em; }
-    .jogo-detalhe { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; letter-spacing: 0.06em; text-transform: uppercase; }
-    .jogo-seta { font-size: var(--text-md); color: var(--color-text-dim); transition: color 0.2s, transform 0.2s; flex-shrink: 0; }
-    .jogo-item:hover .jogo-seta { color: var(--jogo-cor, var(--color-primary)); transform: translateX(4px); }
-
-    /* ── Tela 2: formulário ── */
-    #screen-upload { justify-content: flex-start; }
-    .upload-form { width: 100%; max-width: var(--max-width-upload); display: flex; flex-direction: column; }
-
-    .jogo-selecionado {
-      display: flex; align-items: center; gap: var(--space-sm);
-      margin-bottom: var(--space-lg);
-      padding: var(--space-sm) var(--space-md);
-      background: var(--color-bg-surface);
+      overflow: hidden;
+      transition: box-shadow 0.3s ease, opacity 0.3s ease;
       border: var(--border-width) solid var(--color-border);
-      border-radius: var(--radius-full);
-      cursor: pointer; transition: border-color 0.2s; width: fit-content;
-    }
-    .jogo-selecionado:hover { border-color: var(--color-border-hover); }
-    .jogo-selecionado-icone { font-size: 16px; }
-    .jogo-selecionado-nome { font-size: var(--text-xs); font-weight: var(--weight-bold); color: var(--color-primary); letter-spacing: 0.08em; text-transform: uppercase; }
-    .jogo-selecionado-troca { font-size: var(--text-xs); color: var(--color-text-dim); letter-spacing: 0.06em; }
-
-    .photo-zone {
-      position: relative; width: 100%; aspect-ratio: 4 / 3;
       background: var(--color-bg-surface);
-      border: var(--border-width) dashed var(--color-border);
-      border-radius: var(--radius-lg);
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: var(--space-sm); cursor: pointer; overflow: hidden;
-      transition: border-color 0.2s; margin-bottom: var(--space-md);
     }
-    .photo-zone:hover { border-color: var(--color-border-hover); }
-    .photo-zone.has-photo { border-style: solid; border-color: var(--color-secondary); }
-    .photo-zone-icon { font-size: 40px; line-height: 1; }
-    .photo-zone-text { font-size: var(--text-sm); color: var(--color-text-muted); text-align: center; padding: 0 var(--space-lg); line-height: 1.5; }
-    .photo-zone-badge { font-size: var(--text-xs); font-weight: var(--weight-bold); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-secondary); border: 1px solid var(--color-secondary); border-radius: var(--radius-full); padding: 4px 12px; }
+
+    /* Quando outro card está expandido, os demais esmaeecem */
+    .jogos-lista.tem-expandido .jogo-card:not(.expandido) {
+      opacity: 0.45;
+    }
+    .jogos-lista.tem-expandido .jogo-card.expandido {
+      border-color: var(--card-primary, var(--color-primary));
+      box-shadow: 0 0 0 1px var(--card-primary, var(--color-primary));
+    }
+
+    /* ── Header do card (sempre visível) ── */
+    .jogo-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md) var(--space-lg);
+      cursor: pointer;
+      transition: background 0.2s;
+      position: relative;
+    }
+    .jogo-header::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+      background: var(--card-primary, var(--color-primary));
+      transition: width 0.2s;
+    }
+    .jogo-card.expandido .jogo-header::before { width: 5px; }
+    .jogo-header:hover { background: rgba(255,255,255,0.03); }
+
+    .jogo-icone {
+      font-size: 28px; line-height: 1;
+      flex-shrink: 0; width: 40px; text-align: center;
+    }
+    .jogo-icone-img { width: 32px; height: 32px; object-fit: contain; border-radius: 4px; }
+
+    .jogo-info { flex: 1; min-width: 0; }
+    .jogo-nome {
+      font-size: var(--text-md);
+      font-weight: var(--weight-bold);
+      color: var(--color-text);
+      letter-spacing: 0.04em;
+    }
+    .jogo-lider {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      margin-top: 3px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .lider-score {
+      font-family: var(--font-mono);
+      color: var(--card-accent, var(--color-accent));
+      font-weight: var(--weight-bold);
+    }
+    .lider-nick { color: var(--color-text-muted); }
+
+    .jogo-chevron {
+      font-size: var(--text-md);
+      color: var(--color-text-dim);
+      transition: transform 0.3s ease, color 0.2s;
+      flex-shrink: 0;
+    }
+    .jogo-card.expandido .jogo-chevron {
+      transform: rotate(90deg);
+      color: var(--card-primary, var(--color-primary));
+    }
+
+    /* ── Corpo expansível do card ── */
+    .jogo-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .jogo-card.expandido .jogo-body {
+      max-height: 900px;
+    }
+
+    /* ── Conteúdo interno do card (formulário com tema) ── */
+    .jogo-conteudo {
+      padding: var(--space-md) var(--space-lg) var(--space-xl);
+      border-top: var(--border-width) solid rgba(255,255,255,0.06);
+      background: var(--card-bg, var(--color-bg-surface));
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Imagem de fundo do tema dentro do card */
+    .jogo-conteudo::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: var(--card-bg-image, none);
+      background-size: cover;
+      background-position: center;
+      opacity: calc(1 - var(--card-overlay, 0.75));
+      pointer-events: none;
+      z-index: 0;
+    }
+    .jogo-conteudo > * { position: relative; z-index: 1; }
+
+    /* ── Formulário dentro do card ── */
+    .card-form { display: flex; flex-direction: column; }
+
+    /* Zona de foto */
+    .photo-zone {
+      position: relative; width: 100%;
+      aspect-ratio: 4/3;
+      background: rgba(0,0,0,0.3);
+      border: var(--border-width) dashed rgba(255,255,255,0.2);
+      border-radius: var(--radius-md);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: var(--space-sm); cursor: pointer;
+      overflow: hidden; transition: border-color 0.2s;
+      margin-bottom: var(--space-md);
+    }
+    .photo-zone:hover { border-color: rgba(255,255,255,0.4); }
+    .photo-zone.has-photo { border-style: solid; border-color: var(--card-secondary, var(--color-secondary)); }
+    .photo-zone-icon { font-size: 36px; line-height: 1; }
+    .photo-zone-text { font-size: var(--text-sm); color: rgba(255,255,255,0.6); text-align: center; padding: 0 var(--space-md); line-height: 1.5; }
+    .photo-zone-badge { font-size: var(--text-xs); font-weight: var(--weight-bold); letter-spacing: 0.1em; text-transform: uppercase; color: var(--card-secondary, var(--color-secondary)); border: 1px solid var(--card-secondary, var(--color-secondary)); border-radius: var(--radius-full); padding: 3px 10px; }
     .photo-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-    .photo-overlay { position: absolute; inset: 0; background: var(--color-bg-overlay); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-sm); opacity: 0; transition: opacity 0.2s; }
+    .photo-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-sm); opacity: 0; transition: opacity 0.2s; }
     .photo-zone.has-photo:hover .photo-overlay { opacity: 1; }
-    .photo-overlay span { font-size: var(--text-sm); color: var(--color-text); font-weight: var(--weight-bold); }
-    #file-input { display: none; }
+    .photo-overlay span { font-size: var(--text-sm); color: #fff; font-weight: var(--weight-bold); }
 
-    .consent-area { display: flex; align-items: flex-start; gap: var(--space-sm); margin-bottom: var(--space-md); padding: var(--space-md); background: var(--color-bg-surface); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-sm); }
-    .consent-checkbox { flex-shrink: 0; width: 20px; height: 20px; margin-top: 2px; accent-color: var(--color-primary); cursor: pointer; }
-    .consent-text { font-size: var(--text-xs); color: var(--color-text-muted); line-height: 1.6; }
+    /* Campos do card — usam variáveis do tema scoped */
+    .card-field { display: flex; flex-direction: column; gap: var(--space-xs); margin-bottom: var(--space-md); }
+    .card-label { font-size: var(--text-xs); font-weight: var(--weight-bold); letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.55); }
+    .card-input {
+      width: 100%;
+      padding: 14px var(--space-md);
+      background: rgba(0,0,0,0.35);
+      border: var(--border-width) solid rgba(255,255,255,0.15);
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-family: var(--font-body);
+      font-size: var(--text-md);
+      outline: none;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+    .card-input::placeholder { color: rgba(255,255,255,0.3); }
+    .card-input:focus {
+      border-color: var(--card-secondary, var(--color-secondary));
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.08);
+    }
 
-    .upload-progress { display: none; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-md); }
-    .upload-progress.visible { display: flex; }
-    .progress-bar-track { width: 100%; height: 4px; background: var(--color-bg-surface2); border-radius: var(--radius-full); overflow: hidden; }
-    .progress-bar-fill { height: 100%; background: var(--color-primary); border-radius: var(--radius-full); width: 0%; transition: width 0.3s ease; }
-    .progress-label { font-size: var(--text-xs); color: var(--color-text-muted); text-align: center; letter-spacing: 0.08em; text-transform: uppercase; }
+    /* Consentimento dentro do card */
+    .card-consent {
+      display: flex; align-items: flex-start; gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+      padding: var(--space-sm) var(--space-md);
+      background: rgba(0,0,0,0.25);
+      border: var(--border-width) solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-sm);
+    }
+    .card-consent-check {
+      flex-shrink: 0; width: 18px; height: 18px;
+      margin-top: 2px; cursor: pointer;
+      accent-color: var(--card-primary, var(--color-primary));
+    }
+    .card-consent-text { font-size: var(--text-xs); color: rgba(255,255,255,0.5); line-height: 1.6; }
 
-    /* ── Tela 3: sucesso ── */
-    #screen-sucesso { justify-content: center; text-align: center; }
-    .success-icon { font-size: 64px; line-height: 1; margin-bottom: var(--space-md); }
-    .success-title { font-family: var(--font-display); font-size: var(--text-md); color: var(--color-secondary); line-height: 1.5; margin-bottom: var(--space-md); }
-    .success-score { font-family: var(--font-mono); font-size: var(--text-3xl); color: var(--color-accent); letter-spacing: 0.05em; margin-bottom: var(--space-md); }
-    .success-message { font-size: var(--text-sm); color: var(--color-text-muted); max-width: 320px; margin-bottom: var(--space-xl); }
-    .success-actions { display: flex; flex-direction: column; gap: var(--space-sm); width: 100%; max-width: var(--max-width-upload); }
+    /* Botão do card com cor primária do tema */
+    .card-btn {
+      display: block; width: 100%;
+      padding: 16px var(--space-lg);
+      background: var(--card-primary, var(--color-primary));
+      color: var(--card-bg, #000);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      font-weight: var(--weight-bold);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border-radius: var(--radius-md);
+      border: none; cursor: pointer;
+      transition: filter 0.15s, transform 0.15s;
+    }
+    .card-btn:hover { filter: brightness(1.15); }
+    .card-btn:active { transform: scale(0.98); }
+    .card-btn:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
 
-    .ranking-link { display: flex; align-items: center; justify-content: center; gap: var(--space-sm); margin-top: var(--space-xl); color: var(--color-text-muted); font-size: var(--text-sm); text-decoration: none; transition: color 0.2s; }
+    /* Progress bar */
+    .card-progress { display: none; flex-direction: column; gap: var(--space-xs); margin-bottom: var(--space-md); }
+    .card-progress.visible { display: flex; }
+    .progress-track { width: 100%; height: 3px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--card-primary, var(--color-primary)); width: 0%; transition: width 0.3s ease; border-radius: 3px; }
+    .progress-txt { font-size: var(--text-xs); color: rgba(255,255,255,0.5); text-align: center; letter-spacing: 0.08em; text-transform: uppercase; }
+
+    /* Sucesso dentro do card */
+    .card-sucesso {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: var(--space-lg) 0;
+      gap: var(--space-md);
+    }
+    .card-sucesso.visible { display: flex; animation: fadeIn 0.4s ease both; }
+    .sucesso-icon { font-size: 52px; }
+    .sucesso-titulo { font-family: var(--font-display); font-size: var(--text-sm); color: var(--card-secondary, var(--color-secondary)); line-height: 1.5; }
+    .sucesso-score { font-family: var(--font-mono); font-size: var(--text-2xl); color: var(--card-primary, var(--color-primary)); font-weight: var(--weight-bold); }
+    .sucesso-msg { font-size: var(--text-sm); color: rgba(255,255,255,0.6); max-width: 280px; }
+    .sucesso-actions { display: flex; flex-direction: column; gap: var(--space-sm); width: 100%; }
+
+    /* ── Links ── */
+    .ranking-link {
+      display: flex; align-items: center; justify-content: center;
+      gap: var(--space-sm); margin-top: var(--space-xl);
+      color: var(--color-text-muted); font-size: var(--text-sm);
+      text-decoration: none; transition: color 0.2s;
+    }
     .ranking-link:hover { color: var(--color-secondary); }
 
+    /* Loading */
     .loading-jogos { display: flex; flex-direction: column; align-items: center; gap: var(--space-md); padding: var(--space-2xl); color: var(--color-text-muted); }
     .loading-blink { font-family: var(--font-display); font-size: var(--text-sm); animation: blink 1s step-end infinite; }
-    .jogo-icone-img { width: 32px; height: 32px; object-fit: contain; border-radius: 4px; }
+
+    input[type="file"] { display: none; }
   </style>
 </head>
 <body>
 
-<!-- TELA 1: SELEÇÃO DE JOGO -->
-<div class="screen active" id="screen-jogos">
+<div class="upload-page">
   <div class="page-header animate-slide-up">
     <img src="logo-principal.png" alt="Canal3" class="page-logo">
-    <h1 class="page-title">ESCOLHA O JOGO</h1>
-    <p class="page-subtitle">Selecione o jogo para enviar seu placar</p>
+    <h1 class="page-title" id="page-title">ESCOLHA O JOGO</h1>
+    <p class="page-subtitle" id="page-subtitle">Selecione o jogo e envie seu placar</p>
   </div>
+
   <div class="jogos-lista" id="jogos-lista">
     <div class="loading-jogos">
       <span class="loading-blink">▋</span>
       <span>Carregando jogos...</span>
     </div>
   </div>
-  <a href="ranking.html" class="ranking-link">Ver ranking geral →</a>
-</div>
 
-<!-- TELA 2: FORMULÁRIO -->
-<div class="screen" id="screen-upload">
-  <div class="page-header">
-    <img src="logo-principal.png" alt="Canal3" class="page-logo">
-    <h1 class="page-title" id="upload-titulo">INSERT COIN</h1>
-    <p class="page-subtitle" id="upload-subtitulo">Fotografe seu placar e entre no ranking</p>
-  </div>
-  <form class="upload-form" id="upload-form" novalidate>
-    <div class="jogo-selecionado" id="jogo-selecionado-badge" onclick="voltarParaJogos()">
-      <span class="jogo-selecionado-icone" id="badge-icone">🎮</span>
-      <span class="jogo-selecionado-nome" id="badge-nome">—</span>
-      <span class="jogo-selecionado-troca">trocar ×</span>
-    </div>
-    <div class="photo-zone" id="photo-zone" role="button" tabindex="0">
-      <div class="photo-zone-icon">📷</div>
-      <p class="photo-zone-text">Toque para tirar uma foto<br>ou selecionar da galeria</p>
-      <span class="photo-zone-badge">JPEG ou PNG · máx 5MB · opcional</span>
-      <div class="photo-overlay"><span>✦ Trocar foto</span></div>
-    </div>
-    <input type="file" id="file-input" accept="image/jpeg,image/png" capture="environment">
-    <div class="field">
-      <label class="field-label" for="nick-input">Seu nickname</label>
-      <input class="field-input" type="text" id="nick-input" placeholder="Ex: PLAYER1" maxlength="50" required autocomplete="off" autocapitalize="characters" spellcheck="false">
-    </div>
-    <div class="field">
-      <label class="field-label" for="score-input">Pontuação</label>
-      <input class="field-input font-mono" type="number" id="score-input" placeholder="000000" min="1" required inputmode="numeric">
-    </div>
-    <div class="consent-area">
-      <input type="checkbox" class="consent-checkbox" id="consent-check">
-      <label class="consent-text" for="consent-check">
-        Concordo que minha foto, nome e pontuação sejam exibidos no ranking público
-        e armazenados pelo Canal3. Os dados poderão ser mantidos após o encerramento
-        do evento para fins de histórico e divulgação.
-      </label>
-    </div>
-    <div class="upload-progress" id="upload-progress">
-      <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-fill"></div></div>
-      <p class="progress-label" id="progress-label">Enviando...</p>
-    </div>
-    <button type="submit" class="btn-primary" id="submit-btn">▶ ENVIAR PONTUAÇÃO</button>
-  </form>
   <a href="ranking.html" class="ranking-link">Ver ranking geral →</a>
-</div>
-
-<!-- TELA 3: SUCESSO -->
-<div class="screen" id="screen-sucesso">
-  <div class="success-icon">🏆</div>
-  <h2 class="success-title" id="success-title">PONTUAÇÃO REGISTRADA!</h2>
-  <div class="success-score" id="success-score">000000</div>
-  <p class="success-message" id="success-message">Você está no ranking! Acompanhe sua posição no telão.</p>
-  <div class="success-actions">
-    <button class="btn-primary" id="play-again-btn">↺ JOGAR NOVAMENTE</button>
-    <a href="ranking.html" class="btn-ghost" style="text-align:center;text-decoration:none">VER RANKING →</a>
-  </div>
 </div>
 
 <div class="toast" id="toast"></div>
+<input type="file" id="file-input-global" accept="image/jpeg,image/png" capture="environment">
 
 <script type="module">
 import { getTema, aplicarTema } from './temas.js';
 
 const API_URL = 'https://retro-score-ranking-production.up.railway.app';
-let jogoAtual = null;
-let fotoFile  = null;
 
+// Estado por card (indexed by jogo.id)
+const estado = {};
+let cardExpandido = null;
+
+// ── INICIALIZAÇÃO ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([carregarJogos(), carregarConfig()]);
-  configurarFotoZone();
-  configurarForm();
-  configurarPlayAgain();
 });
 
-// ── JOGOS ────────────────────────────────────────────────────
+// ── JOGOS + LÍDERES ───────────────────────────────────────────
 async function carregarJogos() {
   try {
-    const resp = await fetch(`${API_URL}/api/jogos`);
-    if (!resp.ok) throw new Error();
-    renderJogos(await resp.json());
+    const [rJogos, rLideres] = await Promise.all([
+      fetch(`${API_URL}/api/jogos`),
+      fetch(`${API_URL}/api/ranking/lideres`),
+    ]);
+    const jogos   = await rJogos.json();
+    const lideres = rLideres.ok ? await rLideres.json() : {};
+    renderJogos(jogos, lideres);
   } catch {
     document.getElementById('jogos-lista').innerHTML =
       `<div class="loading-jogos"><span style="color:var(--color-error)">Erro ao carregar jogos</span></div>`;
   }
 }
 
-function renderJogos(lista) {
-  const c = document.getElementById('jogos-lista');
-  if (!lista.length) { c.innerHTML = `<div class="loading-jogos"><span>Nenhum jogo disponível</span></div>`; return; }
+function renderJogos(jogos, lideres) {
+  const lista = document.getElementById('jogos-lista');
+  if (!jogos.length) {
+    lista.innerHTML = `<div class="loading-jogos"><span>Nenhum jogo disponível</span></div>`;
+    return;
+  }
 
-  c.innerHTML = lista.map(j => {
-    const tema   = getTema(j.slug);
-    const cor    = tema.cores.primary;
-    const icone     = tema.assets.icone || '🎮';
+  lista.innerHTML = jogos.map(j => {
+    const tema    = getTema(j.slug);
+    const lider   = lideres[j.id];
     const iconeHtml = tema.assets.icone_url
       ? `<img class="jogo-icone-img" src="${tema.assets.icone_url}" alt="${escapar(j.nome)}">`
-      : icone;
-    const det    = j.score_max ? `Score máx: ${j.score_max.toLocaleString('pt-BR')}` : 'Score livre';
-    return `<div class="jogo-item" data-id="${j.id}" data-slug="${j.slug}" data-nome="${escapar(j.nome)}" style="--jogo-cor:${cor}">
-      <span class="jogo-icone">${iconeHtml}</span>
-      <div class="jogo-info">
-        <div class="jogo-nome">${escapar(j.nome)}</div>
-        <div class="jogo-detalhe">${det}</div>
+      : (tema.assets.icone || '🎮');
+
+    const liderHtml = lider
+      ? `<span class="lider-nick">🥇 ${escapar(lider.nick)}</span>
+         <span class="lider-score">${lider.pontuacao.toLocaleString('pt-BR')}</span>`
+      : `<span>Seja o primeiro!</span>`;
+
+    return `
+    <div class="jogo-card" id="card-${j.id}"
+         style="--card-primary:${tema.cores.primary};
+                --card-secondary:${tema.cores.secondary};
+                --card-accent:${tema.cores.accent};
+                --card-bg:${tema.cores.surface};
+                --card-bg-image:${tema.assets.bg_image ? `url('${tema.assets.bg_image}')` : 'none'};
+                --card-overlay:${tema.assets.bg_overlay || 0.75};
+                --card-font-display:${tema.tipografia.font_display};
+                --card-font-body:${tema.tipografia.font_body}">
+      <div class="jogo-header" onclick="toggleCard('${j.id}', '${j.slug}', '${escapar(j.nome)}')">
+        <span class="jogo-icone">${iconeHtml}</span>
+        <div class="jogo-info">
+          <div class="jogo-nome">${escapar(j.nome)}</div>
+          <div class="jogo-lider">${liderHtml}</div>
+        </div>
+        <span class="jogo-chevron">›</span>
       </div>
-      <span class="jogo-seta">›</span>
+      <div class="jogo-body" id="body-${j.id}">
+        <div class="jogo-conteudo" id="conteudo-${j.id}">
+          ${renderFormulario(j)}
+        </div>
+      </div>
     </div>`;
   }).join('');
 
-  c.querySelectorAll('.jogo-item').forEach(el => {
-    el.addEventListener('click', () =>
-      selecionarJogo({ id: el.dataset.id, slug: el.dataset.slug, nome: el.dataset.nome })
-    );
+  // Carrega fontes de todos os temas
+  jogos.forEach(j => {
+    const tema = getTema(j.slug);
+    if (tema.tipografia.font_url) {
+      const id = `font-${j.slug}`;
+      if (!document.getElementById(id)) {
+        const link = document.createElement('link');
+        link.id = id; link.rel = 'stylesheet'; link.href = tema.tipografia.font_url;
+        document.head.appendChild(link);
+      }
+    }
+    // Inicializa estado do card
+    estado[j.id] = { fotoFile: null, jogoId: j.id, jogoNome: j.nome, jogoSlug: j.slug };
   });
 }
 
-function selecionarJogo(jogo) {
-  jogoAtual = jogo;
-  aplicarTema(jogo.slug);
-  const tema = getTema(jogo.slug);
-  const badgeIcone = document.getElementById('badge-icone');
-  if (tema.assets.icone_url) {
-    badgeIcone.innerHTML = `<img src="${tema.assets.icone_url}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;border-radius:2px">`;
-  } else {
-    badgeIcone.textContent = tema.assets.icone || '🎮';
-  }
-  document.getElementById('badge-nome').textContent  = jogo.nome;
-  trocarTela('screen-jogos', 'screen-upload');
+function renderFormulario(j) {
+  return `
+  <div class="card-form" id="form-${j.id}">
+    <div class="photo-zone" id="pz-${j.id}" onclick="abrirFoto('${j.id}')">
+      <div class="photo-zone-icon">📷</div>
+      <p class="photo-zone-text">Toque para tirar uma foto<br>ou selecionar da galeria</p>
+      <span class="photo-zone-badge">JPEG ou PNG · máx 5MB · opcional</span>
+      <div class="photo-overlay"><span>✦ Trocar foto</span></div>
+    </div>
+
+    <div class="card-field">
+      <label class="card-label" for="nick-${j.id}">Seu nickname</label>
+      <input class="card-input" type="text" id="nick-${j.id}"
+             placeholder="Ex: PLAYER1" maxlength="50"
+             autocomplete="off" autocapitalize="characters" spellcheck="false">
+    </div>
+
+    <div class="card-field">
+      <label class="card-label" for="score-${j.id}">Pontuação</label>
+      <input class="card-input font-mono" type="number" id="score-${j.id}"
+             placeholder="000000" min="1" inputmode="numeric">
+    </div>
+
+    <div class="card-consent">
+      <input type="checkbox" class="card-consent-check" id="consent-${j.id}">
+      <label class="card-consent-text" for="consent-${j.id}">
+        Concordo que minha foto, nome e pontuação sejam exibidos no ranking público
+        e armazenados pelo Canal3. Os dados poderão ser mantidos após o encerramento
+        do evento para fins de histórico e divulgação.
+      </label>
+    </div>
+
+    <div class="card-progress" id="prog-${j.id}">
+      <div class="progress-track"><div class="progress-fill" id="pfill-${j.id}"></div></div>
+      <p class="progress-txt" id="ptxt-${j.id}">Enviando...</p>
+    </div>
+
+    <button class="card-btn" id="btn-${j.id}" onclick="enviarScore('${j.id}')">
+      ▶ ENVIAR PONTUAÇÃO
+    </button>
+  </div>
+
+  <div class="card-sucesso" id="sucesso-${j.id}">
+    <div class="sucesso-icon">🏆</div>
+    <h2 class="sucesso-titulo" id="sucesso-titulo-${j.id}">PONTUAÇÃO<br>REGISTRADA!</h2>
+    <div class="sucesso-score" id="sucesso-score-${j.id}">0</div>
+    <p class="sucesso-msg" id="sucesso-msg-${j.id}"></p>
+    <div class="sucesso-actions">
+      <button class="card-btn" onclick="resetCard('${j.id}')">↺ JOGAR NOVAMENTE</button>
+    </div>
+  </div>`;
 }
 
-window.voltarParaJogos = function() {
-  jogoAtual = null;
-  aplicarTema('__padrao__');
-  trocarTela('screen-upload', 'screen-jogos');
+// ── TOGGLE CARD ────────────────────────────────────────────────
+window.toggleCard = function(id, slug, nome) {
+  const lista  = document.getElementById('jogos-lista');
+  const card   = document.getElementById(`card-${id}`);
+  const isOpen = card.classList.contains('expandido');
+
+  // Fecha o card aberto anterior
+  if (cardExpandido && cardExpandido !== id) {
+    const prev = document.getElementById(`card-${cardExpandido}`);
+    prev.classList.remove('expandido');
+  }
+
+  if (isOpen) {
+    card.classList.remove('expandido');
+    lista.classList.remove('tem-expandido');
+    cardExpandido = null;
+  } else {
+    card.classList.add('expandido');
+    lista.classList.add('tem-expandido');
+    cardExpandido = id;
+    // Scroll suave para o card
+    setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+  }
 };
 
-// ── TRANSIÇÃO ────────────────────────────────────────────────
-function trocarTela(origem, destino) {
-  const o = document.getElementById(origem);
-  const d = document.getElementById(destino);
-  o.classList.add('fade-out');
-  setTimeout(() => {
-    o.classList.remove('active', 'fade-out');
-    o.style.display = 'none';
-    d.style.display = 'flex';
-    d.offsetHeight;
-    d.classList.add('active');
-    window.scrollTo(0, 0);
-  }, 400);
+// ── FOTO ──────────────────────────────────────────────────────
+let cardFotoAtivo = null;
+const fileInput = document.getElementById('file-input-global');
+
+window.abrirFoto = function(id) {
+  cardFotoAtivo = id;
+  fileInput.click();
+};
+
+fileInput.addEventListener('change', e => {
+  if (!cardFotoAtivo || !e.target.files[0]) return;
+  processarFoto(cardFotoAtivo, e.target.files[0]);
+  fileInput.value = '';
+});
+
+function processarFoto(id, file) {
+  if (file.size > 5 * 1024 * 1024) { showToast('Foto muito grande. Máximo: 5MB', 'error'); return; }
+  if (!['image/jpeg','image/png'].includes(file.type)) { showToast('Apenas JPEG e PNG são aceitos', 'error'); return; }
+  estado[id].fotoFile = file;
+  const zone = document.getElementById(`pz-${id}`);
+  const reader = new FileReader();
+  reader.onload = e => {
+    zone.innerHTML = `<img class="photo-preview" src="${e.target.result}" alt="Preview">
+                      <div class="photo-overlay"><span>✦ Trocar foto</span></div>`;
+    zone.classList.add('has-photo');
+    zone.onclick = () => { cardFotoAtivo = id; fileInput.click(); };
+  };
+  reader.readAsDataURL(file);
 }
 
-// ── CONFIG ───────────────────────────────────────────────────
+// ── ENVIO ─────────────────────────────────────────────────────
+window.enviarScore = async function(id) {
+  const e      = estado[id];
+  const nick   = document.getElementById(`nick-${id}`).value.trim();
+  const score  = parseInt(document.getElementById(`score-${id}`).value);
+  const consent = document.getElementById(`consent-${id}`).checked;
+
+  if (!nick)              { showToast('Digite seu nickname', 'error'); return; }
+  if (!score || score<=0) { showToast('Digite uma pontuação válida', 'error'); return; }
+  if (!consent)           { showToast('Confirme o consentimento para participar', 'error'); return; }
+
+  const btn = document.getElementById(`btn-${id}`);
+  btn.disabled = true; btn.textContent = '⏳ ENVIANDO...';
+  setProgress(id, true, 30, 'Preparando...');
+
+  try {
+    const fd = new FormData();
+    if (e.fotoFile) fd.append('foto', e.fotoFile);
+    fd.append('nick', nick);
+    fd.append('pontuacao', score);
+    fd.append('jogo_id', id);
+
+    setProgress(id, true, 60, e.fotoFile ? 'Enviando foto...' : 'Registrando...');
+    const resp = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: fd });
+    setProgress(id, true, 95, 'Registrando...');
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || 'Erro ao enviar');
+
+    setProgress(id, true, 100, 'Concluído!');
+    await new Promise(r => setTimeout(r, 350));
+    setProgress(id, false);
+
+    // Exibe sucesso dentro do card
+    document.getElementById(`form-${id}`).style.display = 'none';
+    const suc = document.getElementById(`sucesso-${id}`);
+    document.getElementById(`sucesso-score-${id}`).textContent = score.toLocaleString('pt-BR');
+    document.getElementById(`sucesso-msg-${id}`).textContent = data.pendente
+      ? 'Sua pontuação está em análise e aparecerá em breve no ranking.'
+      : `Você está no ranking, ${nick}! Acompanhe sua posição no telão.`;
+    suc.classList.add('visible');
+
+  } catch (err) {
+    setProgress(id, false);
+    btn.disabled = false; btn.textContent = '▶ ENVIAR PONTUAÇÃO';
+    showToast(err.message || 'Erro ao enviar. Tente novamente.', 'error');
+  }
+};
+
+// ── RESET CARD ────────────────────────────────────────────────
+window.resetCard = function(id) {
+  estado[id].fotoFile = null;
+  document.getElementById(`nick-${id}`).value = '';
+  document.getElementById(`score-${id}`).value = '';
+  document.getElementById(`consent-${id}`).checked = false;
+  document.getElementById(`btn-${id}`).disabled = false;
+  document.getElementById(`btn-${id}`).textContent = '▶ ENVIAR PONTUAÇÃO';
+  document.getElementById(`sucesso-${id}`).classList.remove('visible');
+  document.getElementById(`form-${id}`).style.display = 'flex';
+  const zone = document.getElementById(`pz-${id}`);
+  zone.classList.remove('has-photo');
+  zone.innerHTML = `<div class="photo-zone-icon">📷</div>
+    <p class="photo-zone-text">Toque para tirar uma foto<br>ou selecionar da galeria</p>
+    <span class="photo-zone-badge">JPEG ou PNG · máx 5MB · opcional</span>
+    <div class="photo-overlay"><span>✦ Trocar foto</span></div>`;
+  zone.onclick = () => { cardFotoAtivo = id; fileInput.click(); };
+};
+
+// ── CONFIG ────────────────────────────────────────────────────
 async function carregarConfig() {
   try {
     const resp = await fetch(`${API_URL}/api/jogos/config`);
     if (!resp.ok) return;
     const cfg = await resp.json();
-    if (cfg.upload_titulo)    document.getElementById('upload-titulo').textContent = cfg.upload_titulo;
-    if (cfg.upload_subtitulo) document.getElementById('upload-subtitulo').textContent = cfg.upload_subtitulo;
-    if (cfg.upload_botao)     document.getElementById('submit-btn').textContent = '▶ ' + cfg.upload_botao;
-    if (cfg.upload_sucesso)   document.getElementById('success-title').textContent = cfg.upload_sucesso;
-    if (cfg.evento_nome)      document.title = cfg.evento_nome + ' — Envie sua pontuação';
-    if (cfg.evento_ativo === 'false') {
-      document.getElementById('submit-btn').disabled = true;
-      document.getElementById('submit-btn').textContent = '⛔ ENVIOS ENCERRADOS';
-    }
+    if (cfg.evento_nome) document.title = cfg.evento_nome + ' — Envie sua pontuação';
+    if (cfg.upload_titulo) document.getElementById('page-title').textContent = cfg.upload_titulo;
+    if (cfg.upload_subtitulo) document.getElementById('page-subtitle').textContent = cfg.upload_subtitulo;
   } catch {}
 }
 
-// ── FOTO ─────────────────────────────────────────────────────
-function configurarFotoZone() {
-  const zone  = document.getElementById('photo-zone');
-  const input = document.getElementById('file-input');
-  zone.addEventListener('click', () => input.click());
-  zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
-  zone.addEventListener('dragover', e => { e.preventDefault(); });
-  zone.addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files[0]) processarFoto(e.dataTransfer.files[0]); });
-  input.addEventListener('change', e => { if (e.target.files[0]) processarFoto(e.target.files[0]); });
-}
-
-function processarFoto(file) {
-  if (file.size > 5 * 1024 * 1024) { showToast('Foto muito grande. Máximo: 5MB', 'error'); return; }
-  if (!['image/jpeg','image/png'].includes(file.type)) { showToast('Apenas JPEG e PNG são aceitos', 'error'); return; }
-  fotoFile = file;
-  const zone = document.getElementById('photo-zone');
-  const reader = new FileReader();
-  reader.onload = e => {
-    zone.innerHTML = `<img class="photo-preview" src="${e.target.result}" alt="Preview"><div class="photo-overlay"><span>✦ Trocar foto</span></div>`;
-    zone.classList.add('has-photo');
-    zone.onclick = () => document.getElementById('file-input').click();
-  };
-  reader.readAsDataURL(file);
-}
-
-// ── ENVIO ────────────────────────────────────────────────────
-function configurarForm() {
-  document.getElementById('upload-form').addEventListener('submit', async e => { e.preventDefault(); await enviarPontuacao(); });
-}
-
-async function enviarPontuacao() {
-  if (!jogoAtual) { showToast('Selecione um jogo primeiro', 'error'); return; }
-  const nick      = document.getElementById('nick-input').value.trim();
-  const pontuacao = parseInt(document.getElementById('score-input').value);
-  if (!nick)                        { showToast('Digite seu nickname', 'error'); return; }
-  if (!pontuacao || pontuacao <= 0) { showToast('Digite uma pontuação válida', 'error'); return; }
-  if (!document.getElementById('consent-check').checked) { showToast('Confirme o consentimento para participar', 'error'); return; }
-
-  const btn = document.getElementById('submit-btn');
-  btn.disabled = true; btn.textContent = '⏳ ENVIANDO...';
-  mostrarProgress(true, 30, 'Preparando envio...');
-
-  try {
-    const fd = new FormData();
-    if (fotoFile) fd.append('foto', fotoFile);
-    fd.append('nick', nick);
-    fd.append('pontuacao', pontuacao);
-    fd.append('jogo_id', jogoAtual.id);
-
-    mostrarProgress(true, 60, fotoFile ? 'Enviando foto...' : 'Registrando...');
-    const resp = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: fd });
-    mostrarProgress(true, 90, 'Registrando...');
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.detail || 'Erro ao enviar');
-    mostrarProgress(true, 100, 'Concluído!');
-    await new Promise(r => setTimeout(r, 400));
-    document.getElementById('success-score').textContent = pontuacao.toLocaleString('pt-BR');
-    document.getElementById('success-message').textContent = data.pendente
-      ? 'Sua pontuação está em análise e aparecerá em breve no ranking.'
-      : `Você está no ranking, ${nick}! Acompanhe sua posição no telão.`;
-    trocarTela('screen-upload', 'screen-sucesso');
-  } catch (err) {
-    mostrarProgress(false);
-    btn.disabled = false; btn.textContent = '▶ ENVIAR PONTUAÇÃO';
-    showToast(err.message || 'Erro ao enviar. Tente novamente.', 'error');
-  }
-}
-
-function configurarPlayAgain() {
-  document.getElementById('play-again-btn').addEventListener('click', () => {
-    fotoFile = null;
-    document.getElementById('upload-form').reset();
-    document.getElementById('submit-btn').disabled = false;
-    document.getElementById('submit-btn').textContent = '▶ ENVIAR PONTUAÇÃO';
-    mostrarProgress(false);
-    const zone = document.getElementById('photo-zone');
-    zone.classList.remove('has-photo');
-    zone.innerHTML = `<div class="photo-zone-icon">📷</div><p class="photo-zone-text">Toque para tirar uma foto<br>ou selecionar da galeria</p><span class="photo-zone-badge">JPEG ou PNG · máx 5MB · opcional</span><div class="photo-overlay"><span>✦ Trocar foto</span></div>`;
-    zone.onclick = () => document.getElementById('file-input').click();
-    jogoAtual = null;
-    aplicarTema('__padrao__');
-    trocarTela('screen-sucesso', 'screen-jogos');
-  });
-}
-
 // ── HELPERS ──────────────────────────────────────────────────
-function mostrarProgress(v, pct=0, label='') {
-  document.getElementById('upload-progress').classList.toggle('visible', v);
-  document.getElementById('progress-fill').style.width = `${pct}%`;
-  document.getElementById('progress-label').textContent = label;
+function setProgress(id, visible, pct=0, label='') {
+  document.getElementById(`prog-${id}`).classList.toggle('visible', visible);
+  document.getElementById(`pfill-${id}`).style.width = `${pct}%`;
+  document.getElementById(`ptxt-${id}`).textContent = label;
 }
+
 function showToast(msg, tipo='success') {
   const t = document.getElementById('toast');
   t.textContent = msg; t.className = `toast ${tipo} show`;
   clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 3000);
 }
+
 function escapar(s='') {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

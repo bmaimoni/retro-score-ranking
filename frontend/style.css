@@ -73,14 +73,14 @@
   --font-mono:    'Share Tech Mono', 'Courier New', monospace;
 
   /* Tamanhos */
-  --text-xs:   0.65rem;
-  --text-sm:   0.75rem;
-  --text-base: 0.875rem;
-  --text-md:   1rem;
-  --text-lg:   1.25rem;
-  --text-xl:   1.5rem;
-  --text-2xl:  2rem;
-  --text-3xl:  2.5rem;
+  --text-xs:   0.75rem;
+  --text-sm:   0.875rem;
+  --text-base: 1rem;
+  --text-md:   1.125rem;
+  --text-lg:   1.375rem;
+  --text-xl:   1.625rem;
+  --text-2xl:  2.125rem;
+  --text-3xl:  2.75rem;
   --text-4xl:  3.5rem;
 
   /* Pesos */
@@ -363,17 +363,34 @@ select.field-input option { background: var(--color-bg-surface); }
   animation: none;
 }
 
-/* ── Logo ── */
-.site-logo {
-  height: 96px;        /* altura do logo — ajuste aqui */
-  width: auto;
-  object-fit: contain;
-  display: block;
-  margin: 0 auto var(--space-md);
-}
+/* ============================================================
+   MOBILE — ajustes de legibilidade para telas pequenas
+   ============================================================ */
+@media (max-width: 480px) {
+  :root {
+    --text-xs:   0.8rem;
+    --text-sm:   0.9375rem;
+    --text-base: 1.0625rem;
+    --text-md:   1.1875rem;
+    --text-lg:   1.4375rem;
+  }
 
-/* Logo maior no ranking (TV/monitor) */
-.ranking-title .site-logo {
-  height: 112px;
-  margin: 0 auto var(--space-sm);
+  /* Campos de formulário — mínimo 16px evita zoom automático no iOS */
+  .field-input {
+    font-size: 1rem;
+    padding: 14px 16px;
+  }
+
+  /* Botões — área de toque maior */
+  .btn-primary,
+  .btn-ghost {
+    padding: 18px var(--space-lg);
+    font-size: 1rem;
+  }
+
+  /* Labels mais legíveis */
+  .field-label {
+    font-size: 0.8125rem;
+    letter-spacing: 0.1em;
+  }
 }
