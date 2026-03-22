@@ -82,7 +82,7 @@ async def upload(
                     pool, nick_normalizado, str(jogo_id), conn=conn
                 )
 
-                entrada = await entrada_repo.inserir(pool, {
+                entrada = await entrada_repo.inserir(conn, {
                     "jogo_id":   str(jogo_id),
                     "nick":      nick.strip(),
                     "nick_norm": nick_normalizado,

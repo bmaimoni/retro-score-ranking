@@ -2,8 +2,8 @@ from asyncpg import Pool
 from typing import Any
 
 
-async def inserir(pool: Pool, dados: dict) -> dict:
-    row = await pool.fetchrow(
+async def inserir(conn, dados: dict) -> dict:
+    row = await conn.fetchrow(
         """
         INSERT INTO entradas
             (jogo_id, nick, nick_norm, pontuacao, foto_url,
