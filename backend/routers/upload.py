@@ -21,7 +21,7 @@ MAX_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 @router.post("/upload", status_code=201)
 async def upload(
     request: Request,
-    foto: UploadFile = File(..., description="Foto com o placar visível (JPEG ou PNG, máx 5MB)"),
+    foto: UploadFile | None = File(None, description="Foto com o placar visível (JPEG ou PNG, máx 5MB — opcional)"),
     nick: str = Form(..., min_length=1, max_length=50),
     pontuacao: int = Form(..., gt=0),
     jogo_id: UUID4 = Form(...),
@@ -41,21 +41,22 @@ async def upload(
     6. Notifica clientes SSE se a entrada for visível imediatamente
     """
 
-    # ── 1. Validação da foto ──────────────────────────────────────────────────
-    conteudo = await foto.read()
-    await foto.seek(0)  # rewind para uso posterior
+    # ── 1. Validação da foto (opcional) ──────────────────────────────────────
+    if foto is not None:
+        conteudo = await foto.read()
+        await foto.seek(0)  # rewind para uso posterior
 
-    if len(conteudo) > MAX_SIZE_BYTES:
-        raise HTTPException(status_code=413, detail="Foto excede o limite de 5MB")
+        if len(conteudo) > MAX_SIZE_BYTES:
+            raise HTTPException(status_code=413, detail="Foto excede o limite de 5MB")
 
-    # Valida pelo magic bytes, não pela extensão declarada
-    tipo = filetype.guess(conteudo)
-    mime_detectado = tipo.mime if tipo else "application/octet-stream"
-    if mime_detectado not in ALLOWED_MIME:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Formato inválido ({mime_detectado}). Apenas JPEG e PNG são aceitos",
-        )
+        # Valida pelo magic bytes, não pela extensão declarada
+        tipo = filetype.guess(conteudo)
+        mime_detectado = tipo.mime if tipo else "application/octet-stream"
+        if mime_detectado not in ALLOWED_MIME:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Formato inválido ({mime_detectado}). Apenas JPEG e PNG são aceitos",
+            )
 
     # ── 2. Validação do score ─────────────────────────────────────────────────
     await score_svc.validar_score(pool, str(jogo_id), pontuacao)
@@ -68,8 +69,8 @@ async def upload(
     if pendente:
         log.info("upload_rate_limited", ip_hash=ip_hash[:8], nick=nick[:20])
 
-    # ── 4. Upload da foto (sempre, independente de pendente) ──────────────────
-    foto_url = await storage.upload_foto(foto)
+    # ── 4. Upload da foto (se fornecida) ─────────────────────────────────────
+    foto_url = await storage.upload_foto(foto) if foto is not None else None
 
     # ── 5. Transação: marcar anterior como superado + inserir nova entrada ────
     nick_normalizado = nick_svc.normalizar_nick(nick)

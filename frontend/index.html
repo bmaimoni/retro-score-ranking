@@ -423,10 +423,6 @@ function configurarForm() {
 
 async function enviarPontuacao() {
   // Validações
-  if (!fotoFile) {
-    showToast('Adicione uma foto do placar', 'error');
-    return;
-  }
   const jogoId = document.getElementById('jogo-select').value;
   if (!jogoId) {
     showToast('Selecione o jogo', 'error');
@@ -455,12 +451,12 @@ async function enviarPontuacao() {
 
   try {
     const formData = new FormData();
-    formData.append('foto', fotoFile);
+    if (fotoFile) formData.append('foto', fotoFile);
     formData.append('nick', nick);
     formData.append('pontuacao', pontuacao);
     formData.append('jogo_id', jogoId);
 
-    mostrarProgress(true, 60, 'Enviando foto...');
+    mostrarProgress(true, 60, fotoFile ? 'Enviando foto...' : 'Registrando...');
 
     const resp = await fetch(`${API_URL}/api/upload`, {
       method: 'POST',
