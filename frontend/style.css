@@ -362,3 +362,18 @@ select.field-input option { background: var(--color-bg-surface); }
   background: var(--color-error);
   animation: none;
 }
+
+/* ── Logo ── */
+.site-logo {
+  height: 48px;        /* altura do logo — ajuste aqui */
+  width: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto var(--space-md);
+}
+
+/* Logo maior no ranking (TV/monitor) */
+.ranking-title .site-logo {
+  height: 56px;
+  margin: 0 auto var(--space-sm);
+}
