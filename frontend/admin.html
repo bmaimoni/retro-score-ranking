@@ -486,10 +486,7 @@
       Feed
       <span class="tab-badge" id="badge-feed" style="display:none">0</span>
     </button>
-    <button class="admin-tab" data-tab="pendentes">
-      Pendentes
-      <span class="tab-badge" id="badge-pendentes" style="display:none">0</span>
-    </button>
+
     <button class="admin-tab" data-tab="jogos">Jogos</button>
     <button class="admin-tab" data-tab="config">Evento</button>
   </div>
@@ -504,18 +501,12 @@
       <button class="filter-pill active" data-filter="todos">Todos</button>
       <button class="filter-pill" data-filter="visiveis">Visíveis</button>
       <button class="filter-pill" data-filter="ocultos">Ocultos</button>
+      <button class="filter-pill" data-filter="pendentes" id="pill-pendentes">Pendentes <span id="pill-pendentes-count" style="display:none"></span></button>
     </div>
     <div id="feed-list"></div>
   </div>
 
-  <!-- ── ABA: PENDENTES ── -->
-  <div class="tab-content" id="tab-pendentes">
-    <div class="section-header">
-      <span class="section-title">Aguardando aprovação</span>
-      <span class="section-count" id="pendentes-count"></span>
-    </div>
-    <div id="pendentes-list"></div>
-  </div>
+
 
   <!-- ── ABA: JOGOS ── -->
   <div class="tab-content" id="tab-jogos">
@@ -667,8 +658,8 @@ function atualizarContador() {
 async function carregarTudo() {
   const btn = document.getElementById('btn-atualizar');
   if (btn) { btn.classList.add('loading'); btn.textContent = '↻ Atualizando...'; }
-  // Feed e pendentes sempre atualizam — mudam durante o evento
-  await Promise.all([carregarFeed(), carregarPendentes()]);
+  // Feed já inclui pendentes via filtro
+  await carregarFeed();
   // Jogos e config só carregam uma vez — raramente mudam
   if (!jogosCarregados) await carregarJogos();
   if (!configCarregada) await carregarConfig();
@@ -691,9 +682,22 @@ async function carregarFeed() {
     const resp = await apiFetch('/api/admin/feed?limit=100');
     feedData = await resp.json();
     renderFeed();
-    // Badge: entradas nas últimas 2 min
+    // Badge da aba feed: entradas nas últimas 2 min
     const recentes = feedData.filter(e => Date.now() - new Date(e.criado_em) < 120000).length;
     atualizarBadge('feed', recentes);
+    // Contador no pill de pendentes
+    const totalPendentes = feedData.filter(e => e.pendente).length;
+    const pillCount = document.getElementById('pill-pendentes-count');
+    if (pillCount) {
+      if (totalPendentes > 0) {
+        pillCount.textContent = `(${totalPendentes})`;
+        pillCount.style.display = 'inline';
+        pillCount.style.color = 'var(--color-error)';
+        pillCount.style.fontWeight = '700';
+      } else {
+        pillCount.style.display = 'none';
+      }
+    }
   } catch { /* silencioso */ }
 }
 
@@ -710,8 +714,9 @@ function renderFeed() {
   const container = document.getElementById('feed-list');
   let lista = feedData;
 
-  if (feedFilter === 'visiveis') lista = feedData.filter(e => e.no_ranking && !e.pendente);
-  if (feedFilter === 'ocultos')  lista = feedData.filter(e => !e.no_ranking);
+  if (feedFilter === 'visiveis')  lista = feedData.filter(e => e.no_ranking && !e.pendente);
+  if (feedFilter === 'ocultos')   lista = feedData.filter(e => !e.no_ranking && !e.pendente);
+  if (feedFilter === 'pendentes') lista = feedData.filter(e => e.pendente);
 
   document.getElementById('feed-count').textContent = `${lista.length} entrada${lista.length !== 1 ? 's' : ''}`;
 
@@ -721,32 +726,11 @@ function renderFeed() {
   }
 
   container.innerHTML = lista.map(e => cardEntrada(e, 'feed')).join('');
-  bindCardActions(container, 'feed');
+  bindCardActions(container);
 }
 
 // ── PENDENTES ─────────────────────────────────────────────────────────────────
-async function carregarPendentes() {
-  try {
-    const resp = await apiFetch('/api/admin/pendentes');
-    const lista = await resp.json();
-    renderPendentes(lista);
-    atualizarBadge('pendentes', lista.length);
-  } catch { /* silencioso */ }
-}
-
-function renderPendentes(lista) {
-  const container = document.getElementById('pendentes-list');
-  document.getElementById('pendentes-count').textContent =
-    `${lista.length} aguardando${lista.length !== 1 ? '' : ''}`;
-
-  if (lista.length === 0) {
-    container.innerHTML = emptyState('Nenhuma entrada pendente');
-    return;
-  }
-
-  container.innerHTML = lista.map(e => cardEntrada(e, 'pendente')).join('');
-  bindCardActions(container, 'pendente');
-}
+// carregarPendentes e renderPendentes consolidados no feed
 
 // ── JOGOS ─────────────────────────────────────────────────────────────────────
 async function carregarJogos() {
@@ -881,6 +865,14 @@ function renderConfig(cfg) {
 }
 
 // ── CARD DE ENTRADA ───────────────────────────────────────────────────────────
+function motivoModeracao(e) {
+  const motivos = [];
+  if (e.pendente && !e.foto_url) motivos.push('sem foto');
+  if (e.pendente &&  e.foto_url) motivos.push('limite de envios');
+  if (!e.no_ranking && !e.pendente) motivos.push('ocultado pelo moderador');
+  return motivos.length ? motivos.join(' · ') : '';
+}
+
 function cardEntrada(e, tipo) {
   const foto = e.foto_url
     ? `<img class="entrada-foto" src="${e.foto_url}" alt="${e.nick}" loading="lazy">`
@@ -889,17 +881,23 @@ function cardEntrada(e, tipo) {
   const oculta  = !e.no_ranking && !e.pendente;
   const classes = `entrada-card ${oculta ? 'oculta' : ''} ${e.pendente ? 'pendente-card' : ''}`;
 
+  // Ações: pendentes têm aprovar/ocultar; visíveis têm ocultar; ocultos têm reativar
   let acoes = '';
-  if (tipo === 'feed') {
-    acoes = e.no_ranking
-      ? `<button class="btn-action btn-ocultar" data-id="${e.id}">Ocultar</button>`
-      : `<button class="btn-action btn-reativar" data-id="${e.id}">Reativar</button>`;
-  } else if (tipo === 'pendente') {
+  if (e.pendente) {
     acoes = `
       <button class="btn-action btn-aprovar"  data-id="${e.id}">Aprovar</button>
-      <button class="btn-action btn-rejeitar" data-id="${e.id}">Rejeitar</button>
-    `;
+      <button class="btn-action btn-rejeitar" data-id="${e.id}">Ocultar</button>`;
+  } else if (e.no_ranking) {
+    acoes = `<button class="btn-action btn-ocultar" data-id="${e.id}">Ocultar</button>`;
+  } else {
+    acoes = `<button class="btn-action btn-reativar" data-id="${e.id}">Reativar</button>`;
   }
+
+  // Status badge + motivo da moderação
+  const motivo = motivoModeracao(e);
+  const motivoHtml = motivo
+    ? `<span style="font-size:var(--text-xs);color:var(--color-text-dim);font-style:italic;margin-top:2px;display:block">⚑ ${motivo}</span>`
+    : '';
 
   const status = e.pendente
     ? '<span class="badge badge-pending">pendente</span>'
@@ -910,6 +908,7 @@ function cardEntrada(e, tipo) {
       ${foto}
       <div class="entrada-info">
         <div class="entrada-nick">${escapar(e.nick)} ${status}</div>
+        ${motivoHtml}
         <div class="entrada-meta">
           <span>${e.jogo_nome || ''}</span>
           <span class="entrada-score">${(e.pontuacao || 0).toLocaleString('pt-BR')} pts</span>
@@ -921,26 +920,19 @@ function cardEntrada(e, tipo) {
   `;
 }
 
-function bindCardActions(container, tipo) {
-  if (tipo === 'feed') {
-    container.querySelectorAll('.btn-ocultar').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        await moderarEntrada(btn.dataset.id, false);
-      });
-    });
-    container.querySelectorAll('.btn-reativar').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        await moderarEntrada(btn.dataset.id, true);
-      });
-    });
-  } else if (tipo === 'pendente') {
-    container.querySelectorAll('.btn-aprovar').forEach(btn => {
-      btn.addEventListener('click', async () => await resolverPendente(btn.dataset.id, true));
-    });
-    container.querySelectorAll('.btn-rejeitar').forEach(btn => {
-      btn.addEventListener('click', async () => await resolverPendente(btn.dataset.id, false));
-    });
-  }
+function bindCardActions(container) {
+  container.querySelectorAll('.btn-ocultar').forEach(btn => {
+    btn.addEventListener('click', async () => await moderarEntrada(btn.dataset.id, false));
+  });
+  container.querySelectorAll('.btn-reativar').forEach(btn => {
+    btn.addEventListener('click', async () => await moderarEntrada(btn.dataset.id, true));
+  });
+  container.querySelectorAll('.btn-aprovar').forEach(btn => {
+    btn.addEventListener('click', async () => await resolverPendente(btn.dataset.id, true));
+  });
+  container.querySelectorAll('.btn-rejeitar').forEach(btn => {
+    btn.addEventListener('click', async () => await resolverPendente(btn.dataset.id, false));
+  });
 }
 
 async function moderarEntrada(id, noRanking) {
