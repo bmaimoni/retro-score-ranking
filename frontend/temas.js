@@ -27,6 +27,7 @@ export const TEMA_PADRAO = {
   },
   assets: {
     icone:      "🎮",
+    icone_url:  "",
     bg_image:   "",
     bg_overlay: "0.75",
     scanline:   true,
@@ -38,21 +39,22 @@ const TEMAS = {
 
   "pac-man": {
     cores: {
-      bg:        "#0d0d00",
-      surface:   "#1a1a00",
+      bg:        "#000000",
+      surface:   "#00001a",
       primary:   "#ffcc00",
-      secondary: "#ff9900",
+      secondary: "#2121de",
       accent:    "#ffffff",
     },
     tipografia: {
       font_display: "'Press Start 2P', monospace",
-      font_body:    "'Poppins', sans-serif",
-      font_url:     "https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Poppins:wght@400;600;700&display=swap",
+      font_body:    "'Orbitron', sans-serif",
+      font_url:     "https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700&display=swap",
     },
     assets: {
       icone:      "🟡",
-      bg_image:   "",
-      bg_overlay: "0.80",
+      icone_url:  "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRJ6D1lEeBmEJbFf8wJs-mrPCd3m7YjQ_KJEQ&s",
+      bg_image:   "https://cdn.wallpapersafari.com/20/2/htygO1.jpeg",
+      bg_overlay: "0.65",
       scanline:   true,
     },
   },
@@ -72,6 +74,7 @@ const TEMAS = {
     },
     assets: {
       icone:      "✈️",
+      icone_url:  "",
       bg_image:   "",
       bg_overlay: "0.75",
       scanline:   true,
@@ -93,6 +96,7 @@ const TEMAS = {
     },
     assets: {
       icone:      "🚀",
+      icone_url:  "",
       bg_image:   "",
       bg_overlay: "0.80",
       scanline:   true,
@@ -114,6 +118,7 @@ const TEMAS = {
     },
     assets: {
       icone:      "👾",
+      icone_url:  "",
       bg_image:   "",
       bg_overlay: "0.85",
       scanline:   true,
@@ -135,6 +140,7 @@ const TEMAS = {
     },
     assets: {
       icone:      "🦍",
+      icone_url:  "",
       bg_image:   "",
       bg_overlay: "0.75",
       scanline:   true,
