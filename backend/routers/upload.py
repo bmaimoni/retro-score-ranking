@@ -1,4 +1,4 @@
-import magic
+import filetype
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException
 from pydantic import UUID4
 from utils.db import get_pool
@@ -49,7 +49,8 @@ async def upload(
         raise HTTPException(status_code=413, detail="Foto excede o limite de 5MB")
 
     # Valida pelo magic bytes, não pela extensão declarada
-    mime_detectado = magic.from_buffer(conteudo, mime=True)
+    tipo = filetype.guess(conteudo)
+    mime_detectado = tipo.mime if tipo else "application/octet-stream"
     if mime_detectado not in ALLOWED_MIME:
         raise HTTPException(
             status_code=422,
