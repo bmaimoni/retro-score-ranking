@@ -8,6 +8,31 @@ import repositories.entrada as entrada_repo
 router = APIRouter(prefix="/api", tags=["ranking"])
 
 
+@router.get("/ranking/lideres")
+async def get_lideres(pool=Depends(get_pool)):
+    """
+    Retorna o top 1 de cada jogo ativo em uma única query.
+    Deve vir ANTES de /ranking/{slug} para não ser capturado como slug.
+    """
+    rows = await pool.fetch(
+        """
+        SELECT DISTINCT ON (e.jogo_id)
+            e.jogo_id,
+            j.slug,
+            e.nick,
+            e.pontuacao
+        FROM entradas e
+        JOIN jogos j ON j.id = e.jogo_id
+        WHERE e.no_ranking = true
+          AND e.superado   = false
+          AND e.pendente   = false
+          AND j.ativo      = true
+        ORDER BY e.jogo_id, e.pontuacao DESC
+        """
+    )
+    return {str(r["jogo_id"]): {"slug": r["slug"], "nick": r["nick"], "pontuacao": r["pontuacao"]} for r in rows}
+
+
 @router.get("/ranking/{slug}")
 async def get_ranking(slug: str, pool=Depends(get_pool)):
     """
@@ -44,28 +69,3 @@ async def sse_ranking(slug: str, pool=Depends(get_pool)):
             "Connection": "keep-alive",
         },
     )
-
-
-@router.get("/ranking/lideres")
-async def get_lideres(pool=Depends(get_pool)):
-    """
-    Retorna o top 1 de cada jogo ativo em uma única query.
-    Usado na tela de seleção de jogo para mostrar o score do líder atual.
-    """
-    rows = await pool.fetch(
-        """
-        SELECT DISTINCT ON (e.jogo_id)
-            e.jogo_id,
-            j.slug,
-            e.nick,
-            e.pontuacao
-        FROM entradas e
-        JOIN jogos j ON j.id = e.jogo_id
-        WHERE e.no_ranking = true
-          AND e.superado   = false
-          AND e.pendente   = false
-          AND j.ativo      = true
-        ORDER BY e.jogo_id, e.pontuacao DESC
-        """
-    )
-    return {str(r["jogo_id"]): {"slug": r["slug"], "nick": r["nick"], "pontuacao": r["pontuacao"]} for r in rows}

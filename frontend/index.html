@@ -379,7 +379,7 @@ function renderJogos(jogos, lideres) {
     const liderHtml = lider
       ? `<span class="lider-nick">🥇 ${escapar(lider.nick)}</span>
          <span class="lider-score">${lider.pontuacao.toLocaleString('pt-BR')}</span>`
-      : `<span>Seja o primeiro!</span>`;
+      : `<span style="opacity:0.4;font-style:italic">sem registros ainda</span>`;
 
     return `
     <div class="jogo-card" id="card-${j.id}"
@@ -460,8 +460,9 @@ function renderFormulario(j) {
     <h2 class="sucesso-titulo" id="sucesso-titulo-${j.id}">PONTUAÇÃO<br>REGISTRADA!</h2>
     <div class="sucesso-score" id="sucesso-score-${j.id}">0</div>
     <p class="sucesso-msg" id="sucesso-msg-${j.id}"></p>
-    <div class="sucesso-actions">
-      <button class="card-btn" onclick="resetCard('${j.id}')">↺ JOGAR NOVAMENTE</button>
+    <div class="sucesso-actions" style="flex-direction:row;gap:var(--space-sm)">
+      <a href="ranking.html" class="card-btn" style="text-decoration:none;text-align:center;flex:1">VER RANKING →</a>
+      <button class="card-btn" onclick="resetCard('${j.id}')" style="flex:1;background:transparent;border:var(--border-width) solid var(--card-primary,var(--color-primary));color:var(--card-primary,var(--color-primary))">↺ NOVAMENTE</button>
     </div>
   </div>`;
 }
