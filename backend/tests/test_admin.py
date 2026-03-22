@@ -1,6 +1,9 @@
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 import uuid
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from main import app
+from utils.db import get_pool
+from middleware.auth import require_admin
 
 ADMIN_SECRET = "test-secret-123"
 AUTH_HEADER  = {"Authorization": f"Bearer {ADMIN_SECRET}"}
@@ -28,34 +31,57 @@ def make_jogo():
             "score_max": 999990, "ativo": True}
 
 
+def _pool_com_slug(slug="pac-man"):
+    """Pool mock que responde o slug do jogo quando consultado."""
+    pool = MagicMock()
+    pool.fetchrow = AsyncMock(return_value={"slug": slug})
+    pool.fetch    = AsyncMock(return_value=[])
+    return pool
+
+
 @pytest.fixture(autouse=True)
-def patch_auth():
-    with patch("middleware.auth.get_settings") as m:
-        m.return_value.admin_secret = ADMIN_SECRET
-        yield
+def override_auth():
+    """Substitui autenticação via dependency_overrides."""
+    app.dependency_overrides[require_admin] = lambda: ADMIN_SECRET
+    yield
+    app.dependency_overrides.pop(require_admin, None)
+
+
+@pytest.fixture(autouse=True)
+def clear_pool_override():
+    """Garante limpeza do override do pool após cada teste."""
+    yield
+    app.dependency_overrides.pop(get_pool, None)
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_sem_token_retorna_401(client):
-    with patch("routers.admin.get_pool", AsyncMock(return_value=AsyncMock())):
-        resp = await client.get("/api/admin/feed")
+    """Sem override de auth, deve retornar 401."""
+    app.dependency_overrides.pop(require_admin, None)
+    resp = await client.get("/api/admin/feed")
     assert resp.status_code == 401
+    # Restaura para os outros testes
+    app.dependency_overrides[require_admin] = lambda: ADMIN_SECRET
 
 
 @pytest.mark.asyncio
 async def test_token_errado_retorna_401(client):
-    with patch("routers.admin.get_pool", AsyncMock(return_value=AsyncMock())):
-        resp = await client.get("/api/admin/feed",
-                                headers={"Authorization": "Bearer errado"})
+    app.dependency_overrides.pop(require_admin, None)
+    resp = await client.get("/api/admin/feed",
+                            headers={"Authorization": "Bearer errado"})
     assert resp.status_code == 401
+    app.dependency_overrides[require_admin] = lambda: ADMIN_SECRET
 
 
 @pytest.mark.asyncio
 async def test_token_correto_retorna_200(client):
-    with patch("routers.admin.get_pool", AsyncMock(return_value=AsyncMock())), \
-         patch("repositories.entrada.listar_feed_admin", AsyncMock(return_value=[])):
+    pool = MagicMock()
+    pool.fetch = AsyncMock(return_value=[])
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.entrada.listar_feed_admin", AsyncMock(return_value=[])):
         resp = await client.get("/api/admin/feed", headers=AUTH_HEADER)
     assert resp.status_code == 200
 
@@ -68,31 +94,27 @@ async def test_ocultar_entrada(client):
     entrada = make_entrada(jogo_id=jogo_id, no_ranking=True)
     entrada_ocultada = {**entrada, "no_ranking": False}
 
-    # Pool com fetchrow respondendo o slug do jogo
-    pool_mock = AsyncMock()
-    pool_mock.fetchrow = AsyncMock(return_value={"slug": "pac-man"})
+    app.dependency_overrides[get_pool] = lambda: _pool_com_slug()
 
-    with patch("routers.admin.get_pool", AsyncMock(return_value=pool_mock)), \
-         patch("repositories.entrada.atualizar_visibilidade",
+    with patch("repositories.entrada.atualizar_visibilidade",
                AsyncMock(return_value=entrada_ocultada)), \
          patch("routers.admin.broker.publish", AsyncMock()):
         resp = await client.patch(
             f"/api/admin/entradas/{entrada['id']}",
-            json={"no_ranking": False},
-            headers=AUTH_HEADER,
-        )
+            json={"no_ranking": False}, headers=AUTH_HEADER)
+
     assert resp.status_code == 200
 
 
 @pytest.mark.asyncio
 async def test_ocultar_entrada_inexistente_retorna_404(client):
-    with patch("routers.admin.get_pool", AsyncMock(return_value=AsyncMock())), \
-         patch("repositories.entrada.atualizar_visibilidade", AsyncMock(return_value=None)):
+    app.dependency_overrides[get_pool] = lambda: _pool_com_slug()
+
+    with patch("repositories.entrada.atualizar_visibilidade", AsyncMock(return_value=None)):
         resp = await client.patch(
             f"/api/admin/entradas/{make_uuid()}",
-            json={"no_ranking": False},
-            headers=AUTH_HEADER,
-        )
+            json={"no_ranking": False}, headers=AUTH_HEADER)
+
     assert resp.status_code == 404
 
 
@@ -102,18 +124,15 @@ async def test_aprovar_pendente(client):
     entrada = make_entrada(jogo_id=jogo_id, pendente=True, no_ranking=False)
     entrada_aprovada = {**entrada, "pendente": False, "no_ranking": True}
 
-    pool_mock = AsyncMock()
-    pool_mock.fetchrow = AsyncMock(return_value={"slug": "pac-man"})
+    app.dependency_overrides[get_pool] = lambda: _pool_com_slug()
 
-    with patch("routers.admin.get_pool", AsyncMock(return_value=pool_mock)), \
-         patch("repositories.entrada.resolver_pendente",
+    with patch("repositories.entrada.resolver_pendente",
                AsyncMock(return_value=entrada_aprovada)), \
          patch("routers.admin.broker.publish", AsyncMock()):
         resp = await client.patch(
             f"/api/admin/entradas/{entrada['id']}/pendente",
-            json={"aprovar": True},
-            headers=AUTH_HEADER,
-        )
+            json={"aprovar": True}, headers=AUTH_HEADER)
+
     assert resp.status_code == 200
 
 
@@ -122,20 +141,16 @@ async def test_aprovar_pendente_publica_sse(client):
     jogo_id = make_uuid()
     entrada = make_entrada(jogo_id=jogo_id, pendente=True, no_ranking=False)
     entrada_aprovada = {**entrada, "pendente": False, "no_ranking": True}
-
-    pool_mock = AsyncMock()
-    pool_mock.fetchrow = AsyncMock(return_value={"slug": "pac-man"})
     broker_mock = AsyncMock()
 
-    with patch("routers.admin.get_pool", AsyncMock(return_value=pool_mock)), \
-         patch("repositories.entrada.resolver_pendente",
+    app.dependency_overrides[get_pool] = lambda: _pool_com_slug()
+
+    with patch("repositories.entrada.resolver_pendente",
                AsyncMock(return_value=entrada_aprovada)), \
          patch("routers.admin.broker.publish", broker_mock):
         await client.patch(
             f"/api/admin/entradas/{entrada['id']}/pendente",
-            json={"aprovar": True},
-            headers=AUTH_HEADER,
-        )
+            json={"aprovar": True}, headers=AUTH_HEADER)
 
     broker_mock.assert_called_once()
     assert broker_mock.call_args[0][1] == "novo_registro"
@@ -148,15 +163,14 @@ async def test_rejeitar_pendente_nao_publica_sse(client):
     entrada_rejeitada = {**entrada, "pendente": False, "no_ranking": False}
     broker_mock = AsyncMock()
 
-    with patch("routers.admin.get_pool", AsyncMock(return_value=AsyncMock())), \
-         patch("repositories.entrada.resolver_pendente",
+    app.dependency_overrides[get_pool] = lambda: _pool_com_slug()
+
+    with patch("repositories.entrada.resolver_pendente",
                AsyncMock(return_value=entrada_rejeitada)), \
          patch("routers.admin.broker.publish", broker_mock):
         await client.patch(
             f"/api/admin/entradas/{entrada['id']}/pendente",
-            json={"aprovar": False},
-            headers=AUTH_HEADER,
-        )
+            json={"aprovar": False}, headers=AUTH_HEADER)
 
     broker_mock.assert_not_called()
 
@@ -165,27 +179,24 @@ async def test_rejeitar_pendente_nao_publica_sse(client):
 
 @pytest.mark.asyncio
 async def test_criar_jogo(client):
-    jogo = make_jogo()
-    with patch("routers.admin.get_pool", AsyncMock(return_value=AsyncMock())), \
-         patch("repositories.jogo.criar", AsyncMock(return_value=jogo)):
-        resp = await client.post(
-            "/api/admin/jogos",
-            json={"nome": "Pac-Man", "slug": "pac-man"},
-            headers=AUTH_HEADER,
-        )
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.jogo.criar", AsyncMock(return_value=make_jogo())):
+        resp = await client.post("/api/admin/jogos",
+                                 json={"nome": "Pac-Man", "slug": "pac-man"},
+                                 headers=AUTH_HEADER)
     assert resp.status_code == 201
 
 
 @pytest.mark.asyncio
 async def test_criar_jogo_slug_duplicado_retorna_409(client):
-    with patch("routers.admin.get_pool", AsyncMock(return_value=AsyncMock())), \
-         patch("repositories.jogo.criar",
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.jogo.criar",
                AsyncMock(side_effect=Exception("unique constraint"))):
-        resp = await client.post(
-            "/api/admin/jogos",
-            json={"nome": "Pac-Man", "slug": "pac-man"},
-            headers=AUTH_HEADER,
-        )
+        resp = await client.post("/api/admin/jogos",
+                                 json={"nome": "Pac-Man", "slug": "pac-man"},
+                                 headers=AUTH_HEADER)
     assert resp.status_code == 409
 
 
@@ -193,25 +204,26 @@ async def test_criar_jogo_slug_duplicado_retorna_409(client):
 
 @pytest.mark.asyncio
 async def test_listar_config(client):
-    with patch("routers.admin.get_pool", AsyncMock(return_value=AsyncMock())), \
-         patch("repositories.evento_config.listar", AsyncMock(return_value={
-             "rate_limit": {"valor": "10", "descricao": "limite"},
-         })):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.evento_config.listar", AsyncMock(return_value={
+        "rate_limit": {"valor": "10", "descricao": "limite"},
+    })):
         resp = await client.get("/api/admin/config", headers=AUTH_HEADER)
+
     assert resp.status_code == 200
     assert "rate_limit" in resp.json()
 
 
 @pytest.mark.asyncio
 async def test_atualizar_config(client):
-    with patch("routers.admin.get_pool", AsyncMock(return_value=AsyncMock())), \
-         patch("repositories.evento_config.atualizar", AsyncMock(return_value={
-             "chave": "rate_limit", "valor": "20", "descricao": "limite"
-         })):
-        resp = await client.patch(
-            "/api/admin/config/rate_limit",
-            json={"valor": "20"},
-            headers=AUTH_HEADER,
-        )
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.evento_config.atualizar", AsyncMock(return_value={
+        "chave": "rate_limit", "valor": "20", "descricao": "limite"
+    })):
+        resp = await client.patch("/api/admin/config/rate_limit",
+                                  json={"valor": "20"}, headers=AUTH_HEADER)
+
     assert resp.status_code == 200
     assert resp.json()["valor"] == "20"

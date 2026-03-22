@@ -4,7 +4,9 @@ Testes de integração do fluxo completo de upload.
 import io
 import uuid
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+from main import app
+from utils.db import get_pool
 
 JOGO_ID = "550e8400-e29b-41d4-a716-446655440000"
 URL     = "/api/upload"
@@ -36,7 +38,6 @@ class _FakeTxn:
 
 class _FakeConn:
     def __init__(self, entry):
-        self._entry = entry
         self.fetchrow    = AsyncMock(return_value=entry)
         self.execute     = AsyncMock(return_value="UPDATE 1")
         self.transaction = MagicMock(return_value=_FakeTxn())
@@ -51,23 +52,30 @@ def _make_pool(entry):
     pool.fetchrow = AsyncMock(return_value=None)
     pool.fetchval = AsyncMock(return_value=0)
     pool.acquire  = MagicMock(return_value=conn)
-    return pool, conn
+    return pool
+
+
+@pytest.fixture(autouse=True)
+def clear_overrides():
+    yield
+    app.dependency_overrides.pop(get_pool, None)
 
 
 @pytest.mark.asyncio
 async def test_upload_com_foto_entra_direto_no_ranking(client):
     entry = _entrada()
-    pool, conn = _make_pool(entry)
+    pool  = _make_pool(entry)
     broker = AsyncMock()
 
-    with patch("routers.upload.get_pool",           AsyncMock(return_value=pool)), \
-         patch("routers.upload.storage.upload_foto",AsyncMock(return_value="https://cdn/f.jpg")), \
-         patch("routers.upload.rl.checar_rate_limit",AsyncMock(return_value=False)), \
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("routers.upload.storage.upload_foto",  AsyncMock(return_value="https://cdn/f.jpg")), \
+         patch("routers.upload.rl.checar_rate_limit", AsyncMock(return_value=False)), \
          patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
          patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
-         patch("routers.upload.broker.publish",     broker), \
-         patch("routers.upload.entrada_repo.inserir", AsyncMock(return_value=entry)), \
-         patch("routers.upload._slug_from_id",      AsyncMock(return_value="pac-man")), \
+         patch("routers.upload.broker.publish",        broker), \
+         patch("routers.upload.entrada_repo.inserir",  AsyncMock(return_value=entry)), \
+         patch("routers.upload._slug_from_id",         AsyncMock(return_value="pac-man")), \
          patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
         resp = await client.post(URL,
             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
@@ -80,17 +88,18 @@ async def test_upload_com_foto_entra_direto_no_ranking(client):
 
 @pytest.mark.asyncio
 async def test_upload_sem_foto_vai_para_moderacao(client):
-    entry = _entrada(pendente=True, no_ranking=False, foto_url=None)
-    pool, conn = _make_pool(entry)
+    entry  = _entrada(pendente=True, no_ranking=False, foto_url=None)
+    pool   = _make_pool(entry)
     broker = AsyncMock()
 
-    with patch("routers.upload.get_pool",           AsyncMock(return_value=pool)), \
-         patch("routers.upload.rl.checar_rate_limit",AsyncMock(return_value=False)), \
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
          patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
          patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
-         patch("routers.upload.broker.publish",     broker), \
-         patch("routers.upload.entrada_repo.inserir", AsyncMock(return_value=entry)), \
-         patch("routers.upload._slug_from_id",      AsyncMock(return_value="pac-man")):
+         patch("routers.upload.broker.publish",          broker), \
+         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")):
         resp = await client.post(URL,
             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID})
 
@@ -101,18 +110,19 @@ async def test_upload_sem_foto_vai_para_moderacao(client):
 
 @pytest.mark.asyncio
 async def test_rate_limit_ativado_vai_para_moderacao(client):
-    entry = _entrada(pendente=True, no_ranking=False)
-    pool, conn = _make_pool(entry)
+    entry  = _entrada(pendente=True, no_ranking=False)
+    pool   = _make_pool(entry)
     broker = AsyncMock()
 
-    with patch("routers.upload.get_pool",           AsyncMock(return_value=pool)), \
-         patch("routers.upload.storage.upload_foto",AsyncMock(return_value="https://cdn/f.jpg")), \
-         patch("routers.upload.rl.checar_rate_limit",AsyncMock(return_value=True)), \
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=True)), \
          patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
          patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
-         patch("routers.upload.broker.publish",     broker), \
-         patch("routers.upload.entrada_repo.inserir", AsyncMock(return_value=entry)), \
-         patch("routers.upload._slug_from_id",      AsyncMock(return_value="pac-man")):
+         patch("routers.upload.broker.publish",          broker), \
+         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")):
         resp = await client.post(URL,
             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
@@ -124,18 +134,19 @@ async def test_rate_limit_ativado_vai_para_moderacao(client):
 
 @pytest.mark.asyncio
 async def test_nick_repetido_marca_anterior_como_superado(client):
-    entry = _entrada()
-    pool, conn = _make_pool(entry)
+    entry      = _entrada()
+    pool       = _make_pool(entry)
     marcar_mock = AsyncMock(return_value="uuid-anterior")
 
-    with patch("routers.upload.get_pool",           AsyncMock(return_value=pool)), \
-         patch("routers.upload.storage.upload_foto",AsyncMock(return_value="https://cdn/f.jpg")), \
-         patch("routers.upload.rl.checar_rate_limit",AsyncMock(return_value=False)), \
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
          patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
          patch("routers.upload.nick_svc.marcar_anterior_como_superado", marcar_mock), \
-         patch("routers.upload.broker.publish",     AsyncMock()), \
-         patch("routers.upload.entrada_repo.inserir", AsyncMock(return_value=entry)), \
-         patch("routers.upload._slug_from_id",      AsyncMock(return_value="pac-man")), \
+         patch("routers.upload.broker.publish",          AsyncMock()), \
+         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
          patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
         await client.post(URL,
             data={"nick": "P1", "pontuacao": "9999", "jogo_id": JOGO_ID},
@@ -147,11 +158,12 @@ async def test_nick_repetido_marca_anterior_como_superado(client):
 @pytest.mark.asyncio
 async def test_score_acima_do_maximo_retorna_422(client):
     from fastapi import HTTPException
-    pool, _ = _make_pool(_entrada())
+    pool = _make_pool(_entrada())
 
-    with patch("routers.upload.get_pool",           AsyncMock(return_value=pool)), \
-         patch("routers.upload.storage.upload_foto",AsyncMock(return_value="https://cdn/f.jpg")), \
-         patch("routers.upload.rl.checar_rate_limit",AsyncMock(return_value=False)), \
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("routers.upload.storage.upload_foto",  AsyncMock(return_value="https://cdn/f.jpg")), \
+         patch("routers.upload.rl.checar_rate_limit", AsyncMock(return_value=False)), \
          patch("routers.upload.score_svc.validar_score",
                AsyncMock(side_effect=HTTPException(422, "Pontuacao excede o maximo"))):
         resp = await client.post(URL,
