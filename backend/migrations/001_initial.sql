@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS entradas (
     nick         text        NOT NULL,        -- como digitado (exibição)
     nick_norm    text        NOT NULL,        -- lowercase + trim (comparação)
     pontuacao    integer     NOT NULL CHECK (pontuacao > 0),
-    foto_url     text        NOT NULL,        -- URL permanente — NUNCA deletar
+    foto_url     text,                        -- URL permanente — NUNCA deletar (nullable desde migração 003)
     no_ranking   boolean     NOT NULL DEFAULT true,    -- false = oculto pelo mod
     superado     boolean     NOT NULL DEFAULT false,   -- score anterior do nick
     pendente     boolean     NOT NULL DEFAULT false,   -- veio pelo rate limit
