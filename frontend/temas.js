@@ -61,11 +61,11 @@ const TEMAS = {
 
   "river-raid": {
     cores: {
-      bg:        "#001a33",
-      surface:   "#002952",
-      primary:   "#ff4400",
-      secondary: "#00aaff",
-      accent:    "#ff8800",
+      bg:        "#001428",
+      surface:   "#001f3f",
+      primary:   "#ff6600",
+      secondary: "#00ccff",
+      accent:    "#ffaa00",
     },
     tipografia: {
       font_display: "'Press Start 2P', monospace",
@@ -74,20 +74,20 @@ const TEMAS = {
     },
     assets: {
       icone:      "✈️",
-      icone_url:  "",
-      bg_image:   "",
-      bg_overlay: "0.75",
+      icone_url:  "https://thumbnails.libretro.com/Atari%20-%202600/Named_Boxarts/River%20Raid.png",
+      bg_image:   "https://thumbnails.libretro.com/Atari%20-%202600/Named_Snaps/River%20Raid.png",
+      bg_overlay: "0.72",
       scanline:   true,
     },
   },
 
   "galaga": {
     cores: {
-      bg:        "#00001a",
-      surface:   "#000033",
-      primary:   "#9933ff",
-      secondary: "#00ffcc",
-      accent:    "#ff3399",
+      bg:        "#000011",
+      surface:   "#00001f",
+      primary:   "#ff0066",
+      secondary: "#00eeff",
+      accent:    "#ffff00",
     },
     tipografia: {
       font_display: "'Press Start 2P', monospace",
@@ -96,9 +96,9 @@ const TEMAS = {
     },
     assets: {
       icone:      "🚀",
-      icone_url:  "",
-      bg_image:   "",
-      bg_overlay: "0.80",
+      icone_url:  "https://thumbnails.libretro.com/MAME/Named_Boxarts/Galaga%20%28Namco%29.png",
+      bg_image:   "https://thumbnails.libretro.com/MAME/Named_Snaps/Galaga%20%28Namco%29.png",
+      bg_overlay: "0.78",
       scanline:   true,
     },
   },
@@ -106,10 +106,10 @@ const TEMAS = {
   "space-invaders": {
     cores: {
       bg:        "#000000",
-      surface:   "#0a0a0a",
-      primary:   "#00ff00",
+      surface:   "#050505",
+      primary:   "#00ff41",
       secondary: "#ffffff",
-      accent:    "#00ff00",
+      accent:    "#00ff41",
     },
     tipografia: {
       font_display: "'Press Start 2P', monospace",
@@ -118,20 +118,20 @@ const TEMAS = {
     },
     assets: {
       icone:      "👾",
-      icone_url:  "",
-      bg_image:   "",
-      bg_overlay: "0.85",
+      icone_url:  "https://thumbnails.libretro.com/MAME/Named_Boxarts/Space%20Invaders%20%28Taito%29.png",
+      bg_image:   "https://thumbnails.libretro.com/MAME/Named_Snaps/Space%20Invaders%20%28Taito%29.png",
+      bg_overlay: "0.82",
       scanline:   true,
     },
   },
 
   "donkey-kong": {
     cores: {
-      bg:        "#1a0a00",
-      surface:   "#2d1500",
-      primary:   "#ff6600",
-      secondary: "#ffcc00",
-      accent:    "#ff3300",
+      bg:        "#1a0800",
+      surface:   "#2d1200",
+      primary:   "#ff4400",
+      secondary: "#ffdd00",
+      accent:    "#ff8800",
     },
     tipografia: {
       font_display: "'Press Start 2P', monospace",
@@ -140,9 +140,9 @@ const TEMAS = {
     },
     assets: {
       icone:      "🦍",
-      icone_url:  "",
-      bg_image:   "",
-      bg_overlay: "0.75",
+      icone_url:  "https://thumbnails.libretro.com/MAME/Named_Boxarts/Donkey%20Kong%20%28Japan%20set%201%29.png",
+      bg_image:   "https://thumbnails.libretro.com/MAME/Named_Snaps/Donkey%20Kong%20%28Japan%20set%201%29.png",
+      bg_overlay: "0.74",
       scanline:   true,
     },
   },
