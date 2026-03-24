@@ -875,6 +875,14 @@ function renderJogos(jogos) {
       } catch { showToast('Erro ao atualizar jogo', 'error'); }
     });
   });
+
+  // Popula select da aba Manutenção
+  const selManut = document.getElementById('manut-jogo-select');
+  if (selManut) {
+    selManut.innerHTML = jogos.map(j =>
+      `<option value="${j.id}">${escapar(j.nome)}</option>`
+    ).join('');
+  }
 }
 
 // Slug automático ao digitar nome
