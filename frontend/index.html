@@ -1260,14 +1260,22 @@ async function gerarImagemShare(dados) {
     ctx.fillText(nomeDisplay, txtX, temFotoOk ? 420 : 462);
   }
 
-  // Score — fonte adaptável baseada em largura disponível com margem segura
+  // Score — carrega fonte e mede largura real antes de calcular tamanho
   const scoreStr = Number(score).toLocaleString('pt-BR');
-  const scoreChars = scoreStr.length;
-  // Press Start 2P: ~0.68em por char. Usa 90% da largura disponível como limite
-  const scoreLimite = maxTxtW * 0.90;
-  let scoreFontSize = Math.min(88, Math.floor(scoreLimite / (scoreChars * 0.68)));
-  scoreFontSize = Math.max(scoreFontSize, 36); // mínimo 36px
+  const limite   = maxTxtW * 0.88;
+
+  // Garante que a fonte está carregada no canvas
+  try {
+    await document.fonts.load('bold 88px "Press Start 2P"');
+  } catch (_) {}
+
+  // Encontra o maior tamanho que cabe na largura disponível
+  let scoreFontSize = 88;
   ctx.font = `bold ${scoreFontSize}px "Press Start 2P", monospace`;
+  while (ctx.measureText(scoreStr).width > limite && scoreFontSize > 32) {
+    scoreFontSize -= 4;
+    ctx.font = `bold ${scoreFontSize}px "Press Start 2P", monospace`;
+  }
   ctx.fillStyle = cor;
   ctx.fillText(scoreStr, txtX, temFotoOk ? 548 : 600);
 
