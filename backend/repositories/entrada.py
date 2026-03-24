@@ -7,10 +7,10 @@ async def inserir(conn, dados: dict) -> dict:
         """
         INSERT INTO entradas
             (jogo_id, nick, nick_norm, nome, pontuacao, foto_url,
-             no_ranking, superado, pendente, ip_hash)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9)
+             no_ranking, superado, pendente, ip_hash, evento_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, $10)
         RETURNING id, jogo_id, nick, nome, pontuacao, foto_url,
-                  no_ranking, pendente, criado_em
+                  no_ranking, pendente, criado_em, evento_id
         """,
         dados["jogo_id"],
         dados["nick"],
@@ -21,6 +21,8 @@ async def inserir(conn, dados: dict) -> dict:
         dados["no_ranking"],
         dados["pendente"],
         dados["ip_hash"],
+        dados.get("evento_id"),
+        dados.get("evento_id"),
     )
     return dict(row)
 
@@ -33,7 +35,7 @@ async def listar_ranking(pool: Pool, jogo_id: str) -> list[dict]:
     """
     rows = await pool.fetch(
         """
-        SELECT id, nick, nome, pontuacao, foto_url, criado_em
+        SELECT id, nick, nome, pontuacao, foto_url, evento_id, criado_em, evento_id
         FROM entradas
         WHERE jogo_id    = $1
           AND no_ranking = true
@@ -55,7 +57,7 @@ async def listar_feed_admin(
     """Feed do admin: todas as entradas, mais recentes primeiro."""
     rows = await pool.fetch(
         """
-        SELECT e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.no_ranking,
+        SELECT e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.evento_id, e.no_ranking,
                e.superado, e.pendente, e.criado_em, e.moderado_em,
                e.moderado_por, j.nome AS jogo_nome, j.slug AS jogo_slug
         FROM entradas e
@@ -152,7 +154,7 @@ async def historico_nick(pool: Pool, jogo_id: str, nick_norm: str) -> list[dict]
     rows = await pool.fetch(
         """
         SELECT id, nick, nome, pontuacao, foto_url,
-               no_ranking, superado, pendente, arquivado, criado_em
+               no_ranking, superado, pendente, arquivado, criado_em, evento_id
         FROM entradas
         WHERE jogo_id   = $1
           AND nick_norm = $2

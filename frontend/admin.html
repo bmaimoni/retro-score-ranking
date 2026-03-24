@@ -588,6 +588,33 @@
     <div class="section-header">
       <span class="section-title">Configurações do evento</span>
     </div>
+
+    <!-- Eventos -->
+    <div class="manut-card">
+      <h3 class="manut-titulo">Evento ativo</h3>
+      <p class="manut-desc">O evento ativo é associado a todos os scores enviados. Entradas sem evento ativo ficam sem associação.</p>
+      <div id="evento-ativo-display" style="margin-bottom:var(--space-sm);font-size:var(--text-sm);color:var(--color-text-muted)">
+        Carregando...
+      </div>
+      <div id="eventos-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:var(--space-md)"></div>
+      <button class="btn-action btn-rejeitar" style="width:100%;margin-bottom:var(--space-sm)" onclick="desativarEvento()">
+        ✕ Desassociar evento ativo
+      </button>
+
+      <details style="margin-top:var(--space-md)">
+        <summary style="cursor:pointer;font-size:var(--text-xs);color:var(--color-text-muted);letter-spacing:0.08em">CRIAR NOVO EVENTO</summary>
+        <div style="margin-top:var(--space-sm);display:flex;flex-direction:column;gap:var(--space-sm)">
+          <input class="field-input" id="novo-evento-nome" placeholder="Nome do evento (ex: Canal3 Expo 2025)" maxlength="80">
+          <input class="field-input" id="novo-evento-slug" placeholder="Slug (ex: canal3-expo-2025)" maxlength="40">
+          <input class="field-input" id="novo-evento-desc" placeholder="Descrição (opcional)" maxlength="200">
+          <button class="btn-action btn-reativar" onclick="criarEvento()">+ Criar evento</button>
+        </div>
+      </details>
+    </div>
+
+    <div class="section-header" style="margin-top:var(--space-lg)">
+      <span class="section-title">Configurações gerais</span>
+    </div>
     <div class="config-grid" id="config-list"></div>
   </div>
 
@@ -1267,6 +1294,83 @@ window.fecharLightbox = function(e) {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') window.fecharLightbox();
 });
+
+// ── EVENTOS ──────────────────────────────────────────────────
+async function carregarEventos() {
+  try {
+    const resp = await apiFetch('/api/admin/eventos');
+    if (!resp.ok) return;
+    const eventos = await resp.json();
+
+    const ativos = eventos.filter(e => e.ativo);
+    const display = document.getElementById('evento-ativo-display');
+    if (ativos.length > 0) {
+      display.innerHTML = ativos.map(e =>
+        `<div style="color:var(--color-primary)">✓ ${escapar(e.nome)} <span style="opacity:0.5">(${escapar(e.slug)})</span></div>`
+      ).join('');
+    } else {
+      display.textContent = 'Nenhum evento ativo';
+      display.style.color = 'var(--color-text-muted)';
+    }
+
+    const lista = document.getElementById('eventos-lista');
+    lista.innerHTML = eventos.map(e => `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--color-bg-surface2);border-radius:6px;border:1px solid ${e.ativo ? 'var(--color-primary)' : 'transparent'}">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:var(--text-sm);font-weight:600">${escapar(e.nome)}</div>
+          <div style="font-size:var(--text-xs);color:var(--color-text-muted)">${escapar(e.slug)}</div>
+        </div>
+        ${e.ativo
+          ? `<button class="btn-action btn-rejeitar" style="padding:4px 10px;font-size:10px" onclick="toggleEvento('${e.id}', false)">Desativar</button>`
+          : `<button class="btn-action btn-reativar" style="padding:4px 10px;font-size:10px" onclick="toggleEvento('${e.id}', true)">Ativar</button>`
+        }
+      </div>
+    `).join('');
+  } catch {}
+}
+
+async function toggleEvento(id, ativo) {
+  const resp = await apiFetch(`/api/admin/eventos/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ativo }),
+  });
+  if (resp.ok) { showToast(ativo ? 'Evento ativado!' : 'Evento desativado', 'success'); carregarEventos(); }
+  else showToast('Erro ao atualizar evento', 'error');
+}
+
+async function desativarEvento() {
+  // Desativa todos os eventos ativos
+  const resp = await apiFetch('/api/admin/eventos');
+  if (!resp.ok) return;
+  const eventos = await resp.json();
+  const ativos = eventos.filter(e => e.ativo);
+  await Promise.all(ativos.map(e => toggleEvento(e.id, false)));
+  showToast('Todos os eventos desativados', 'success');
+}
+
+async function criarEvento() {
+  const nome = document.getElementById('novo-evento-nome').value.trim();
+  const slug = document.getElementById('novo-evento-slug').value.trim();
+  const desc = document.getElementById('novo-evento-desc').value.trim();
+  if (!nome || !slug) { showToast('Nome e slug são obrigatórios', 'error'); return; }
+  const resp = await apiFetch('/api/admin/eventos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nome, slug, descricao: desc || null }),
+  });
+  if (resp.ok) {
+    showToast('Evento criado!', 'success');
+    document.getElementById('novo-evento-nome').value = '';
+    document.getElementById('novo-evento-slug').value = '';
+    document.getElementById('novo-evento-desc').value = '';
+    carregarEventos();
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao criar', 'error');
+  }
+}
+
 </script>
 <div class="lightbox" id="lightbox" onclick="fecharLightbox(event)">
   <button class="lightbox-fechar" onclick="fecharLightbox()">&times;</button>

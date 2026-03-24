@@ -74,6 +74,7 @@ async def test_upload_com_foto_entra_direto_no_ranking(client):
          patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
          patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
          patch("routers.upload.broker.publish",        broker), \
+         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
          patch("routers.upload.entrada_repo.inserir",  AsyncMock(return_value=entry)), \
          patch("routers.upload._slug_from_id",         AsyncMock(return_value="pac-man")), \
          patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
@@ -98,6 +99,7 @@ async def test_upload_sem_foto_vai_para_moderacao(client):
          patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
          patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
          patch("routers.upload.broker.publish",          broker), \
+         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
          patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
          patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")):
         resp = await client.post(URL,
@@ -121,6 +123,7 @@ async def test_rate_limit_ativado_vai_para_moderacao(client):
          patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
          patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
          patch("routers.upload.broker.publish",          broker), \
+         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
          patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
          patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")):
         resp = await client.post(URL,
@@ -145,6 +148,7 @@ async def test_nick_repetido_marca_anterior_como_superado(client):
          patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
          patch("routers.upload.nick_svc.marcar_anterior_como_superado", marcar_mock), \
          patch("routers.upload.broker.publish",          AsyncMock()), \
+         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
          patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
          patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
          patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
@@ -190,6 +194,7 @@ async def test_nome_salvo_no_banco(client):
          patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
          patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
          patch("routers.upload.broker.publish",          AsyncMock()), \
+         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
          patch("routers.upload.entrada_repo.inserir",    inserir_mock), \
          patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
          patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
@@ -215,6 +220,7 @@ async def test_upload_sem_nome_funciona(client):
          patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
          patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
          patch("routers.upload.broker.publish",          AsyncMock()), \
+         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
          patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
          patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
          patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):

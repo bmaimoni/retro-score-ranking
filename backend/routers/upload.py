@@ -6,6 +6,7 @@ from utils.ip import get_client_ip, hash_ip
 from services import storage, rate_limit as rl, nick as nick_svc, score as score_svc
 from services.sse import broker
 import repositories.entrada as entrada_repo
+import repositories.evento  as evento_repo
 import repositories.jogo as jogo_repo
 from fastapi import Request
 import structlog
@@ -77,7 +78,11 @@ async def upload(
     if foto is None:
         pendente = True
 
-    # ── 5. Transação: marcar anterior como superado + inserir nova entrada ────
+    # ── 5. Busca evento ativo para associar ao score ─────────────────────────
+    evento    = await evento_repo.buscar_ativo_mais_recente(pool)
+    evento_id = str(evento["id"]) if evento else None
+
+    # ── 6. Transação: marcar anterior como superado + inserir nova entrada ────
     nick_normalizado = nick_svc.normalizar_nick(nick)
 
     try:
@@ -97,6 +102,8 @@ async def upload(
                     "no_ranking": not pendente,
                     "pendente":  pendente,
                     "ip_hash":   ip_hash,
+                    "evento_id": evento_id,
+                    "evento_id": evento_id,
                 })
 
     except Exception as exc:
