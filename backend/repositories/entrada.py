@@ -38,6 +38,7 @@ async def listar_ranking(pool: Pool, jogo_id: str) -> list[dict]:
           AND no_ranking = true
           AND superado   = false
           AND pendente   = false
+          AND arquivado  = false
         ORDER BY pontuacao DESC
         """,
         jogo_id,
