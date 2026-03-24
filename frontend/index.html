@@ -1174,24 +1174,24 @@ async function gerarImagemShare(dados) {
   ctx.fillStyle = bgColor || '#0b1331';
   ctx.fillRect(0, 0, W, H);
 
-  // ── Logo Canal3 como fundo (sem CORS, arquivo local) ──
+  // ── Overlay escuro (vem ANTES do logo de fundo) ──
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Logo Canal3 centralizado como marca d'água ──
+  let logoImg = null;
   try {
-    const logo = await carregarImagem('./logo-share.png');
-    if (logo && logo.width > 0) {
-      // Centraliza o logo mantendo proporção, com altura de ~60% do canvas
-      const logoH = H * 0.58;
-      const logoW = logo.width * (logoH / logo.height);
+    logoImg = await carregarImagem('./logo-share.png');
+    if (logoImg && logoImg.width > 0) {
+      const logoH = H * 0.55;
+      const logoW = logoImg.width * (logoH / logoImg.height);
       const logoX = (W - logoW) / 2;
       const logoY = (H - logoH) / 2;
-      ctx.globalAlpha = 0.32;
-      ctx.drawImage(logo, logoX, logoY, logoW, logoH);
+      ctx.globalAlpha = 0.22;
+      ctx.drawImage(logoImg, logoX, logoY, logoW, logoH);
       ctx.globalAlpha = 1;
     }
   } catch (_) {}
-
-  // ── Overlay escuro ──
-  ctx.fillStyle = 'rgba(0,0,0,0.58)';
-  ctx.fillRect(0, 0, W, H);
 
   // ── Foto da pessoa — crop centralizado sem distorção ──
   const temFoto = !!fotoUrl;
@@ -1244,6 +1244,15 @@ async function gerarImagemShare(dados) {
 
   ctx.fillStyle = cor;
   ctx.fillRect(60, 218, W - 120, 2);
+
+  // ── Logo Canal3 no canto superior direito (visível) ──
+  if (logoImg && logoImg.width > 0) {
+    const lh = 110;
+    const lw = logoImg.width * (lh / logoImg.height);
+    ctx.globalAlpha = 0.90;
+    ctx.drawImage(logoImg, W - lw - 30, 30, lw, lh);
+    ctx.globalAlpha = 1;
+  }
 
   // ── Coluna de texto ──
   const temFotoOk = temFoto;
