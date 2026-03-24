@@ -61,22 +61,22 @@ const TEMAS = {
 
   "river-raid": {
     cores: {
-      bg:        "#001428",
-      surface:   "#001f3f",
-      primary:   "#ff6600",
-      secondary: "#00ccff",
-      accent:    "#ffaa00",
+      bg:        "#1a6b00",
+      surface:   "#245c00",
+      primary:   "#7aff00",
+      secondary: "#0066cc",
+      accent:    "#ffe000",
     },
     tipografia: {
       font_display: "'Press Start 2P', monospace",
-      font_body:    "'Poppins', sans-serif",
-      font_url:     "https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Poppins:wght@400;600;700&display=swap",
+      font_body:    "'Exo 2', sans-serif",
+      font_url:     "https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Exo+2:wght@400;600;700&display=swap",
     },
     assets: {
       icone:      "✈️",
       icone_url:  "https://thumbnails.libretro.com/Atari%20-%202600/Named_Boxarts/River%20Raid.png",
       bg_image:   "https://thumbnails.libretro.com/Atari%20-%202600/Named_Snaps/River%20Raid.png",
-      bg_overlay: "0.72",
+      bg_overlay: "0.68",
       scanline:   true,
     },
   },
@@ -121,6 +121,50 @@ const TEMAS = {
       icone_url:  "https://thumbnails.libretro.com/MAME/Named_Boxarts/Space%20Invaders%20%28Taito%29.png",
       bg_image:   "https://thumbnails.libretro.com/MAME/Named_Snaps/Space%20Invaders%20%28Taito%29.png",
       bg_overlay: "0.82",
+      scanline:   true,
+    },
+  },
+
+  "enduro": {
+    cores: {
+      bg:        "#1a1200",
+      surface:   "#2d2000",
+      primary:   "#ff8800",
+      secondary: "#cc3377",
+      accent:    "#ffdd00",
+    },
+    tipografia: {
+      font_display: "'Press Start 2P', monospace",
+      font_body:    "'Orbitron', sans-serif",
+      font_url:     "https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700&display=swap",
+    },
+    assets: {
+      icone:      "🏎️",
+      icone_url:  "https://thumbnails.libretro.com/Atari%20-%202600/Named_Boxarts/Enduro.png",
+      bg_image:   "https://thumbnails.libretro.com/Atari%20-%202600/Named_Snaps/Enduro.png",
+      bg_overlay: "0.70",
+      scanline:   true,
+    },
+  },
+
+  "megamania": {
+    cores: {
+      bg:        "#000000",
+      surface:   "#0d000d",
+      primary:   "#bb44ff",
+      secondary: "#4488ff",
+      accent:    "#ffdd00",
+    },
+    tipografia: {
+      font_display: "'Press Start 2P', monospace",
+      font_body:    "'Share Tech Mono', monospace",
+      font_url:     "https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Share+Tech+Mono&display=swap",
+    },
+    assets: {
+      icone:      "👾",
+      icone_url:  "https://thumbnails.libretro.com/Atari%20-%202600/Named_Boxarts/Megamania.png",
+      bg_image:   "https://thumbnails.libretro.com/Atari%20-%202600/Named_Snaps/Megamania.png",
+      bg_overlay: "0.72",
       scanline:   true,
     },
   },
