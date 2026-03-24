@@ -242,7 +242,7 @@ export function aplicarTema(slug) {
        url('${tema.assets.bg_image}')`;
     document.body.style.backgroundSize       = isMobile ? 'cover' : 'auto 70vh';
     document.body.style.backgroundPosition   = 'center center';
-    document.body.style.backgroundRepeat     = isMobile ? 'no-repeat' : 'repeat-x';
+    document.body.style.backgroundRepeat     = 'no-repeat';
     document.body.style.backgroundAttachment = 'fixed';
     document.body.style.backgroundColor      = tema.cores.bg;
   } else {
