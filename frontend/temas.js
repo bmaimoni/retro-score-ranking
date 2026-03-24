@@ -236,12 +236,15 @@ export function aplicarTema(slug) {
   // Imagem de fundo
   if (tema.assets.bg_image) {
     const overlay = parseFloat(tema.assets.bg_overlay) || 0.75;
+    const isMobile = window.innerWidth < 768;
     document.body.style.backgroundImage =
       `linear-gradient(rgba(0,0,0,${overlay}), rgba(0,0,0,${overlay})),
        url('${tema.assets.bg_image}')`;
-    document.body.style.backgroundSize     = 'cover';
-    document.body.style.backgroundPosition = 'center';
+    document.body.style.backgroundSize       = isMobile ? 'cover' : 'auto 70vh';
+    document.body.style.backgroundPosition   = 'center center';
+    document.body.style.backgroundRepeat     = isMobile ? 'no-repeat' : 'repeat-x';
     document.body.style.backgroundAttachment = 'fixed';
+    document.body.style.backgroundColor      = tema.cores.bg;
   } else {
     document.body.style.backgroundImage = '';
     document.body.style.backgroundColor = tema.cores.bg;
