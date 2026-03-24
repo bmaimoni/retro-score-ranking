@@ -726,7 +726,7 @@ function renderErro() {
 // ── HISTÓRICO DE RECORDES ────────────────────────────────────
 const _historicoCache = {};
 
-async function toggleHistorico(btn, slug, nick) {
+window.toggleHistorico = async function(btn, slug, nick) {
   const painel = btn.nextElementSibling;
   const aberto = painel.classList.toggle('aberto');
 
@@ -772,7 +772,7 @@ async function toggleHistorico(btn, slug, nick) {
   } catch {
     painel.innerHTML = '<div class="historico-vazio">erro ao carregar histórico</div>';
   }
-}
+};
 
 function tempoRelativo(iso) {
   if (!iso) return '';
