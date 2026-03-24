@@ -616,19 +616,35 @@
 
     <!-- Config telão -->
     <div class="manut-card" id="manut-telao">
-      <h3 class="manut-titulo">Tamanho do telão</h3>
-      <p class="manut-desc">Ajuste o tamanho dos elementos conforme a distância dos visitantes.</p>
-      <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
-        <button class="btn-action" onclick="configurarTelao('normal')"  style="flex:1">Perto (&lt;3m)</button>
-        <button class="btn-action" onclick="configurarTelao('medio')"   style="flex:1">Médio (3–8m)</button>
-        <button class="btn-action" onclick="configurarTelao('grande')"  style="flex:1">Longe (&gt;8m)</button>
+      <h3 class="manut-titulo">Configuração do telão</h3>
+
+      <div class="fl">Tamanho dos elementos</div>
+      <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap;margin-bottom:var(--space-md)">
+        <button class="btn-action" onclick="setTelaoParam('tamanho','normal')"  style="flex:1">Perto</button>
+        <button class="btn-action" onclick="setTelaoParam('tamanho','medio')"   style="flex:1">Médio</button>
+        <button class="btn-action" onclick="setTelaoParam('tamanho','grande')"  style="flex:1">Longe</button>
       </div>
-      <div style="margin-top:var(--space-sm)">
-        <a id="link-telao" href="/telao.html" target="_blank"
-           class="btn-action btn-reativar" style="display:inline-block;text-decoration:none;text-align:center;width:100%">
-          ▶ Abrir telão
-        </a>
+
+      <div class="fl">Modo de exibição</div>
+      <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap;margin-bottom:var(--space-md)">
+        <button class="btn-action" onclick="setTelaoParam('modo','fixo')"      style="flex:1">Fixo no jogo</button>
+        <button class="btn-action btn-reativar" onclick="setTelaoParam('modo','carrossel')" style="flex:1">Carrossel</button>
       </div>
+
+      <div id="config-carrossel" style="display:none;margin-bottom:var(--space-md)">
+        <div class="fl">Intervalo do carrossel (segundos)</div>
+        <div style="display:flex;gap:var(--space-sm);align-items:center">
+          <input type="range" id="intervalo-carrossel" min="5" max="60" step="5" value="15"
+                 oninput="document.getElementById('intervalo-val').textContent=this.value+'s';setTelaoParam('intervalo',this.value)"
+                 style="flex:1">
+          <span id="intervalo-val" style="font-size:var(--text-sm);min-width:36px">15s</span>
+        </div>
+      </div>
+
+      <a id="link-telao" href="/telao.html" target="_blank"
+         class="btn-action btn-reativar" style="display:block;text-decoration:none;text-align:center;width:100%;margin-top:var(--space-sm)">
+        ▶ Abrir telão
+      </a>
     </div>
 
     <!-- Limpeza geral -->
@@ -1104,11 +1120,18 @@ async function resolverPendente(id, aprovar) {
 }
 
 // ── MANUTENÇÃO ───────────────────────────────────────────────────────────────
-function configurarTelao(tamanho) {
+const _telaoParams = { tamanho: 'normal', modo: 'fixo', intervalo: '15' };
+
+function setTelaoParam(chave, valor) {
+  _telaoParams[chave] = valor;
+  if (chave === 'modo') {
+    document.getElementById('config-carrossel').style.display =
+      valor === 'carrossel' ? 'block' : 'none';
+  }
   const link = document.getElementById('link-telao');
-  link.href = `/telao.html?tamanho=${tamanho}`;
-  localStorage.setItem('tv-tamanho', tamanho);
-  showToast(`Telão configurado: ${tamanho}`, 'success');
+  const qs   = new URLSearchParams(_telaoParams).toString();
+  link.href  = `/telao.html?${qs}`;
+  showToast(`Telão: ${chave} = ${valor}`, 'success');
 }
 
 async function arquivarJogo() {

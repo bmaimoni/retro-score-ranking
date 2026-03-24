@@ -324,8 +324,10 @@
   }
 
   // ── Tamanho configurável ──────────────────────────────────────
-  const params = new URLSearchParams(location.search);
-  const tamanho = params.get('tamanho') || localStorage.getItem('tv-tamanho') || 'normal';
+  const params    = new URLSearchParams(location.search);
+  const tamanho   = params.get('tamanho')  || 'normal';
+  const modo      = params.get('modo')     || 'fixo';
+  const intervalo = parseInt(params.get('intervalo') || '15') * 1000;
   document.body.dataset.tamanho = tamanho;
 
   // ── Carrega jogos e monta tabs ────────────────────────────────
@@ -334,14 +336,25 @@
     const jogos = await resp.json();
     const tabs  = document.getElementById('tv-tabs');
     tabs.innerHTML = '';
-    jogos.filter(j => j.ativo !== false).forEach((j, i) => {
+    const ativos = jogos.filter(j => j.ativo !== false);
+    jogosLista = ativos;
+    ativos.forEach((j, i) => {
       const btn = document.createElement('button');
       btn.className = 'tv-tab';
       btn.textContent = j.nome.toUpperCase();
-      btn.onclick = () => mudarJogo(j);
+      btn.onclick = () => {
+        jogoIndex = ativos.indexOf(j);
+        carrosselPausado = true;
+        btnPausar.textContent = '▶ RETOMAR';
+        mudarJogo(j);
+      };
       tabs.appendChild(btn);
       if (i === 0) mudarJogo(j);
     });
+    if (modo === 'carrossel' && ativos.length > 1) {
+      btnPausar.style.display = 'block';
+      iniciarCarrossel();
+    }
   }
 
   function mudarJogo(jogo) {
