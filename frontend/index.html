@@ -579,7 +579,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<input type="file" id="file-input-global" accept="image/jpeg,image/png" capture="environment">
+<input type="file" id="file-input-global" accept="image/jpeg,image/png,image/*">
 
 <script type="module">
 import { getTema, aplicarTema } from './temas.js';
@@ -808,6 +808,7 @@ window.abrirFoto = function(id) {
 };
 
 fileInput.addEventListener('change', e => {
+  console.log('[canal3] fileInput change — cardFotoAtivo:', cardFotoAtivo, '| files:', e.target.files.length);
   if (!cardFotoAtivo || !e.target.files[0]) return;
   processarFoto(cardFotoAtivo, e.target.files[0]);
   fileInput.value = '';
@@ -817,6 +818,7 @@ function processarFoto(id, file) {
   if (file.size > 5 * 1024 * 1024) { showToast('Foto muito grande. Máximo: 5MB', 'error'); return; }
   if (!['image/jpeg','image/png'].includes(file.type)) { showToast('Apenas JPEG e PNG são aceitos', 'error'); return; }
   estado[id].fotoFile = file;
+  console.log('[canal3] fotoFile salvo em estado[' + id + ']:', file.name, file.size);
   const zone = document.getElementById(`pz-${id}`);
   const reader = new FileReader();
   reader.onload = e => {
@@ -881,6 +883,7 @@ window.enviarScore = async function(id) {
 
   try {
     const fd = new FormData();
+    console.log('[canal3] fotoFile no envio:', e.fotoFile ? e.fotoFile.name : 'NULO');
     if (e.fotoFile) fd.append('foto', e.fotoFile);
     fd.append('nick', nick);
     if (nomeCompleto) fd.append('nome', nomeCompleto);
@@ -901,12 +904,14 @@ window.enviarScore = async function(id) {
     document.getElementById(`form-${id}`).style.display = 'none';
     const suc = document.getElementById(`sucesso-${id}`);
     document.getElementById(`sucesso-score-${id}`).textContent = score.toLocaleString('pt-BR');
+    console.log('[canal3] pendente:', data.pendente, '| suc element:', suc);
 
     if (data.pendente) {
       document.getElementById(`sucesso-msg-${id}`).textContent =
         'Sua pontuação está em análise e aparecerá em breve no ranking.';
     } else {
       document.getElementById(`sucesso-msg-${id}`).textContent = '';
+      console.log('[canal3] entrando no else — disparando fogos e share');
       // Monta dados de compartilhamento imediatamente (sem esperar posição)
       const tema = getTema(e.jogoSlug);
       const linkPessoal = `${location.origin}/ranking.html?jogo=${e.jogoSlug}&destaque=${encodeURIComponent(nick)}`;
@@ -922,10 +927,12 @@ window.enviarScore = async function(id) {
         fotoUrl:      data.foto_url || null,
       };
       // Fogos imediatos
+      console.log('[canal3] chamando dispararFogos, função existe:', typeof dispararFogos);
       dispararFogos('normal');
       // Mostra seção de compartilhamento
       const shareSection = document.getElementById(`share-section-${id}`);
       const shareLink    = document.getElementById(`share-link-${id}`);
+      console.log('[canal3] shareSection element:', shareSection);
       if (shareSection) shareSection.style.display = 'block';
       if (shareLink)    shareLink.textContent = linkPessoal;
 
@@ -949,6 +956,7 @@ window.enviarScore = async function(id) {
         if (window._shareData[id]) window._shareData[id].pos = pos;
       });
     }
+    console.log('[canal3] adicionando visible ao suc');
     suc.classList.add('visible');
     // Conecta SSE para receber notificação se for superado
     if (!data.pendente) {
