@@ -140,9 +140,9 @@
     .player-card {
       display: grid;
       grid-template-columns: 56px 72px 1fr auto;
+      grid-template-rows: auto auto;
       align-items: center;
-      gap: var(--space-md);
-      height: var(--card-height-tv);
+      gap: var(--space-sm) var(--space-md);
       background: var(--color-bg-surface);
       border: var(--border-width) solid var(--color-border);
       border-radius: var(--radius-md);
@@ -253,26 +253,25 @@
     /* ── Info do jogador ── */
     /* Histórico de recordes */
     .historico-btn {
-      width: 100%;
       background: none;
       border: none;
-      border-top: 1px solid rgba(255,255,255,0.06);
-      color: rgba(255,255,255,0.35);
-      font-family: var(--font-display, monospace);
+      color: rgba(255,255,255,0.3);
       font-size: 9px;
-      letter-spacing: 0.1em;
-      padding: 8px 0 4px;
+      letter-spacing: 0.08em;
+      padding: 2px 0 0;
       cursor: pointer;
-      text-align: center;
+      text-align: right;
       transition: color 0.2s;
-      margin-top: 8px;
+      white-space: nowrap;
+      display: block;
+      width: 100%;
     }
     .historico-btn:hover { color: var(--color-primary); }
     .historico-painel {
       display: none;
-      padding: 10px 0 4px;
+      grid-column: 1 / -1;
+      padding: 10px 4px 4px;
       border-top: 1px solid rgba(255,255,255,0.06);
-      margin-top: 6px;
     }
     .historico-painel.aberto { display: block; }
     .historico-linha {
@@ -683,10 +682,8 @@ function renderRanking(lista, novaEntradaId = null) {
         <div class="player-score">
           <div class="player-score-value">${entry.pontuacao.toLocaleString('pt-BR')}</div>
           <div class="player-score-label">pts</div>
+          <button class="historico-btn" onclick="toggleHistorico(this, '${jogoAtual.slug}', '${escapar(entry.nick)}')">▾ histórico</button>
         </div>
-        <button class="historico-btn" onclick="toggleHistorico(this, '${jogoAtual.slug}', '${escapar(entry.nick)}')">
-          ▾ VER HISTÓRICO
-        </button>
         <div class="historico-painel"></div>
       </div>
     `;
@@ -727,10 +724,12 @@ function renderErro() {
 const _historicoCache = {};
 
 window.toggleHistorico = async function(btn, slug, nick) {
-  const painel = btn.nextElementSibling;
-  const aberto = painel.classList.toggle('aberto');
+  // painel é o .historico-painel — irmão do .player-score (pai do btn)
+  const scoreDiv = btn.closest('.player-score') || btn.parentElement;
+  const painel   = scoreDiv.parentElement.querySelector('.historico-painel');
+  const aberto   = painel.classList.toggle('aberto');
 
-  btn.textContent = aberto ? '▴ FECHAR HISTÓRICO' : '▾ VER HISTÓRICO';
+  btn.textContent = aberto ? '▴ fechar' : '▾ histórico';
 
   if (!aberto) return;
 
