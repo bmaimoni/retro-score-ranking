@@ -1168,12 +1168,17 @@ async function gerarImagemShare(dados) {
   ctx.fillStyle = bgColor || '#0b1331';
   ctx.fillRect(0, 0, W, H);
 
-  // ── Fundo: imagem do jogo com overlay ──
+  // ── Fundo: imagem do jogo com crop centralizado (cover) ──
   if (bgImage) {
     const bg = await carregarImagem(bgImage);
     if (bg) {
+      const scale = Math.max(W / bg.width, H / bg.height);
+      const sw    = W / scale;
+      const sh    = H / scale;
+      const sx    = (bg.width  - sw) / 2;
+      const sy    = (bg.height - sh) / 2;
       ctx.globalAlpha = 0.30;
-      ctx.drawImage(bg, 0, 0, W, H);
+      ctx.drawImage(bg, sx, sy, sw, sh, 0, 0, W, H);
       ctx.globalAlpha = 1;
     }
   }

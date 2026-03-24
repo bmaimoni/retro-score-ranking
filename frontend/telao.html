@@ -398,16 +398,35 @@
     gerarQR(`${UPLOAD_URL}/index.html`);
     carregarRanking(jogo.slug);
     conectarSSE(jogo.slug);
+    // Pré-carrega próximo jogo para troca instantânea
+    setTimeout(preCarregarProximos, 2000);
   }
 
-  // ── Ranking ───────────────────────────────────────────────────
-  async function carregarRanking(slug) {
+  // ── Cache de rankings ────────────────────────────────────────
+  const _rankingCache = {};   // { slug: { entradas, ts } }
+  const CACHE_TTL = 30_000;   // 30s — revalida se mais antigo
+
+  async function carregarRanking(slug, { silent = false } = {}) {
+    const cached = _rankingCache[slug];
+    if (cached && Date.now() - cached.ts < CACHE_TTL) {
+      rankingAtual = cached.entradas;
+      if (!silent) renderRanking(rankingAtual);
+      return;
+    }
     try {
       const resp = await fetch(`${API_URL}/api/ranking/${slug}`);
       const data = await resp.json();
-      rankingAtual = data.entradas || [];
-      renderRanking(rankingAtual);
+      const entradas = data.entradas || [];
+      _rankingCache[slug] = { entradas, ts: Date.now() };
+      rankingAtual = entradas;
+      if (!silent) renderRanking(rankingAtual);
     } catch {}
+  }
+
+  // Pré-carrega rankings dos próximos jogos em background
+  function preCarregarProximos() {
+    const proximo = jogosLista[(jogoIndex + 1) % jogosLista.length];
+    if (proximo) carregarRanking(proximo.slug, { silent: true });
   }
 
   function renderRanking(entradas, novoNick = null) {
@@ -419,7 +438,7 @@
       const posClass = pos === 1 ? 'p1' : pos === 2 ? 'p2' : pos === 3 ? 'p3' : '';
       const posTexto = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
       const foto = e.foto_url
-        ? `<img class="tv-foto" src="${e.foto_url}" alt="${e.nick}" loading="lazy">`
+        ? `<img class="tv-foto" src="${e.foto_url}" alt="${e.nick}" loading="eager">`
         : `<div class="tv-foto-placeholder">${e.nick.charAt(0).toUpperCase()}</div>`;
       const isNovo = novoNick && e.nick.toLowerCase() === novoNick.toLowerCase();
       const div = document.createElement('div');
@@ -446,9 +465,10 @@
     sseSource.addEventListener('novo_registro', e => {
       try {
         const dados = JSON.parse(e.data);
+        // Invalida cache do jogo atual para forçar reload
+        if (_rankingCache[slug]) _rankingCache[slug].ts = 0;
         carregarRanking(slug).then(() => {
           renderRanking(rankingAtual, dados.nick);
-          // Mostra overlay se for novo 1º lugar
           const top = rankingAtual[0];
           if (top && top.nick.toLowerCase() === dados.nick.toLowerCase()) {
             mostrarNovoRecorde(dados.nick, dados.pontuacao);
