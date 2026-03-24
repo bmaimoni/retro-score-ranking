@@ -251,6 +251,21 @@
     }
 
     /* ── Info do jogador ── */
+    .player-nome-real {
+      font-size: clamp(9px, 1.1vw, 12px);
+      color: rgba(255,255,255,0.45);
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+    .player-data {
+      font-size: clamp(8px, 1vw, 11px);
+      color: rgba(255,255,255,0.3);
+      margin-top: 1px;
+    }
+
     .player-info {
       min-width: 0;
       display: flex;
@@ -606,7 +621,8 @@ function renderRanking(lista, novaEntradaId = null) {
         ${foto}
         <div class="player-info">
           <span class="player-nick">${escapar(entry.nick)}</span>
-          <span class="player-time">${tempoRelativo(entry.criado_em)}</span>
+          ${entry.nome ? `<span class="player-nome-real">${escapar(entry.nome)}</span>` : ''}
+          <span class="player-data">${entry.criado_em ? new Date(entry.criado_em).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : tempoRelativo(entry.criado_em)}</span>
         </div>
         <div class="player-score">
           <div class="player-score-value">${entry.pontuacao.toLocaleString('pt-BR')}</div>

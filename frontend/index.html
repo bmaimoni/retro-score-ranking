@@ -450,6 +450,24 @@
       100% { transform: translateY(80px) scale(0.3); opacity:0; }
     }
 
+    .share-rede {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: none;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: white;
+      transition: transform 0.15s, filter 0.15s;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    .share-rede:hover { transform: scale(1.12); filter: brightness(1.2); }
+    .share-rede[title="Instagram"] { background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fd5949 45%, #d6249f 60%, #285AEB 90%); }
+    .share-rede[title="TikTok"]    { background: #010101; border: 1px solid #444; }
+    .share-rede[title="Facebook"]  { background: #1877F2; }
+    .share-rede[title="WhatsApp"]  { background: #25D366; }
+    .share-rede[title="Salvar imagem"] { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); opacity: 0.6; }
+
     .toast-superado {
       position: fixed;
       bottom: 80px; left: 50%;
@@ -828,13 +846,13 @@ const zone = document.getElementById(`pz-${id}`);
 
 
 const FRASES_MOTIVACAO = {
-  1:  "Você está no topo! Mas eles vêm aí...",
-  2:  "Tão perto do primeiro lugar. Mais uma tentativa?",
-  3:  "Pódio! Mas o 1º ainda está ao seu alcance.",
-  top5:  "Top 5! Você tem o que é preciso para chegar mais alto.",
-  top10: "Boa jogada! O top 5 está ao seu alcance.",
-  top20: "Você está no jogo. Agora é superar um por um.",
-  resto: "Cada corrida é uma chance de subir. Tente de novo!",
+  1:     "🎉 UAU! Pontuação incrível — você dominou este jogo!",
+  2:     "🔥 Que placar! Você está logo atrás do 1º lugar!",
+  3:     "🏅 Pódio conquistado! Você está entre os melhores!",
+  top5:  "⚡ Top 5! Você é um dos jogadores mais fortes aqui!",
+  top10: "💪 Top 10! Você está voando — mais uma tentativa e sobe mais!",
+  top20: "🎮 Boa jogada! Cada tentativa te deixa mais perto do topo!",
+  resto: "🕹️ Aqueça os dedos e tente de novo — o ranking está esperando!",
 };
 
 function frasePorPosicao(pos) {
