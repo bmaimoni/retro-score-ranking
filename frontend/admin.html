@@ -405,6 +405,18 @@
     .empty-admin-icon { font-size: 48px; margin-bottom: var(--space-md); }
     .empty-admin-text { font-size: var(--text-md); font-weight: var(--weight-bold); color: var(--color-text-dim); }
 
+    /* ── Manutenção ── */
+    .manut-card {
+      background: var(--color-bg-surface);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-md);
+    }
+    .manut-danger { border-color: rgba(240,64,96,0.3); background: rgba(240,64,96,0.05); }
+    .manut-titulo { font-size: var(--text-md); font-weight: var(--weight-bold); margin-bottom: var(--space-sm); }
+    .manut-desc   { font-size: var(--text-sm); color: var(--color-text-muted); margin-bottom: var(--space-md); line-height: 1.6; }
+
     /* ── Botão atualizar + contador ── */
     .btn-atualizar {
       padding: 6px 14px;
@@ -489,6 +501,7 @@
 
     <button class="admin-tab" data-tab="jogos">Jogos</button>
     <button class="admin-tab" data-tab="config">Evento</button>
+    <button class="admin-tab" data-tab="manutencao">Manutenção</button>
   </div>
 
   <!-- ── ABA: FEED ── -->
@@ -544,6 +557,61 @@
   </div>
 
 </div>
+
+  <!-- ── ABA: MANUTENÇÃO ── -->
+  <div class="tab-content" id="tab-manutencao">
+    <div class="section-header">
+      <span class="section-title">Manutenção de Rankings</span>
+    </div>
+
+    <!-- Soft delete por jogo -->
+    <div class="manut-card" id="manut-por-jogo">
+      <h3 class="manut-titulo">Arquivar ranking por jogo</h3>
+      <p class="manut-desc">Oculta todas as entradas do jogo selecionado. As entradas podem ser restauradas depois.</p>
+      <div class="field" style="margin-bottom:var(--space-sm)">
+        <label class="field-label" for="manut-jogo-select">Jogo</label>
+        <select class="field-input" id="manut-jogo-select">
+          <option value="">Carregando jogos...</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
+        <button class="btn-action btn-rejeitar" style="flex:1" onclick="arquivarJogo()">⬇ Arquivar ranking</button>
+        <button class="btn-action btn-reativar" style="flex:1" onclick="restaurarJogo()">⬆ Restaurar ranking</button>
+      </div>
+    </div>
+
+    <!-- Limpeza geral -->
+    <div class="manut-card manut-danger" id="manut-geral">
+      <h3 class="manut-titulo">⚠️ Limpeza geral</h3>
+      <p class="manut-desc">Afeta <strong>todos os jogos</strong>. Escolha entre arquivar (reversível) ou deletar permanentemente (irreversível).</p>
+
+      <div class="field" style="margin-bottom:var(--space-sm)">
+        <label class="field-label">Tipo de limpeza</label>
+        <div style="display:flex;gap:var(--space-sm)">
+          <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-sm);cursor:pointer">
+            <input type="radio" name="tipo-limpeza" value="soft" checked> Arquivar (reversível)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-sm);cursor:pointer">
+            <input type="radio" name="tipo-limpeza" value="permanente"> Deletar permanentemente
+          </label>
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:var(--space-sm)">
+        <label class="field-label" for="manut-confirmar">Digite CONFIRMAR para prosseguir</label>
+        <input class="field-input" type="text" id="manut-confirmar" placeholder="CONFIRMAR" autocomplete="off">
+      </div>
+
+      <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
+        <button class="btn-action btn-rejeitar" style="flex:1;background:rgba(240,64,96,0.25)" onclick="limparGeral()">
+          🗑 Limpar todos os rankings
+        </button>
+        <button class="btn-action btn-reativar" style="flex:1" onclick="restaurarGeral()">
+          ⬆ Restaurar todos arquivados
+        </button>
+      </div>
+    </div>
+  </div>
 
 <!-- Toast -->
 <div class="toast" id="toast"></div>
@@ -765,13 +833,35 @@ function renderJogos(jogos) {
         </div>
       </div>
       <div class="jogo-actions">
-        <div class="toggle-ativo ${j.ativo !== false ? 'on' : ''}"
-             data-id="${j.id}" data-ativo="${j.ativo !== false}"
-             title="${j.ativo !== false ? 'Ativo — clique para desativar' : 'Inativo — clique para ativar'}">
+        <div style="display:flex;align-items:center;gap:var(--space-sm)">
+          <button class="btn-action btn-rejeitar btn-arquivar-jogo" data-id="${j.id}" data-nome="${j.nome}"
+                  title="Arquivar ranking deste jogo" style="padding:4px 10px;font-size:10px">
+            ⬇ Arquivar
+          </button>
+          <div class="toggle-ativo ${j.ativo !== false ? 'on' : ''}"
+               data-id="${j.id}" data-ativo="${j.ativo !== false}"
+               title="${j.ativo !== false ? 'Ativo — clique para desativar' : 'Inativo — clique para ativar'}">
+          </div>
         </div>
       </div>
     </div>
   `).join('');
+
+  // Botão arquivar ranking por jogo
+  container.querySelectorAll('.btn-arquivar-jogo').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const nome = btn.dataset.nome;
+      if (!confirm(`Arquivar todo o ranking de "${nome}"? As entradas poderão ser restauradas depois.`)) return;
+      try {
+        const resp = await apiFetch('/api/admin/manutencao/limpar-ranking', 'POST', {
+          jogo_id: btn.dataset.id, permanente: false, confirmar: 'CONFIRMAR'
+        });
+        const data = await resp.json();
+        showToast(`${data.total_afetadas} entradas arquivadas de "${nome}"`, 'success');
+        carregarFeed();
+      } catch { showToast('Erro ao arquivar ranking', 'error'); }
+    });
+  });
 
   container.querySelectorAll('.toggle-ativo').forEach(toggle => {
     toggle.addEventListener('click', async () => {
@@ -952,7 +1042,72 @@ async function resolverPendente(id, aprovar) {
   } catch { showToast('Erro ao resolver pendente', 'error'); }
 }
 
-// ── HELPERS ───────────────────────────────────────────────────────────────────
+// ── MANUTENÇÃO ───────────────────────────────────────────────────────────────
+async function arquivarJogo() {
+  const jogoId = document.getElementById('manut-jogo-select').value;
+  const nome   = document.getElementById('manut-jogo-select').selectedOptions[0]?.text || '';
+  if (!jogoId) { showToast('Selecione um jogo', 'error'); return; }
+  if (!confirm(`Arquivar todo o ranking de "${nome}"? Reversível.`)) return;
+  try {
+    const resp = await apiFetch('/api/admin/manutencao/limpar-ranking', 'POST', {
+      jogo_id: jogoId, permanente: false, confirmar: 'CONFIRMAR'
+    });
+    const data = await resp.json();
+    showToast(`${data.total_afetadas} entradas arquivadas`, 'success');
+    carregarFeed();
+  } catch { showToast('Erro ao arquivar', 'error'); }
+}
+
+async function restaurarJogo() {
+  const jogoId = document.getElementById('manut-jogo-select').value;
+  const nome   = document.getElementById('manut-jogo-select').selectedOptions[0]?.text || '';
+  if (!jogoId) { showToast('Selecione um jogo', 'error'); return; }
+  if (!confirm(`Restaurar entradas arquivadas de "${nome}"?`)) return;
+  try {
+    const resp = await apiFetch('/api/admin/manutencao/restaurar-ranking', 'POST', {
+      jogo_id: jogoId, confirmar: 'CONFIRMAR'
+    });
+    const data = await resp.json();
+    showToast(`${data.total_restauradas} entradas restauradas`, 'success');
+    carregarFeed();
+  } catch { showToast('Erro ao restaurar', 'error'); }
+}
+
+async function limparGeral() {
+  const confirmar  = document.getElementById('manut-confirmar').value;
+  const permanente = document.querySelector('input[name="tipo-limpeza"]:checked')?.value === 'permanente';
+
+  if (confirmar !== 'CONFIRMAR') { showToast('Digite CONFIRMAR no campo acima', 'error'); return; }
+
+  const aviso = permanente
+    ? '⚠️ ATENÇÃO: Esta ação é IRREVERSÍVEL! Todas as entradas serão deletadas permanentemente. Tem certeza?'
+    : 'Arquivar TODOS os rankings de todos os jogos? Poderá ser restaurado depois.';
+  if (!confirm(aviso)) return;
+
+  try {
+    const resp = await apiFetch('/api/admin/manutencao/limpar-ranking', 'POST', {
+      permanente, confirmar: 'CONFIRMAR'
+    });
+    const data = await resp.json();
+    document.getElementById('manut-confirmar').value = '';
+    showToast(`${data.total_afetadas} entradas ${permanente ? 'deletadas' : 'arquivadas'}`, permanente ? 'error' : 'success');
+    carregarFeed();
+  } catch { showToast('Erro na limpeza', 'error'); }
+}
+
+async function restaurarGeral() {
+  if (!confirm('Restaurar TODAS as entradas arquivadas de todos os jogos?')) return;
+  try {
+    const resp = await apiFetch('/api/admin/manutencao/restaurar-ranking', 'POST', {
+      confirmar: 'CONFIRMAR'
+    });
+    const data = await resp.json();
+    showToast(`${data.total_restauradas} entradas restauradas`, 'success');
+    carregarFeed();
+  } catch { showToast('Erro ao restaurar', 'error'); }
+}
+
+// ── HELPERS ─────────────────────────────────────────────────────────────────────
 async function apiFetch(path, method = 'GET', body = null) {
   const opts = {
     method,
