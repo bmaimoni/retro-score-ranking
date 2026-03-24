@@ -357,6 +357,131 @@
       display: block;
       line-height: 1;
     }
+    /* Compartilhamento */
+    .share-section {
+      width: 100%;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-top: var(--space-sm);
+      margin-top: var(--space-xs);
+    }
+    .share-label {
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.35);
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .share-buttons {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .share-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.2s, transform 0.15s;
+      text-decoration: none;
+    }
+    .share-btn:active { transform: scale(0.96); }
+    .share-btn-native {
+      background: var(--card-primary, var(--color-primary));
+      color: #000;
+      flex: 1;
+    }
+    .share-btn-instagram { background: #E1306C; color: white; }
+    .share-btn-tiktok    { background: #010101; color: white; border: 1px solid #333; }
+    .share-btn-facebook  { background: #1877F2; color: white; }
+
+    .link-pessoal-box {
+      width: 100%;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .link-pessoal-url {
+      flex: 1;
+      font-size: 10px;
+      color: rgba(255,255,255,0.5);
+      word-break: break-all;
+      line-height: 1.4;
+    }
+    .link-pessoal-copy {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.6);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .link-pessoal-copy:hover { border-color: var(--card-primary, var(--color-primary)); color: var(--card-primary, var(--color-primary)); }
+
+    /* Compartilhamento */
+    .share-section {
+      width: 100%;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-top: var(--space-md);
+      margin-top: var(--space-sm);
+    }
+    .share-label {
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      color: rgba(255,255,255,0.45);
+      letter-spacing: 0.1em;
+      margin-bottom: var(--space-sm);
+      text-align: center;
+    }
+    .share-buttons {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .share-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-family: var(--font-display);
+      font-size: 9px;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.05);
+      color: white;
+      transition: background 0.2s;
+    }
+    .share-btn:hover { background: rgba(255,255,255,0.12); }
+    .share-btn-native {
+      background: var(--card-primary, var(--color-primary));
+      border-color: var(--card-primary, var(--color-primary));
+      color: #000;
+    }
+    .share-link {
+      font-size: 9px;
+      color: rgba(255,255,255,0.35);
+      text-align: center;
+      margin-top: 8px;
+      word-break: break-all;
+      font-family: monospace;
+    }
+
     /* Fogos de artifício */
     @keyframes fogoBurst {
       0%   { transform: translate(-50%,-50%) scale(0); opacity:1; }
@@ -658,6 +783,49 @@ function renderFormulario(j) {
       <a href="ranking.html?jogo=${j.slug}" class="card-btn" style="text-decoration:none;text-align:center;flex:1">VER RANKING →</a>
       <button class="card-btn" onclick="resetCard('${j.id}')" style="flex:1;background:transparent;border:var(--border-width) solid var(--card-primary,var(--color-primary));color:var(--card-primary,var(--color-primary))">↺ NOVAMENTE</button>
     </div>
+
+    <div class="share-section" id="share-section-${j.id}" style="display:none">
+      <div class="share-label">COMPARTILHAR MEU SCORE</div>
+      <div class="share-buttons">
+        <button class="share-btn share-btn-native" onclick="compartilharScore('${j.id}', 'native')">
+          ↑ Compartilhar
+        </button>
+        <button class="share-btn" onclick="compartilharScore('${j.id}', 'download')">
+          ↓ Salvar imagem
+        </button>
+      </div>
+      <div class="share-link" id="share-link-${j.id}"></div>
+    </div>
+
+    <div class="share-section" id="share-section-${j.id}" style="display:none">
+      <div class="share-label">COMPARTILHAR MEU SCORE</div>
+      <div class="share-buttons">
+        <button class="share-btn share-btn-native" id="share-native-${j.id}" onclick="compartilharScore('${j.id}', 'native')">
+          ↑ Compartilhar
+        </button>
+      </div>
+      <div class="share-buttons" style="margin-top:6px" id="share-fallback-${j.id}" style="display:none">
+        <button class="share-btn share-btn-instagram" onclick="compartilharScore('${j.id}', 'instagram')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+          Instagram
+        </button>
+        <button class="share-btn share-btn-tiktok" onclick="compartilharScore('${j.id}', 'tiktok')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.28 6.28 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.77 1.52V6.79a4.85 4.85 0 01-1-.1z"/></svg>
+          TikTok
+        </button>
+        <button class="share-btn share-btn-facebook" onclick="compartilharScore('${j.id}', 'facebook')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          Facebook
+        </button>
+      </div>
+
+      <div class="link-pessoal-box">
+        <span class="link-pessoal-url" id="link-pessoal-${j.id}"></span>
+        <button class="link-pessoal-copy" onclick="copiarLink('${j.id}')">📋 Copiar</button>
+      </div>
+    </div>
+
+    <canvas id="share-canvas-${j.id}" style="display:none"></canvas>
   </div>`;
 }
 
@@ -814,10 +982,40 @@ window.enviarScore = async function(id) {
         if (pos === 1)      dispararFogos('top1');
         else if (pos <= 3)  dispararFogos('top3');
         else                dispararFogos('normal');
+        // Mostra compartilhamento com link pessoal
+        const linkPessoal = `${location.origin}/ranking.html?jogo=${e.jogoSlug}&destaque=${encodeURIComponent(nick)}`;
+        const shareSection = document.getElementById(`share-section-${id}`);
+        const shareLink    = document.getElementById(`share-link-${id}`);
+        if (shareSection) shareSection.style.display = 'block';
+        if (shareLink)    shareLink.textContent = linkPessoal;
+        // Guarda dados para geração da imagem
+        window._shareData = window._shareData || {};
+        window._shareData[id] = {
+          nick, score, pos,
+          jogoNome: e.jogoNome,
+          jogoSlug: e.jogoSlug,
+          linkPessoal,
+          primaryColor: getComputedStyle(document.documentElement)
+            .getPropertyValue('--card-primary') ||
+            getComputedStyle(document.documentElement)
+            .getPropertyValue('--color-primary') || '#5e2b82',
+        };
+        // Prepara compartilhamento com posição
+        const tema = getTema(e.jogoSlug);
+        prepararShare(id, nick, nomeCompleto, score, pos,
+          e.jogoNome, e.jogoSlug,
+          tema.cores.primary, tema.cores.bg);
       });
     }
     suc.classList.add('visible');
-    if (!data.pendente) dispararFogos('normal');
+    if (!data.pendente) {
+      dispararFogos('normal');
+      // Prepara share sem posição (posição vem depois via buscarPosicao)
+      const tema = getTema(e.jogoSlug);
+      prepararShare(id, nick, nomeCompleto, score, null,
+        e.jogoNome, e.jogoSlug,
+        tema.cores.primary, tema.cores.bg);
+    }
     // Conecta SSE para receber notificação se for superado
     if (!data.pendente) {
       conectarSSESuperado(e.jogoSlug, id, nick);
@@ -908,6 +1106,287 @@ function showToast(msg, tipo='success') {
 function escapar(s='') {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+
+// ── COMPARTILHAMENTO ──────────────────────────────────────────
+const _shareData = {}; // { id: { nick, nome, score, pos, jogoNome, jogoSlug, primary, bg } }
+
+function prepararShare(id, nick, nome, score, pos, jogoNome, jogoSlug, primary, bg) {
+  _shareData[id] = { nick, nome, score, pos, jogoNome, jogoSlug, primary, bg };
+
+  // Monta link pessoal
+  const linkEl = document.getElementById(`link-pessoal-${id}`);
+  const base   = 'https://retro-score-ranking.vercel.app/ranking.html';
+  const url    = `${base}?jogo=${jogoSlug}&destaque=${encodeURIComponent(nick)}`;
+  if (linkEl) linkEl.textContent = url;
+
+  // Mostra seção
+  const sec = document.getElementById(`share-section-${id}`);
+  if (sec) sec.style.display = 'block';
+
+  // Detecta suporte à Web Share API
+  const nativeBtn  = document.getElementById(`share-native-${id}`);
+  const fallbackEl = document.getElementById(`share-fallback-${id}`);
+  if (!navigator.share) {
+    if (nativeBtn)  nativeBtn.style.display = 'none';
+    if (fallbackEl) fallbackEl.style.display = 'flex';
+  }
+}
+
+async function gerarImagemShare(id) {
+  const d = _shareData[id];
+  if (!d) return null;
+
+  const canvas = document.getElementById(`share-canvas-${id}`);
+  if (!canvas) return null;
+  canvas.width  = 1080;
+  canvas.height = 1080;
+  const ctx = canvas.getContext('2d');
+
+  // Fundo
+  ctx.fillStyle = d.bg || '#0b1331';
+  ctx.fillRect(0, 0, 1080, 1080);
+
+  // Borda colorida
+  const primary = d.primary || '#5e2b82';
+  ctx.strokeStyle = primary;
+  ctx.lineWidth = 12;
+  ctx.strokeRect(24, 24, 1032, 1032);
+
+  // Borda interna sutil
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(40, 40, 1000, 1000);
+
+  // Scanline (linhas horizontais sutis)
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  for (let y = 0; y < 1080; y += 4) {
+    ctx.fillRect(0, y, 1080, 2);
+  }
+
+  // Badge "CANAL3 HIGH SCORE"
+  ctx.fillStyle = primary;
+  ctx.beginPath();
+  ctx.roundRect(340, 80, 400, 56, 8);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 22px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('CANAL3 HIGH SCORE', 540, 116);
+
+  // Nome do jogo
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '28px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(d.jogoNome.toUpperCase(), 540, 210);
+
+  // Posição
+  if (d.pos) {
+    const posTexto = d.pos === 1 ? '1º LUGAR' : d.pos === 2 ? '2º LUGAR' : d.pos === 3 ? '3º LUGAR' : `${d.pos}º LUGAR`;
+    ctx.fillStyle = d.pos <= 3 ? '#ffd700' : primary;
+    ctx.font = `bold ${d.pos <= 3 ? 80 : 60}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(posTexto, 540, 340);
+  }
+
+  // Score
+  ctx.fillStyle = primary;
+  ctx.font = 'bold 110px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(Number(d.score).toLocaleString('pt-BR'), 540, 500);
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.font = '28px monospace';
+  ctx.fillText('PONTOS', 540, 555);
+
+  // Nick
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 56px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(d.nick.toUpperCase(), 540, 680);
+
+  // Nome real
+  if (d.nome) {
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '32px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(d.nome, 540, 730);
+  }
+
+  // Linha divisória
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(200, 790); ctx.lineTo(880, 790);
+  ctx.stroke();
+
+  // URL participação
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.font = '24px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('retro-score-ranking.vercel.app', 540, 840);
+
+  // Data
+  const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.font = '20px monospace';
+  ctx.fillText(hoje, 540, 900);
+
+  return canvas;
+}
+
+window.compartilharScore = async function(id, rede) {
+  const canvas = await gerarImagemShare(id);
+  if (!canvas) return;
+  const d = _shareData[id];
+
+  const texto = `Marquei ${Number(d.score).toLocaleString('pt-BR')} pts em ${d.jogoNome}${d.pos ? ` — ${d.pos}º lugar` : ''}! 🎮 Canal3 High Score`;
+  const urlRanking = `https://retro-score-ranking.vercel.app/ranking.html?jogo=${d.jogoSlug}`;
+
+  if (rede === 'native' && navigator.share) {
+    canvas.toBlob(async blob => {
+      try {
+        const file = new File([blob], 'canal3-highscore.png', { type: 'image/png' });
+        await navigator.share({ title: 'Canal3 High Score', text: texto, files: [file] });
+      } catch {
+        // Fallback sem imagem
+        try { await navigator.share({ title: 'Canal3 High Score', text: texto, url: urlRanking }); } catch {}
+      }
+    }, 'image/png');
+    return;
+  }
+
+  // Download da imagem para redes que não suportam share direto
+  const link = document.createElement('a');
+  link.download = 'canal3-highscore.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+
+  setTimeout(() => {
+    if (rede === 'instagram') {
+      showToast('Imagem salva! Abra o Instagram e compartilhe nos Stories 📸', 'success');
+    } else if (rede === 'tiktok') {
+      window.open('https://www.tiktok.com/upload', '_blank');
+    } else if (rede === 'facebook') {
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(urlRanking)}`, '_blank');
+    }
+  }, 500);
+};
+
+window.copiarLink = function(id) {
+  const linkEl = document.getElementById(`link-pessoal-${id}`);
+  if (!linkEl) return;
+  navigator.clipboard.writeText(linkEl.textContent).then(() => {
+    showToast('Link copiado!', 'success');
+  }).catch(() => {
+    showToast('Copie o link manualmente', 'error');
+  });
+};
+
+
+// ── COMPARTILHAMENTO ──────────────────────────────────────────
+async function gerarImagemShare(dados) {
+  const { nick, score, pos, jogoNome, linkPessoal, primaryColor } = dados;
+  const W = 1080, H = 1080;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Fundo
+  ctx.fillStyle = '#0b1331';
+  ctx.fillRect(0, 0, W, H);
+
+  // Gradiente superior
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, 'rgba(94,43,130,0.4)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Borda
+  ctx.strokeStyle = primaryColor.trim() || '#5e2b82';
+  ctx.lineWidth = 12;
+  ctx.strokeRect(30, 30, W - 60, H - 60);
+
+  // Linha decorativa
+  ctx.fillStyle = primaryColor.trim() || '#5e2b82';
+  ctx.fillRect(60, 200, W - 120, 3);
+  ctx.fillRect(60, H - 200, W - 120, 3);
+
+  // Título evento
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = 'bold 36px "Press Start 2P", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('CANAL3 HIGH SCORE', W / 2, 120);
+
+  // Nome do jogo
+  ctx.fillStyle = primaryColor.trim() || '#72cddd';
+  ctx.font = 'bold 42px "Press Start 2P", monospace';
+  ctx.fillText(jogoNome.toUpperCase(), W / 2, 175);
+
+  // Nick
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 96px "Press Start 2P", monospace';
+  const nickDisplay = nick.length > 10 ? nick.slice(0, 10) + '…' : nick;
+  ctx.fillText(nickDisplay.toUpperCase(), W / 2, 420);
+
+  // Score
+  ctx.fillStyle = primaryColor.trim() || '#72cddd';
+  ctx.font = 'bold 120px "Press Start 2P", monospace';
+  ctx.fillText(Number(score).toLocaleString('pt-BR'), W / 2, 580);
+
+  // Label score
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.font = '32px "Press Start 2P", monospace';
+  ctx.fillText('PONTOS', W / 2, 640);
+
+  // Posição
+  if (pos) {
+    const posTexto = pos === 1 ? '🥇 1º LUGAR' : pos === 2 ? '🥈 2º LUGAR' : pos === 3 ? '🥉 3º LUGAR' : `${pos}º LUGAR`;
+    ctx.fillStyle = pos <= 3 ? '#ffd700' : 'rgba(255,255,255,0.7)';
+    ctx.font = 'bold 56px "Press Start 2P", monospace';
+    ctx.fillText(posTexto, W / 2, 760);
+  }
+
+  // Rodapé
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.font = '24px "Press Start 2P", monospace';
+  ctx.fillText('retro-score-ranking.vercel.app', W / 2, H - 100);
+  ctx.font = '20px monospace';
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
+  ctx.fillText(linkPessoal, W / 2, H - 60);
+
+  return canvas;
+}
+
+window.compartilharScore = async function(id, modo) {
+  const dados = window._shareData?.[id];
+  if (!dados) { showToast('Aguarde o carregamento da posição', 'error'); return; }
+
+  const canvas = await gerarImagemShare(dados);
+  const blob   = await new Promise(res => canvas.toBlob(res, 'image/png'));
+  const file   = new File([blob], 'canal3-highscore.png', { type: 'image/png' });
+
+  const texto = `Marquei ${Number(dados.score).toLocaleString('pt-BR')} pts em ${dados.jogoNome} no Canal3 High Score! 🎮`;
+
+  if (modo === 'native' && navigator.share) {
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ title: 'Canal3 High Score', text: texto, files: [file] });
+      } else {
+        await navigator.share({ title: 'Canal3 High Score', text: texto, url: dados.linkPessoal });
+      }
+      return;
+    } catch (e) { if (e.name === 'AbortError') return; }
+  }
+
+  // Fallback: download
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href = url; a.download = 'canal3-highscore.png';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast('Imagem salva! Compartilhe nas redes sociais 🎮', 'success');
+};
 
 // ── Fogos de artifício ────────────────────────────────────────
 function dispararFogos(intensidade = 'normal') {
