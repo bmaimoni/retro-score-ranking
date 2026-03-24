@@ -52,8 +52,8 @@ const TEMAS = {
     },
     assets: {
       icone:      "🟡",
-      icone_url:  "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRJ6D1lEeBmEJbFf8wJs-mrPCd3m7YjQ_KJEQ&s",
-      bg_image:   "https://cdn.wallpapersafari.com/20/2/htygO1.jpeg",
+      icone_url:  "https://dropinblog.net/cdn-cgi/image/fit=scale-down,width=700/34252824/files/z583odzuzbt6capwlusf.png",
+      bg_image:   "https://dropinblog.net/cdn-cgi/image/fit=scale-down,width=700/34252824/files/z583odzuzbt6capwlusf.png",
       bg_overlay: "0.65",
       scanline:   true,
     },
