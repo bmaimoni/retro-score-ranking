@@ -1183,7 +1183,7 @@ async function gerarImagemShare(dados) {
       const logoW = logo.width * (logoH / logo.height);
       const logoX = (W - logoW) / 2;
       const logoY = (H - logoH) / 2;
-      ctx.globalAlpha = 0.18;
+      ctx.globalAlpha = 0.32;
       ctx.drawImage(logo, logoX, logoY, logoW, logoH);
       ctx.globalAlpha = 1;
     }
