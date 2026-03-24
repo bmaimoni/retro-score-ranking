@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     ip_hash_salt: str
 
     # Rate limit
-    rate_limit: int = 3
+    rate_limit: int = 10
     rate_window_seconds: int = 3600
 
     # CORS

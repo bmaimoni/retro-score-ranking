@@ -251,6 +251,62 @@
     }
 
     /* ── Info do jogador ── */
+    /* Histórico de recordes */
+    .historico-btn {
+      width: 100%;
+      background: none;
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.35);
+      font-family: var(--font-display, monospace);
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      padding: 8px 0 4px;
+      cursor: pointer;
+      text-align: center;
+      transition: color 0.2s;
+      margin-top: 8px;
+    }
+    .historico-btn:hover { color: var(--color-primary); }
+    .historico-painel {
+      display: none;
+      padding: 10px 0 4px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin-top: 6px;
+    }
+    .historico-painel.aberto { display: block; }
+    .historico-linha {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-size: 11px;
+    }
+    .historico-linha:last-child { border-bottom: none; }
+    .historico-score {
+      font-family: var(--font-mono, monospace);
+      font-weight: 700;
+      color: var(--color-primary);
+      min-width: 80px;
+      text-align: right;
+    }
+    .historico-data {
+      color: rgba(255,255,255,0.35);
+      font-size: 10px;
+      flex: 1;
+    }
+    .historico-badge {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.06em;
+    }
+    .historico-badge.atual   { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
+    .historico-badge.superado { background: rgba(255,100,0,0.15); color: rgba(255,140,0,0.7); }
+    .historico-badge.pendente { background: rgba(255,255,0,0.1); color: rgba(255,220,0,0.6); }
+    .historico-vazio { color: rgba(255,255,255,0.25); font-size: 10px; text-align: center; padding: 8px 0; }
+
     .player-nome-real {
       font-size: clamp(9px, 1.1vw, 12px);
       color: rgba(255,255,255,0.45);
@@ -628,6 +684,10 @@ function renderRanking(lista, novaEntradaId = null) {
           <div class="player-score-value">${entry.pontuacao.toLocaleString('pt-BR')}</div>
           <div class="player-score-label">pts</div>
         </div>
+        <button class="historico-btn" onclick="toggleHistorico(this, '${jogoAtual.slug}', '${escapar(entry.nick)}')">
+          ▾ VER HISTÓRICO
+        </button>
+        <div class="historico-painel"></div>
       </div>
     `;
   }).join('');
@@ -663,6 +723,57 @@ function renderErro() {
 }
 
 // ── UTILS ─────────────────────────────────────────────────────────────────────
+// ── HISTÓRICO DE RECORDES ────────────────────────────────────
+const _historicoCache = {};
+
+async function toggleHistorico(btn, slug, nick) {
+  const painel = btn.nextElementSibling;
+  const aberto = painel.classList.toggle('aberto');
+
+  btn.textContent = aberto ? '▴ FECHAR HISTÓRICO' : '▾ VER HISTÓRICO';
+
+  if (!aberto) return;
+
+  // Já carregou
+  if (painel.dataset.loaded) return;
+  painel.innerHTML = '<div class="historico-vazio">carregando...</div>';
+
+  const chave = `${slug}:${nick.toLowerCase()}`;
+  try {
+    if (!_historicoCache[chave]) {
+      const resp = await fetch(`${API_URL}/api/ranking/${slug}/historico/${encodeURIComponent(nick)}`);
+      if (!resp.ok) throw new Error();
+      const data = await resp.json();
+      _historicoCache[chave] = data.historico || [];
+    }
+
+    const historico = _historicoCache[chave];
+    if (!historico.length) {
+      painel.innerHTML = '<div class="historico-vazio">sem histórico disponível</div>';
+    } else {
+      painel.innerHTML = historico.map((h, i) => {
+        const badge = h.pendente
+          ? '<span class="historico-badge pendente">EM ANÁLISE</span>'
+          : h.superado || i > 0
+            ? '<span class="historico-badge superado">SUPERADO</span>'
+            : '<span class="historico-badge atual">ATUAL</span>';
+        const data = h.criado_em
+          ? new Date(h.criado_em).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})
+          : '';
+        return `
+          <div class="historico-linha">
+            <span class="historico-score">${Number(h.pontuacao).toLocaleString('pt-BR')}</span>
+            <span class="historico-data">${data}</span>
+            ${badge}
+          </div>`;
+      }).join('');
+    }
+    painel.dataset.loaded = '1';
+  } catch {
+    painel.innerHTML = '<div class="historico-vazio">erro ao carregar histórico</div>';
+  }
+}
+
 function tempoRelativo(iso) {
   if (!iso) return '';
   const diff = Date.now() - new Date(iso).getTime();

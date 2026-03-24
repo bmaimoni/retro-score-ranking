@@ -141,3 +141,23 @@ async def buscar_por_id(pool: Pool, entrada_id: str) -> dict | None:
         entrada_id,
     )
     return dict(row) if row else None
+
+
+async def historico_nick(pool: Pool, jogo_id: str, nick_norm: str) -> list[dict]:
+    """
+    Histórico de todas as entradas de um nick em um jogo,
+    ordenadas da mais recente para a mais antiga.
+    Inclui entradas superadas, arquivadas e ativas.
+    """
+    rows = await pool.fetch(
+        """
+        SELECT id, nick, nome, pontuacao, foto_url,
+               no_ranking, superado, pendente, arquivado, criado_em
+        FROM entradas
+        WHERE jogo_id   = $1
+          AND nick_norm = $2
+        ORDER BY criado_em DESC
+        """,
+        jogo_id, nick_norm,
+    )
+    return [dict(r) for r in rows]

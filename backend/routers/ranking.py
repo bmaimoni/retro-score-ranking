@@ -47,6 +47,23 @@ async def get_ranking(slug: str, pool=Depends(get_pool)):
     return {"jogo": jogo, "entradas": entradas}
 
 
+
+@router.get("/ranking/{slug}/historico/{nick}")
+async def get_historico_nick(slug: str, nick: str, pool=Depends(get_pool)):
+    """
+    Histórico completo de um nick em um jogo.
+    Retorna todas as tentativas (ativas, superadas, arquivadas),
+    ordenadas da mais recente para a mais antiga.
+    """
+    from services.nick import normalizar_nick
+    jogo = await jogo_repo.buscar_por_slug(pool, slug)
+    if not jogo:
+        raise HTTPException(status_code=404, detail="Jogo não encontrado")
+
+    nick_norm = normalizar_nick(nick)
+    entradas  = await entrada_repo.historico_nick(pool, str(jogo["id"]), nick_norm)
+    return {"jogo_slug": slug, "nick": nick, "historico": entradas}
+
 @router.get("/events/ranking/{slug}")
 async def sse_ranking(slug: str, pool=Depends(get_pool)):
     """
