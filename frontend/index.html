@@ -907,68 +907,47 @@ window.enviarScore = async function(id) {
         'Sua pontuação está em análise e aparecerá em breve no ranking.';
     } else {
       document.getElementById(`sucesso-msg-${id}`).textContent = '';
-      // Busca posição atual no ranking
-      const primeiroNome = nickInput || nomeCompleto.split(' ')[0];
-      const slug = e.jogoSlug;
-      buscarPosicao(slug, nick).then(pos => {
-        if (!pos) return;
-        const elPos     = document.getElementById(`sucesso-posicao-${id}`);
-        const elNum     = document.getElementById(`sucesso-pos-num-${id}`);
-        const elLabel   = document.getElementById(`sucesso-pos-label-${id}`);
-        const elMotiv   = document.getElementById(`sucesso-motivacao-${id}`);
-        const sufixo    = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
-        elNum.textContent   = sufixo;
-        elLabel.textContent = pos <= 3 ? 'PÓDIO!' : 'LUGAR';
-        elMotiv.textContent = frasePorPosicao(pos);
-        elPos.style.display   = 'block';
-        elMotiv.style.display = 'block';
-        // Fogos conforme posição
-        if (pos === 1)      dispararFogos('top1');
-        else if (pos <= 3)  dispararFogos('top3');
-        else                dispararFogos('normal');
-        // Mostra compartilhamento com link pessoal
-        const linkPessoal = `${location.origin}/ranking.html?jogo=${e.jogoSlug}&destaque=${encodeURIComponent(nick)}`;
-        const shareSection = document.getElementById(`share-section-${id}`);
-        const shareLink    = document.getElementById(`share-link-${id}`);
-        if (shareSection) shareSection.style.display = 'block';
-        if (shareLink)    shareLink.textContent = linkPessoal;
-        // Guarda dados para geração da imagem
-        window._shareData = window._shareData || {};
-        const tema2 = getTema(e.jogoSlug);
-        window._shareData[id] = {
-          nick, nome: nomeCompleto, score, pos,
-          jogoNome:     e.jogoNome,
-          jogoSlug:     e.jogoSlug,
-          linkPessoal,
-          primaryColor: tema2.cores.primary || '#5e2b82',
-          bgColor:      tema2.cores.bg      || '#0b1331',
-          bgImage:      tema2.assets.bg_image || '',
-          fotoUrl:      data.foto_url || null,
-        };
-        const shareSection2 = document.getElementById(`share-section-${id}`);
-        const shareLink2    = document.getElementById(`share-link-${id}`);
-        if (shareSection2) shareSection2.style.display = 'block';
-        if (shareLink2)    shareLink2.textContent = linkPessoal;
-      });
-    }
-    suc.classList.add('visible');
-    if (!data.pendente) {
-      dispararFogos('normal');
-      // Inicializa _shareData sem posição (posição vem depois via buscarPosicao)
+      // Monta dados de compartilhamento imediatamente (sem esperar posição)
       const tema = getTema(e.jogoSlug);
+      const linkPessoal = `${location.origin}/ranking.html?jogo=${e.jogoSlug}&destaque=${encodeURIComponent(nick)}`;
       window._shareData = window._shareData || {};
-      window._shareData[id] = window._shareData[id] || {
+      window._shareData[id] = {
         nick, nome: nomeCompleto, score, pos: null,
         jogoNome:     e.jogoNome,
         jogoSlug:     e.jogoSlug,
-        linkPessoal:  `${location.origin}/ranking.html?jogo=${e.jogoSlug}&destaque=${encodeURIComponent(nick)}`,
+        linkPessoal,
         primaryColor: tema.cores.primary || '#5e2b82',
         bgColor:      tema.cores.bg      || '#0b1331',
         bgImage:      tema.assets.bg_image || '',
         fotoUrl:      data.foto_url || null,
       };
-      const shareSection0 = document.getElementById(`share-section-${id}`);
-      if (shareSection0) shareSection0.style.display = 'block';
+      // Fogos imediatos
+      dispararFogos('normal');
+      // Mostra seção de compartilhamento
+      const shareSection = document.getElementById(`share-section-${id}`);
+      const shareLink    = document.getElementById(`share-link-${id}`);
+      if (shareSection) shareSection.style.display = 'block';
+      if (shareLink)    shareLink.textContent = linkPessoal;
+
+      // Busca posição em background — atualiza display se encontrar
+      const slug = e.jogoSlug;
+      buscarPosicao(slug, nick).then(pos => {
+        if (!pos) return;
+        const elPos  = document.getElementById(`sucesso-posicao-${id}`);
+        const elNum  = document.getElementById(`sucesso-pos-num-${id}`);
+        const elLabel = document.getElementById(`sucesso-pos-label-${id}`);
+        const elMotiv = document.getElementById(`sucesso-motivacao-${id}`);
+        elNum.textContent   = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
+        elLabel.textContent = pos <= 3 ? 'PÓDIO!' : 'LUGAR';
+        elMotiv.textContent = frasePorPosicao(pos);
+        if (elPos)  elPos.style.display  = 'block';
+        if (elMotiv) elMotiv.style.display = 'block';
+        // Atualiza fogos com intensidade correta
+        if (pos === 1)     dispararFogos('top1');
+        else if (pos <= 3) dispararFogos('top3');
+        // Atualiza _shareData com posição
+        if (window._shareData[id]) window._shareData[id].pos = pos;
+      });
     }
     // Conecta SSE para receber notificação se for superado
     if (!data.pendente) {
