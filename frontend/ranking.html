@@ -657,6 +657,23 @@ function escapar(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
             .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
+
+window.abrirLightbox = function(url) {
+  const lb  = document.getElementById('lightbox');
+  const img = document.getElementById('lightbox-img');
+  img.src = url;
+  lb.classList.add('aberto');
+  document.body.style.overflow = 'hidden';
+};
+window.fecharLightbox = function(e) {
+  if (e && e.target !== e.currentTarget && !e.target.classList.contains('lightbox-fechar')) return;
+  document.getElementById('lightbox').classList.remove('aberto');
+  document.getElementById('lightbox-img').src = '';
+  document.body.style.overflow = '';
+};
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') window.fecharLightbox();
+});
 </script>
 <div class="lightbox" id="lightbox" onclick="fecharLightbox(event)">
   <button class="lightbox-fechar" onclick="fecharLightbox()">&times;</button>
