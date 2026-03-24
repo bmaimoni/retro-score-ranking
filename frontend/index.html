@@ -897,17 +897,23 @@ window.enviarScore = async function(id) {
 
   try {
     const fd = new FormData();
-if (e.fotoFile) fd.append('foto', e.fotoFile);
+    if (e.fotoFile) fd.append('foto', e.fotoFile);
     fd.append('nick', nick);
     if (nomeCompleto) fd.append('nome', nomeCompleto);
-    fd.append('pontuacao', score);
+    fd.append('pontuacao', String(score));
     fd.append('jogo_id', id);
 
     setProgress(id, true, 60, e.fotoFile ? 'Enviando foto...' : 'Registrando...');
     const resp = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: fd });
     setProgress(id, true, 95, 'Registrando...');
     const data = await resp.json();
-    if (!resp.ok) throw new Error(data.detail || 'Erro ao enviar');
+    if (!resp.ok) {
+      console.error('[canal3] 422 detail:', JSON.stringify(data.detail));
+      const detalhe = Array.isArray(data.detail)
+        ? data.detail.map(e => `${e.loc?.join('.')}: ${e.msg}`).join(' | ')
+        : (data.detail || 'Erro ao enviar');
+      throw new Error(detalhe);
+    }
 
     setProgress(id, true, 100, 'Concluído!');
     await new Promise(r => setTimeout(r, 350));
