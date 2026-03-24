@@ -227,3 +227,83 @@ async def test_atualizar_config(client):
 
     assert resp.status_code == 200
     assert resp.json()["valor"] == "20"
+
+
+# ── Manutenção — limpar ranking ───────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_limpar_ranking_sem_confirmar_retorna_400(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.post("/api/admin/manutencao/limpar-ranking",
+                             json={"permanente": False, "confirmar": "errado"},
+                             headers=AUTH_HEADER)
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_limpar_ranking_soft_delete(client):
+    pool = MagicMock()
+    pool.fetchval = AsyncMock(return_value=5)
+    pool.execute  = AsyncMock(return_value="UPDATE 5")
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    resp = await client.post("/api/admin/manutencao/limpar-ranking",
+                             json={"permanente": False, "confirmar": "CONFIRMAR"},
+                             headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["permanente"] is False
+    assert data["total_afetadas"] == 5
+
+
+@pytest.mark.asyncio
+async def test_limpar_ranking_permanente(client):
+    pool = MagicMock()
+    pool.fetchval = AsyncMock(return_value=3)
+    pool.execute  = AsyncMock(return_value="DELETE 3")
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    resp = await client.post("/api/admin/manutencao/limpar-ranking",
+                             json={"permanente": True, "confirmar": "CONFIRMAR"},
+                             headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert resp.json()["permanente"] is True
+
+
+@pytest.mark.asyncio
+async def test_limpar_ranking_por_jogo(client):
+    pool = MagicMock()
+    pool.fetchval = AsyncMock(return_value=2)
+    pool.execute  = AsyncMock(return_value="UPDATE 2")
+    app.dependency_overrides[get_pool] = lambda: pool
+    jogo_id = make_uuid()
+
+    resp = await client.post("/api/admin/manutencao/limpar-ranking",
+                             json={"jogo_id": jogo_id, "permanente": False, "confirmar": "CONFIRMAR"},
+                             headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert resp.json()["total_afetadas"] == 2
+
+
+@pytest.mark.asyncio
+async def test_restaurar_ranking(client):
+    pool = MagicMock()
+    pool.fetchval = AsyncMock(return_value=4)
+    pool.execute  = AsyncMock(return_value="UPDATE 4")
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    resp = await client.post("/api/admin/manutencao/restaurar-ranking",
+                             json={"confirmar": "CONFIRMAR"},
+                             headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert resp.json()["total_restauradas"] == 4
+
+
+@pytest.mark.asyncio
+async def test_restaurar_ranking_sem_confirmar_retorna_400(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.post("/api/admin/manutencao/restaurar-ranking",
+                             json={"confirmar": ""},
+                             headers=AUTH_HEADER)
+    assert resp.status_code == 400

@@ -171,3 +171,55 @@ async def test_score_acima_do_maximo_retorna_422(client):
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     assert resp.status_code == 422
+
+
+# ── Campo nome ────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_nome_salvo_no_banco(client):
+    """Campo nome deve ser passado ao inserir entrada."""
+    entry = _entrada()
+    entry["nome"] = "Carlos Lima"
+    pool  = _make_pool(entry)
+    inserir_mock = AsyncMock(return_value=entry)
+
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+         patch("routers.upload.broker.publish",          AsyncMock()), \
+         patch("routers.upload.entrada_repo.inserir",    inserir_mock), \
+         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
+         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
+        resp = await client.post(URL,
+            data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID, "nome": "Carlos Lima"},
+            files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+
+    assert resp.status_code == 201
+    dados = inserir_mock.call_args[0][1]
+    assert dados.get("nome") == "Carlos Lima"
+
+
+@pytest.mark.asyncio
+async def test_upload_sem_nome_funciona(client):
+    """nome é opcional — ausência não deve causar erro."""
+    entry = _entrada()
+    pool  = _make_pool(entry)
+
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+         patch("routers.upload.broker.publish",          AsyncMock()), \
+         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
+         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
+        resp = await client.post(URL,
+            data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
+            files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+
+    assert resp.status_code == 201

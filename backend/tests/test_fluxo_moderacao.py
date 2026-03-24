@@ -151,3 +151,49 @@ async def test_ranking_exclui_entradas_ocultas(client):
 
     assert resp.status_code == 200
     assert len(resp.json()["entradas"]) == 1
+
+
+# ── Arquivamento no ranking ───────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_ranking_exclui_entradas_arquivadas(client):
+    """Entradas com arquivado=true não devem aparecer no ranking público."""
+    jogo = {"id": make_uuid(), "nome": "Enduro", "slug": "enduro",
+            "score_max": None, "ativo": True}
+    # Só retorna entradas não-arquivadas (repository já filtra)
+    entradas_visiveis = [
+        {"id": make_uuid(), "nick": "ACE", "nome": "Ana Silva",
+         "pontuacao": 9000, "foto_url": None, "criado_em": "2024-01-01"},
+    ]
+
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.jogo.buscar_por_slug",     AsyncMock(return_value=jogo)), \
+         patch("repositories.entrada.listar_ranking",    AsyncMock(return_value=entradas_visiveis)):
+        resp = await client.get("/api/ranking/enduro")
+
+    assert resp.status_code == 200
+    assert len(resp.json()["entradas"]) == 1
+    assert resp.json()["entradas"][0]["nick"] == "ACE"
+
+
+@pytest.mark.asyncio
+async def test_ranking_retorna_nome_do_jogador(client):
+    """Campo nome deve aparecer nas entradas do ranking."""
+    jogo = {"id": make_uuid(), "nome": "Enduro", "slug": "enduro",
+            "score_max": None, "ativo": True}
+    entradas = [
+        {"id": make_uuid(), "nick": "ACE", "nome": "Ana Silva",
+         "pontuacao": 9000, "foto_url": None, "criado_em": "2024-01-01"},
+    ]
+
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.jogo.buscar_por_slug",  AsyncMock(return_value=jogo)), \
+         patch("repositories.entrada.listar_ranking", AsyncMock(return_value=entradas)):
+        resp = await client.get("/api/ranking/enduro")
+
+    assert resp.status_code == 200
+    assert resp.json()["entradas"][0]["nome"] == "Ana Silva"
