@@ -330,6 +330,37 @@
   const intervalo = parseInt(params.get('intervalo') || '15') * 1000;
   document.body.dataset.tamanho = tamanho;
 
+  // ── Carrossel ──────────────────────────────────────────────────
+  let jogosLista     = [];
+  let jogoIndex      = 0;
+  let carrosselTimer = null;
+  let carrosselPausado = false;
+
+  function iniciarCarrossel() {
+    if (modo !== 'carrossel' || jogosLista.length < 2) return;
+    carrosselTimer = setInterval(() => {
+      if (!carrosselPausado) {
+        jogoIndex = (jogoIndex + 1) % jogosLista.length;
+        mudarJogo(jogosLista[jogoIndex]);
+      }
+    }, intervalo);
+  }
+
+  const btnPausar = document.createElement('button');
+  btnPausar.style.cssText = `
+    position:fixed; bottom:20px; right:20px;
+    background:rgba(0,0,0,0.7); border:1px solid rgba(255,255,255,0.3);
+    color:white; font-family:'Press Start 2P',monospace; font-size:10px;
+    padding:10px 16px; border-radius:8px; cursor:pointer; z-index:100;
+    display:none; letter-spacing:0.08em;
+  `;
+  btnPausar.textContent = '⏸ PAUSAR';
+  btnPausar.onclick = () => {
+    carrosselPausado = !carrosselPausado;
+    btnPausar.textContent = carrosselPausado ? '▶ RETOMAR' : '⏸ PAUSAR';
+  };
+  document.body.appendChild(btnPausar);
+
   // ── Carrega jogos e monta tabs ────────────────────────────────
   async function carregarJogos() {
     const resp = await fetch(`${API_URL}/api/jogos`);

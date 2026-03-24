@@ -1168,39 +1168,45 @@ async function gerarImagemShare(dados) {
   ctx.fillStyle = bgColor || '#0b1331';
   ctx.fillRect(0, 0, W, H);
 
-  // ── Fundo: imagem do jogo com overlay escuro ──
+  // ── Fundo: imagem do jogo com overlay ──
   if (bgImage) {
     const bg = await carregarImagem(bgImage);
     if (bg) {
-      ctx.globalAlpha = 0.35;
+      ctx.globalAlpha = 0.30;
       ctx.drawImage(bg, 0, 0, W, H);
       ctx.globalAlpha = 1;
     }
   }
 
-  // ── Overlay escuro sobre o fundo ──
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  // ── Overlay escuro ──
+  ctx.fillStyle = 'rgba(0,0,0,0.58)';
   ctx.fillRect(0, 0, W, H);
 
-  // ── Foto da pessoa (metade esquerda, coluna) ──
+  // ── Foto da pessoa — crop centralizado sem distorção ──
   const temFoto = !!fotoUrl;
-  const fotoW = 420, fotoH = 520, fotoX = 60, fotoY = 280;
+  const fotoW = 400, fotoH = 500, fotoX = 52, fotoY = 270;
 
   if (temFoto) {
     const foto = await carregarImagem(fotoUrl);
     if (foto) {
-      // Máscara arredondada
+      // Calcula crop centralizado (object-fit: cover)
+      const scale = Math.max(fotoW / foto.width, fotoH / foto.height);
+      const sw    = fotoW / scale;
+      const sh    = fotoH / scale;
+      const sx    = (foto.width  - sw) / 2;
+      const sy    = (foto.height - sh) / 2;
+
       ctx.save();
       ctx.beginPath();
-      ctx.roundRect(fotoX, fotoY, fotoW, fotoH, 16);
+      ctx.roundRect(fotoX, fotoY, fotoW, fotoH, 14);
       ctx.clip();
-      ctx.drawImage(foto, fotoX, fotoY, fotoW, fotoH);
+      ctx.drawImage(foto, sx, sy, sw, sh, fotoX, fotoY, fotoW, fotoH);
       ctx.restore();
-      // Borda na cor do jogo
+
       ctx.strokeStyle = cor;
       ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.roundRect(fotoX, fotoY, fotoW, fotoH, 16);
+      ctx.roundRect(fotoX, fotoY, fotoW, fotoH, 14);
       ctx.stroke();
     }
   }
@@ -1211,74 +1217,74 @@ async function gerarImagemShare(dados) {
   ctx.strokeRect(20, 20, W - 40, H - 40);
 
   // ── Faixa superior ──
-  ctx.fillStyle = 'rgba(0,0,0,0.6)';
-  ctx.fillRect(0, 0, W, 230);
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fillRect(0, 0, W, 235);
 
-  // ── Logo / título ──
   ctx.textAlign = 'center';
   ctx.fillStyle = cor;
   ctx.font = 'bold 38px "Press Start 2P", monospace';
-  ctx.fillText('CANAL3', W / 2, 80);
+  ctx.fillText('CANAL3', W / 2, 78);
   ctx.fillStyle = 'rgba(255,255,255,0.85)';
   ctx.font = '26px "Press Start 2P", monospace';
-  ctx.fillText('HIGH SCORE', W / 2, 130);
+  ctx.fillText('HIGH SCORE', W / 2, 128);
   ctx.fillStyle = cor;
   ctx.font = '22px "Press Start 2P", monospace';
   ctx.fillText(jogoNome.toUpperCase(), W / 2, 188);
 
-  // ── Linha divisória ──
   ctx.fillStyle = cor;
   ctx.fillRect(60, 218, W - 120, 2);
 
-  // ── Coluna de texto (direita ou centro se sem foto) ──
-  const txtX = temFoto ? 560 : W / 2;
-  ctx.textAlign = temFoto ? 'left' : 'center';
-  const txtStartX = temFoto ? 520 : W / 2;
+  // ── Coluna de texto ──
+  const temFotoOk = temFoto;
+  const txtX     = temFotoOk ? 510 : W / 2;
+  const maxTxtW  = temFotoOk ? 530 : W - 120;
+  ctx.textAlign  = temFotoOk ? 'left' : 'center';
 
   // Nick
-  const nickDisplay = nick.length > 12 ? nick.slice(0, 12) + '…' : nick;
+  const nickDisplay = nick.length > 10 ? nick.slice(0, 10) + '…' : nick;
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 72px "Press Start 2P", monospace';
-  if (temFoto) {
-    ctx.fillText(nickDisplay.toUpperCase(), txtStartX, 380);
-  } else {
-    ctx.fillText(nickDisplay.toUpperCase(), txtStartX, 420);
-  }
+  ctx.font = `bold 68px "Press Start 2P", monospace`;
+  ctx.fillText(nickDisplay.toUpperCase(), txtX, temFotoOk ? 370 : 410);
 
   // Nome completo
   if (nome) {
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.font = '28px sans-serif';
-    const nomeDisplay = nome.length > 22 ? nome.slice(0, 22) + '…' : nome;
-    ctx.fillText(nomeDisplay, txtStartX, temFoto ? 430 : 475);
+    ctx.font = '26px sans-serif';
+    const nomeDisplay = nome.length > 24 ? nome.slice(0, 24) + '…' : nome;
+    ctx.fillText(nomeDisplay, txtX, temFotoOk ? 420 : 462);
   }
 
-  // Score
-  ctx.fillStyle = cor;
-  ctx.font = 'bold 90px "Press Start 2P", monospace';
+  // Score — fonte adaptável ao tamanho do número
   const scoreStr = Number(score).toLocaleString('pt-BR');
-  ctx.fillText(scoreStr, txtStartX, temFoto ? 560 : 620);
+  let scoreFontSize = 88;
+  ctx.font = `bold ${scoreFontSize}px "Press Start 2P", monospace`;
+  while (ctx.measureText(scoreStr).width > maxTxtW && scoreFontSize > 40) {
+    scoreFontSize -= 6;
+    ctx.font = `bold ${scoreFontSize}px "Press Start 2P", monospace`;
+  }
+  ctx.fillStyle = cor;
+  ctx.fillText(scoreStr, txtX, temFotoOk ? 548 : 600);
 
   ctx.fillStyle = 'rgba(255,255,255,0.4)';
-  ctx.font = '24px "Press Start 2P", monospace';
-  ctx.fillText('PONTOS', txtStartX, temFoto ? 610 : 670);
+  ctx.font = '22px "Press Start 2P", monospace';
+  ctx.fillText('PONTOS', txtX, temFotoOk ? 598 : 650);
 
   // Posição
   if (pos) {
     const emoji  = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : '';
     const posStr = `${emoji} ${pos}º LUGAR`.trim();
-    ctx.fillStyle = pos <= 3 ? '#ffd700' : 'rgba(255,255,255,0.7)';
-    ctx.font = `bold ${pos <= 3 ? 52 : 42}px "Press Start 2P", monospace`;
-    ctx.fillText(posStr, txtStartX, temFoto ? 700 : 760);
+    ctx.fillStyle = pos <= 3 ? '#ffd700' : 'rgba(255,255,255,0.75)';
+    ctx.font = `bold ${pos <= 3 ? 50 : 42}px "Press Start 2P", monospace`;
+    ctx.fillText(posStr, txtX, temFotoOk ? 690 : 750);
   }
 
   // ── Faixa inferior ──
   ctx.fillStyle = 'rgba(0,0,0,0.65)';
-  ctx.fillRect(0, H - 130, W, 130);
-  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.fillRect(0, H - 120, W, 120);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
   ctx.textAlign = 'center';
   ctx.font = '22px "Press Start 2P", monospace';
-  ctx.fillText('canal3.com.br', W / 2, H - 55);
+  ctx.fillText('canal3expo.com.br', W / 2, H - 48);
 
   return canvas;
 }
