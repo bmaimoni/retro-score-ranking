@@ -65,11 +65,15 @@
     }
     .regras-lista li {
       font-size: var(--text-sm);
-      color: var(--color-text-muted);
+      color: rgba(255,255,255,0.7);
       display: flex;
       align-items: flex-start;
       gap: 8px;
-      line-height: 1.5;
+      line-height: 1.6;
+    }
+    .regras-lista li strong {
+      color: var(--color-primary);
+      font-weight: 600;
     }
     .regras-lista li::before {
       content: '▸';
@@ -371,17 +375,17 @@
     <div class="regras-titulo">📋 COMO PARTICIPAR</div>
     <ul class="regras-lista">
       <li>Tire uma <strong>selfie com seu rosto</strong> e o placar visível na tela atrás de você</li>
-      <li>Escolha um <strong>nick único</strong> — ele aparecerá no ranking público</li>
+      <li>Entradas <strong>sem foto</strong> ficam em moderação antes de aparecer no ranking</li>
+      <li>Use seu <strong>nome real</strong> — escolha um apelido para exibição no placar</li>
       <li>Novo score? Seu <strong>recorde anterior é substituído</strong> automaticamente</li>
-      <li>Fotos passam por <strong>moderação</strong> antes de aparecer no ranking</li>
     </ul>
 
     <div class="regras-expandido" id="regras-expandido">
       <ul>
-        <li>A foto deve mostrar claramente seu rosto e o placar — fotos cortadas ou ilegíveis serão rejeitadas</li>
-        <li>Scores claramente impossíveis ou manipulados digitalmente serão removidos sem aviso</li>
-        <li>Um nick por pessoa — não é permitido criar múltiplos perfis para ocupar mais posições</li>
-        <li>Ao enviar, você concorda que sua foto e nick sejam exibidos publicamente no ranking</li>
+        <li>A selfie deve mostrar claramente seu rosto e o placar — fotos cortadas ou ilegíveis serão rejeitadas</li>
+        <li>Scores impossíveis ou manipulados digitalmente serão removidos sem aviso</li>
+        <li>Um cadastro por pessoa — não é permitido criar múltiplos perfis para ocupar mais posições</li>
+        <li>Ao enviar, você concorda que sua foto, apelido e pontuação sejam exibidos publicamente</li>
         <li>A organização reserva o direito de remover qualquer entrada sem necessidade de justificativa</li>
         <li>Dúvidas? Fale com um dos organizadores presentes no evento</li>
       </ul>
@@ -529,9 +533,16 @@ function renderFormulario(j) {
     </div>
 
     <div class="card-field">
-      <label class="card-label" for="nick-${j.id}">Seu nickname</label>
+      <label class="card-label" for="nome-${j.id}">Seu nome completo</label>
+      <input class="card-input" type="text" id="nome-${j.id}"
+             placeholder="Ex: João Silva" maxlength="80"
+             autocomplete="name" spellcheck="false">
+    </div>
+
+    <div class="card-field">
+      <label class="card-label" for="nick-${j.id}">Apelido no placar <span style="font-weight:400;opacity:0.55;text-transform:none;letter-spacing:0">(opcional)</span></label>
       <input class="card-input" type="text" id="nick-${j.id}"
-             placeholder="Ex: PLAYER1" maxlength="50"
+             placeholder="Ex: PLAYER1 (padrão: suas iniciais)" maxlength="20"
              autocomplete="off" autocapitalize="characters" spellcheck="false">
     </div>
 
@@ -630,11 +641,13 @@ function processarFoto(id, file) {
 // ── ENVIO ─────────────────────────────────────────────────────
 window.enviarScore = async function(id) {
   const e      = estado[id];
-  const nick   = document.getElementById(`nick-${id}`).value.trim();
-  const score  = parseInt(document.getElementById(`score-${id}`).value);
-  const consent = document.getElementById(`consent-${id}`).checked;
+  const nomeCompleto = document.getElementById(`nome-${id}`).value.trim();
+  const nickInput    = document.getElementById(`nick-${id}`).value.trim();
+  const nick         = nickInput || nomeCompleto.split(' ').map(p => p[0]).join('').toUpperCase().slice(0,6);
+  const score        = parseInt(document.getElementById(`score-${id}`).value);
+  const consent      = document.getElementById(`consent-${id}`).checked;
 
-  if (!nick)              { showToast('Digite seu nickname', 'error'); return; }
+  if (!nomeCompleto)      { showToast('Digite seu nome completo', 'error'); return; }
   if (!score || score<=0) { showToast('Digite uma pontuação válida', 'error'); return; }
   if (!consent)           { showToast('Confirme o consentimento para participar', 'error'); return; }
 
@@ -665,7 +678,7 @@ window.enviarScore = async function(id) {
     document.getElementById(`sucesso-score-${id}`).textContent = score.toLocaleString('pt-BR');
     document.getElementById(`sucesso-msg-${id}`).textContent = data.pendente
       ? 'Sua pontuação está em análise e aparecerá em breve no ranking.'
-      : `Você está no ranking, ${nick}! Acompanhe sua posição no telão.`;
+      : `Você está no ranking, ${nickInput || nomeCompleto.split(' ')[0]}! Acompanhe sua posição no telão.`;
     suc.classList.add('visible');
 
   } catch (err) {
@@ -678,6 +691,7 @@ window.enviarScore = async function(id) {
 // ── RESET CARD ────────────────────────────────────────────────
 window.resetCard = function(id) {
   estado[id].fotoFile = null;
+  document.getElementById(`nome-${id}`).value = '';
   document.getElementById(`nick-${id}`).value = '';
   document.getElementById(`score-${id}`).value = '';
   document.getElementById(`consent-${id}`).checked = false;

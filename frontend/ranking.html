@@ -20,6 +20,28 @@
     }
 
     /* ── Header ── */
+    .btn-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: var(--radius-sm, 6px);
+      color: rgba(255,255,255,0.7);
+      font-family: var(--font-display);
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      padding: 6px 12px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.2s, color 0.2s;
+      margin-bottom: 8px;
+    }
+    .btn-back:hover {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+
     .ranking-header {
       display: grid;
       grid-template-columns: 1fr auto 1fr;
@@ -327,6 +349,7 @@
 
   <!-- Header -->
   <header>
+    <a href="index.html" class="btn-back">◂ VOLTAR</a>
     <div class="ranking-header">
       <div class="ranking-meta">
         <span class="meta-label">Jogo atual</span>
