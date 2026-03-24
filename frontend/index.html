@@ -949,6 +949,7 @@ window.enviarScore = async function(id) {
         if (window._shareData[id]) window._shareData[id].pos = pos;
       });
     }
+    suc.classList.add('visible');
     // Conecta SSE para receber notificação se for superado
     if (!data.pendente) {
       conectarSSESuperado(e.jogoSlug, id, nick);
