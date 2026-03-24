@@ -614,6 +614,23 @@
       </div>
     </div>
 
+    <!-- Config telão -->
+    <div class="manut-card" id="manut-telao">
+      <h3 class="manut-titulo">Tamanho do telão</h3>
+      <p class="manut-desc">Ajuste o tamanho dos elementos conforme a distância dos visitantes.</p>
+      <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
+        <button class="btn-action" onclick="configurarTelao('normal')"  style="flex:1">Perto (&lt;3m)</button>
+        <button class="btn-action" onclick="configurarTelao('medio')"   style="flex:1">Médio (3–8m)</button>
+        <button class="btn-action" onclick="configurarTelao('grande')"  style="flex:1">Longe (&gt;8m)</button>
+      </div>
+      <div style="margin-top:var(--space-sm)">
+        <a id="link-telao" href="/telao.html" target="_blank"
+           class="btn-action btn-reativar" style="display:inline-block;text-decoration:none;text-align:center;width:100%">
+          ▶ Abrir telão
+        </a>
+      </div>
+    </div>
+
     <!-- Limpeza geral -->
     <div class="manut-card manut-danger" id="manut-geral">
       <h3 class="manut-titulo">⚠️ Limpeza geral</h3>
@@ -1087,6 +1104,13 @@ async function resolverPendente(id, aprovar) {
 }
 
 // ── MANUTENÇÃO ───────────────────────────────────────────────────────────────
+function configurarTelao(tamanho) {
+  const link = document.getElementById('link-telao');
+  link.href = `/telao.html?tamanho=${tamanho}`;
+  localStorage.setItem('tv-tamanho', tamanho);
+  showToast(`Telão configurado: ${tamanho}`, 'success');
+}
+
 async function arquivarJogo() {
   const jogoId = document.getElementById('manut-jogo-select').value;
   const nome   = document.getElementById('manut-jogo-select').selectedOptions[0]?.text || '';

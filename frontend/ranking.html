@@ -413,6 +413,13 @@
     <div class="ranking-grid" id="ranking-grid" role="list">
       <!-- Preenchido via JS -->
     </div>
+    <div class="ranking-footer-qr">
+      <div class="ranking-footer-qr-label">PARTICIPE PELO CELULAR</div>
+      <div class="ranking-footer-qr-box">
+        <div id="ranking-qrcode"></div>
+      </div>
+      <div class="ranking-footer-qr-url" id="ranking-qr-url"></div>
+    </div>
   </main>
 
   <!-- Footer -->
@@ -428,6 +435,7 @@
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script type="module">
 import { aplicarTema } from './temas.js';
 

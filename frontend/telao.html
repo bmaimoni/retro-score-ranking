@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canal3 — Telão High Scores</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Orbitron:wght@400;700&display=swap">
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --tv-font-size: 1;
+      --color-bg: #0b1331;
+      --color-bg-surface: #1e184e;
+      --color-primary: #5e2b82;
+      --color-accent: #72cddd;
+      --color-text: #ffffff;
+      --color-text-muted: rgba(255,255,255,0.5);
+    }
+    body {
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: 'Press Start 2P', monospace;
+      min-height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .tv-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: clamp(12px,2vh,28px) clamp(16px,3vw,48px);
+      border-bottom: 2px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+    .tv-logo {
+      height: clamp(36px,5vh,64px);
+      width: auto;
+    }
+    .tv-titulo {
+      font-size: clamp(1.4rem,4vw,3.5rem);
+      color: var(--color-primary);
+      text-align: center;
+      letter-spacing: 0.08em;
+      line-height: 1.2;
+      text-shadow: 0 0 30px rgba(94,43,130,0.6);
+    }
+    .tv-jogo-atual {
+      text-align: right;
+      font-size: clamp(0.5rem,1.2vw,0.85rem);
+      color: var(--color-text-muted);
+      line-height: 2;
+    }
+    .tv-jogo-nome {
+      color: var(--color-accent);
+      font-size: clamp(0.7rem,1.6vw,1.1rem);
+      display: block;
+    }
+
+    /* ── Tabs ── */
+    .tv-tabs {
+      display: flex;
+      gap: clamp(4px,1vw,12px);
+      padding: clamp(8px,1.5vh,16px) clamp(16px,3vw,48px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    .tv-tab {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: var(--color-text-muted);
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(0.4rem,1vw,0.65rem);
+      padding: clamp(4px,0.8vh,10px) clamp(8px,1.5vw,20px);
+      border-radius: 4px;
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .tv-tab.ativo {
+      background: var(--color-primary);
+      border-color: var(--color-primary);
+      color: white;
+    }
+
+    /* ── Grid de ranking ── */
+    .tv-main {
+      flex: 1;
+      display: flex;
+      gap: clamp(12px,2vw,32px);
+      padding: clamp(12px,2vh,24px) clamp(16px,3vw,48px);
+      overflow: hidden;
+    }
+    .tv-ranking {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: clamp(6px,1vh,12px);
+      overflow: hidden;
+    }
+    .tv-entrada {
+      display: flex;
+      align-items: center;
+      gap: clamp(8px,1.5vw,20px);
+      background: var(--color-bg-surface);
+      border-radius: 8px;
+      padding: clamp(8px,1.5vh,18px) clamp(12px,2vw,24px);
+      border-left: 4px solid transparent;
+      transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      overflow: hidden;
+    }
+    .tv-entrada.novo {
+      animation: entradaNova 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+      border-left-color: var(--color-accent);
+    }
+    @keyframes entradaNova {
+      0%   { transform: translateX(-40px); opacity: 0; }
+      60%  { transform: translateX(6px); }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+    .tv-pos {
+      font-size: clamp(0.9rem,2.5vw,2rem);
+      font-weight: 700;
+      min-width: clamp(28px,4vw,56px);
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .tv-pos.p1 { color: #ffd700; }
+    .tv-pos.p2 { color: #c0c0c0; }
+    .tv-pos.p3 { color: #cd7f32; }
+    .tv-foto {
+      width: clamp(36px,5vw,72px);
+      height: clamp(36px,5vw,72px);
+      border-radius: 6px;
+      object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.1);
+      flex-shrink: 0;
+    }
+    .tv-foto-placeholder {
+      width: clamp(36px,5vw,72px);
+      height: clamp(36px,5vw,72px);
+      border-radius: 6px;
+      background: var(--color-bg);
+      border: 2px solid rgba(255,255,255,0.1);
+      display: flex; align-items: center; justify-content: center;
+      font-size: clamp(0.8rem,1.8vw,1.4rem);
+      color: var(--color-text-muted);
+      flex-shrink: 0;
+    }
+    .tv-info { flex: 1; min-width: 0; }
+    .tv-nick {
+      font-size: clamp(0.6rem,1.8vw,1.3rem);
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tv-tempo {
+      font-size: clamp(0.4rem,0.9vw,0.6rem);
+      color: var(--color-text-muted);
+      margin-top: 4px;
+    }
+    .tv-score {
+      font-size: clamp(1rem,3vw,2.2rem);
+      color: var(--color-accent);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
+    }
+
+    /* ── Painel lateral: QR code ── */
+    .tv-lateral {
+      width: clamp(140px,18vw,240px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(8px,1.5vh,16px);
+      flex-shrink: 0;
+    }
+    .tv-qr-card {
+      background: white;
+      border-radius: 12px;
+      padding: clamp(8px,1.5vw,16px);
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .tv-qr-label {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(0.35rem,0.7vw,0.5rem);
+      color: #333;
+      text-align: center;
+      line-height: 1.6;
+    }
+    #tv-qrcode canvas, #tv-qrcode img {
+      width: 100% !important;
+      height: auto !important;
+    }
+    .tv-live {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: clamp(0.4rem,0.8vw,0.55rem);
+      color: var(--color-text-muted);
+    }
+    .tv-live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #4caf50;
+      animation: piscar 1.5s ease-in-out infinite;
+    }
+    .tv-live-dot.off { background: #555; animation: none; }
+    @keyframes piscar {
+      0%,100% { opacity: 1; } 50% { opacity: 0.3; }
+    }
+
+    /* ── Overlay "NOVO RECORDE" ── */
+    .tv-novo-recorde {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 100;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .tv-novo-recorde.show { opacity: 1; }
+    .tv-novo-recorde-titulo {
+      font-size: clamp(1.5rem,6vw,5rem);
+      color: #ffd700;
+      text-shadow: 0 0 40px rgba(255,215,0,0.8);
+      letter-spacing: 0.1em;
+      animation: pulsar 0.5s ease-in-out infinite alternate;
+    }
+    .tv-novo-recorde-nick {
+      font-size: clamp(1rem,3.5vw,3rem);
+      color: white;
+      margin-top: 16px;
+    }
+    .tv-novo-recorde-score {
+      font-size: clamp(1.5rem,5vw,4rem);
+      color: var(--color-accent);
+      margin-top: 8px;
+    }
+    @keyframes pulsar {
+      from { transform: scale(1); }
+      to   { transform: scale(1.04); }
+    }
+
+    /* ── Tamanho da fonte configurável ── */
+    body[data-tamanho="medio"]  { font-size: 1.15em; }
+    body[data-tamanho="grande"] { font-size: 1.35em; }
+  </style>
+</head>
+<body data-tamanho="normal">
+
+<header class="tv-header">
+  <img src="logo-principal.png" alt="Canal3" class="tv-logo" onerror="this.style.display='none'">
+  <h1 class="tv-titulo">HIGH<br>SCORES</h1>
+  <div class="tv-jogo-atual">
+    <span style="display:block">JOGO ATUAL</span>
+    <span class="tv-jogo-nome" id="tv-jogo-nome">—</span>
+  </div>
+</header>
+
+<nav class="tv-tabs" id="tv-tabs"></nav>
+
+<div class="tv-main">
+  <div class="tv-ranking" id="tv-ranking">
+    <div style="color:rgba(255,255,255,0.3);font-size:0.6rem;text-align:center;margin-top:40px">CARREGANDO...</div>
+  </div>
+
+  <aside class="tv-lateral">
+    <div class="tv-qr-card">
+      <div class="tv-qr-label">PARTICIPE<br>PELO CELULAR</div>
+      <div id="tv-qrcode"></div>
+      <div class="tv-qr-label" id="tv-qr-url" style="word-break:break-all;font-size:0.3rem;color:#666"></div>
+    </div>
+    <div class="tv-live">
+      <div class="tv-live-dot" id="tv-live-dot"></div>
+      <span id="tv-live-label">AO VIVO</span>
+    </div>
+  </aside>
+</div>
+
+<!-- Overlay novo recorde -->
+<div class="tv-novo-recorde" id="tv-novo-recorde">
+  <div class="tv-novo-recorde-titulo">★ NOVO RECORDE ★</div>
+  <div class="tv-novo-recorde-nick" id="tv-recorde-nick"></div>
+  <div class="tv-novo-recorde-score" id="tv-recorde-score"></div>
+</div>
+
+<script type="module">
+  import { aplicarTema, getTema } from './temas.js';
+
+  const API_URL    = 'https://retro-score-ranking-production.up.railway.app';
+  const UPLOAD_URL = 'https://retro-score-ranking.vercel.app';
+
+  let jogoAtual = null;
+  let sseSource = null;
+  let rankingAtual = [];
+
+  // ── QR Code ──────────────────────────────────────────────────
+  function gerarQR(url) {
+    const el = document.getElementById('tv-qrcode');
+    el.innerHTML = '';
+    new QRCode(el, {
+      text: url,
+      width: 180, height: 180,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+    document.getElementById('tv-qr-url').textContent = url;
+  }
+
+  // ── Tamanho configurável ──────────────────────────────────────
+  const params = new URLSearchParams(location.search);
+  const tamanho = params.get('tamanho') || localStorage.getItem('tv-tamanho') || 'normal';
+  document.body.dataset.tamanho = tamanho;
+
+  // ── Carrega jogos e monta tabs ────────────────────────────────
+  async function carregarJogos() {
+    const resp = await fetch(`${API_URL}/api/jogos`);
+    const jogos = await resp.json();
+    const tabs  = document.getElementById('tv-tabs');
+    tabs.innerHTML = '';
+    jogos.filter(j => j.ativo !== false).forEach((j, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'tv-tab';
+      btn.textContent = j.nome.toUpperCase();
+      btn.onclick = () => mudarJogo(j);
+      tabs.appendChild(btn);
+      if (i === 0) mudarJogo(j);
+    });
+  }
+
+  function mudarJogo(jogo) {
+    jogoAtual = jogo;
+    document.getElementById('tv-jogo-nome').textContent = jogo.nome.toUpperCase();
+    document.querySelectorAll('.tv-tab').forEach(t =>
+      t.classList.toggle('ativo', t.textContent === jogo.nome.toUpperCase())
+    );
+    aplicarTema(jogo.slug);
+    gerarQR(`${UPLOAD_URL}/index.html`);
+    carregarRanking(jogo.slug);
+    conectarSSE(jogo.slug);
+  }
+
+  // ── Ranking ───────────────────────────────────────────────────
+  async function carregarRanking(slug) {
+    try {
+      const resp = await fetch(`${API_URL}/api/ranking/${slug}`);
+      const data = await resp.json();
+      rankingAtual = data.entradas || [];
+      renderRanking(rankingAtual);
+    } catch {}
+  }
+
+  function renderRanking(entradas, novoNick = null) {
+    const el = document.getElementById('tv-ranking');
+    const max = 10;
+    el.innerHTML = '';
+    entradas.slice(0, max).forEach((e, i) => {
+      const pos = i + 1;
+      const posClass = pos === 1 ? 'p1' : pos === 2 ? 'p2' : pos === 3 ? 'p3' : '';
+      const posTexto = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
+      const foto = e.foto_url
+        ? `<img class="tv-foto" src="${e.foto_url}" alt="${e.nick}" loading="lazy">`
+        : `<div class="tv-foto-placeholder">${e.nick.charAt(0).toUpperCase()}</div>`;
+      const isNovo = novoNick && e.nick.toLowerCase() === novoNick.toLowerCase();
+      const div = document.createElement('div');
+      div.className = `tv-entrada${isNovo ? ' novo' : ''}`;
+      div.innerHTML = `
+        <div class="tv-pos ${posClass}">${posTexto}</div>
+        ${foto}
+        <div class="tv-info">
+          <div class="tv-nick">${e.nick.toUpperCase()}</div>
+          <div class="tv-tempo">${tempoRelativo(e.criado_em)}</div>
+        </div>
+        <div class="tv-score">${Number(e.pontuacao).toLocaleString('pt-BR')}</div>
+      `;
+      el.appendChild(div);
+    });
+  }
+
+  // ── SSE ───────────────────────────────────────────────────────
+  function conectarSSE(slug) {
+    if (sseSource) { sseSource.close(); sseSource = null; }
+    sseSource = new EventSource(`${API_URL}/api/events/ranking/${slug}`);
+
+    sseSource.addEventListener('novo_registro', e => {
+      try {
+        const dados = JSON.parse(e.data);
+        carregarRanking(slug).then(() => {
+          renderRanking(rankingAtual, dados.nick);
+          // Mostra overlay se for novo 1º lugar
+          const top = rankingAtual[0];
+          if (top && top.nick.toLowerCase() === dados.nick.toLowerCase()) {
+            mostrarNovoRecorde(dados.nick, dados.pontuacao);
+          }
+        });
+      } catch {}
+    });
+
+    sseSource.addEventListener('ocultar',   () => carregarRanking(slug));
+    sseSource.addEventListener('reativar',  () => carregarRanking(slug));
+    sseSource.onopen  = () => setLive(true);
+    sseSource.onerror = () => {
+      setLive(false);
+      setTimeout(() => conectarSSE(slug), 5000);
+    };
+  }
+
+  function setLive(on) {
+    document.getElementById('tv-live-dot').classList.toggle('off', !on);
+    document.getElementById('tv-live-label').textContent = on ? 'AO VIVO' : 'RECONECTANDO...';
+  }
+
+  // ── Overlay novo recorde ──────────────────────────────────────
+  let overlayTimer = null;
+  function mostrarNovoRecorde(nick, pontuacao) {
+    const el = document.getElementById('tv-novo-recorde');
+    document.getElementById('tv-recorde-nick').textContent = nick.toUpperCase();
+    document.getElementById('tv-recorde-score').textContent = Number(pontuacao).toLocaleString('pt-BR') + ' PTS';
+    el.classList.add('show');
+    clearTimeout(overlayTimer);
+    overlayTimer = setTimeout(() => el.classList.remove('show'), 4000);
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────
+  function tempoRelativo(iso) {
+    if (!iso) return '';
+    const diff = Date.now() - new Date(iso).getTime();
+    if (diff < 60000)   return 'agora mesmo';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}min atrás`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h atrás`;
+    return `${Math.floor(diff / 86400000)}d atrás`;
+  }
+
+  // ── Init ──────────────────────────────────────────────────────
+  carregarJogos();
+  setInterval(() => { if (jogoAtual) renderRanking(rankingAtual); }, 30000);
+</script>
+</body>
+</html>

@@ -345,6 +345,59 @@
     .sucesso-titulo { font-family: var(--font-display); font-size: var(--text-sm); color: var(--card-secondary, var(--color-secondary)); line-height: 1.5; }
     .sucesso-score { font-family: var(--font-mono); font-size: var(--text-2xl); color: var(--card-primary, var(--color-primary)); font-weight: var(--weight-bold); }
     .sucesso-msg { font-size: var(--text-sm); color: rgba(255,255,255,0.6); max-width: 280px; }
+    .sucesso-posicao {
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+      color: var(--card-primary, var(--color-primary));
+      margin: 4px 0 2px;
+      letter-spacing: 0.05em;
+    }
+    .sucesso-posicao span {
+      font-size: var(--text-3xl, 2.5rem);
+      display: block;
+      line-height: 1;
+    }
+    .toast-superado {
+      position: fixed;
+      bottom: 80px; left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(20,10,0,0.95);
+      border: 1px solid var(--color-primary);
+      border-radius: 12px;
+      padding: 14px 20px;
+      max-width: 320px;
+      width: 90%;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+      z-index: 999;
+    }
+    .toast-superado.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast-superado-titulo {
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      color: var(--color-primary);
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
+    }
+    .toast-superado-msg {
+      font-size: var(--text-sm);
+      color: rgba(255,255,255,0.8);
+      line-height: 1.4;
+    }
+
+    .sucesso-motivacao {
+      font-size: var(--text-sm);
+      color: rgba(255,255,255,0.75);
+      max-width: 260px;
+      line-height: 1.5;
+      margin-top: 4px;
+      font-style: italic;
+    }
     .sucesso-actions { display: flex; flex-direction: column; gap: var(--space-sm); width: 100%; }
 
     /* ── Links ── */
@@ -576,6 +629,11 @@ function renderFormulario(j) {
     <div class="sucesso-icon">🏆</div>
     <h2 class="sucesso-titulo" id="sucesso-titulo-${j.id}">PONTUAÇÃO<br>REGISTRADA!</h2>
     <div class="sucesso-score" id="sucesso-score-${j.id}">0</div>
+    <div class="sucesso-posicao" id="sucesso-posicao-${j.id}" style="display:none">
+      <span id="sucesso-pos-num-${j.id}"></span>
+      <small id="sucesso-pos-label-${j.id}" style="font-size:var(--text-xs);opacity:0.7">LUGAR</small>
+    </div>
+    <p class="sucesso-motivacao" id="sucesso-motivacao-${j.id}" style="display:none"></p>
     <p class="sucesso-msg" id="sucesso-msg-${j.id}"></p>
     <div class="sucesso-actions" style="flex-direction:row;gap:var(--space-sm)">
       <a href="ranking.html?jogo=${j.slug}" class="card-btn" style="text-decoration:none;text-align:center;flex:1">VER RANKING →</a>
@@ -639,6 +697,40 @@ function processarFoto(id, file) {
   reader.readAsDataURL(file);
 }
 
+
+const FRASES_MOTIVACAO = {
+  1:  "Você está no topo! Mas eles vêm aí...",
+  2:  "Tão perto do primeiro lugar. Mais uma tentativa?",
+  3:  "Pódio! Mas o 1º ainda está ao seu alcance.",
+  top5:  "Top 5! Você tem o que é preciso para chegar mais alto.",
+  top10: "Boa jogada! O top 5 está ao seu alcance.",
+  top20: "Você está no jogo. Agora é superar um por um.",
+  resto: "Cada corrida é uma chance de subir. Tente de novo!",
+};
+
+function frasePorPosicao(pos) {
+  if (pos === 1)       return FRASES_MOTIVACAO[1];
+  if (pos === 2)       return FRASES_MOTIVACAO[2];
+  if (pos === 3)       return FRASES_MOTIVACAO[3];
+  if (pos <= 5)        return FRASES_MOTIVACAO.top5;
+  if (pos <= 10)       return FRASES_MOTIVACAO.top10;
+  if (pos <= 20)       return FRASES_MOTIVACAO.top20;
+  return FRASES_MOTIVACAO.resto;
+}
+
+async function buscarPosicao(jogoSlug, nick) {
+  try {
+    const resp = await fetch(`${API_URL}/api/ranking/${jogoSlug}`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const entradas = data.entradas || [];
+    const pos = entradas.findIndex(e =>
+      e.nick.toLowerCase() === nick.toLowerCase()
+    );
+    return pos >= 0 ? pos + 1 : null;
+  } catch { return null; }
+}
+
 // ── ENVIO ─────────────────────────────────────────────────────
 window.enviarScore = async function(id) {
   const e      = estado[id];
@@ -677,10 +769,34 @@ window.enviarScore = async function(id) {
     document.getElementById(`form-${id}`).style.display = 'none';
     const suc = document.getElementById(`sucesso-${id}`);
     document.getElementById(`sucesso-score-${id}`).textContent = score.toLocaleString('pt-BR');
-    document.getElementById(`sucesso-msg-${id}`).textContent = data.pendente
-      ? 'Sua pontuação está em análise e aparecerá em breve no ranking.'
-      : `Você está no ranking, ${nickInput || nomeCompleto.split(' ')[0]}! Acompanhe sua posição no telão.`;
+
+    if (data.pendente) {
+      document.getElementById(`sucesso-msg-${id}`).textContent =
+        'Sua pontuação está em análise e aparecerá em breve no ranking.';
+    } else {
+      document.getElementById(`sucesso-msg-${id}`).textContent = '';
+      // Busca posição atual no ranking
+      const primeiroNome = nickInput || nomeCompleto.split(' ')[0];
+      const slug = e.jogoSlug;
+      buscarPosicao(slug, nick).then(pos => {
+        if (!pos) return;
+        const elPos     = document.getElementById(`sucesso-posicao-${id}`);
+        const elNum     = document.getElementById(`sucesso-pos-num-${id}`);
+        const elLabel   = document.getElementById(`sucesso-pos-label-${id}`);
+        const elMotiv   = document.getElementById(`sucesso-motivacao-${id}`);
+        const sufixo    = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
+        elNum.textContent   = sufixo;
+        elLabel.textContent = pos <= 3 ? 'PÓDIO!' : 'LUGAR';
+        elMotiv.textContent = frasePorPosicao(pos);
+        elPos.style.display   = 'block';
+        elMotiv.style.display = 'block';
+      });
+    }
     suc.classList.add('visible');
+    // Conecta SSE para receber notificação se for superado
+    if (!data.pendente) {
+      conectarSSESuperado(e.jogoSlug, id, nick);
+    }
 
   } catch (err) {
     setProgress(id, false);
@@ -688,6 +804,36 @@ window.enviarScore = async function(id) {
     showToast(err.message || 'Erro ao enviar. Tente novamente.', 'error');
   }
 };
+
+// ── SSE: notificação de superação ────────────────────────────
+const sseSuperado = {};  // { jogoId: EventSource }
+
+function conectarSSESuperado(jogoSlug, jogoId, nickAtual) {
+  if (sseSuperado[jogoId]) return;
+  const src = new EventSource(`${API_URL}/api/events/ranking/${jogoSlug}`);
+  sseSuperado[jogoId] = src;
+  src.addEventListener('novo_registro', e => {
+    try {
+      const dados = JSON.parse(e.data);
+      if (!nickAtual) return;
+      if (dados.nick && dados.nick.toLowerCase() !== nickAtual.toLowerCase()) {
+        mostrarToastSuperado(dados.nick, dados.pontuacao);
+      }
+    } catch {}
+  });
+  src.onerror = () => { src.close(); delete sseSuperado[jogoId]; };
+}
+
+let _toastTimer = null;
+function mostrarToastSuperado(nick, pontuacao) {
+  const el  = document.getElementById('toast-superado');
+  const msg = document.getElementById('toast-superado-msg');
+  if (!el) return;
+  msg.textContent = `${nick} acabou de marcar ${Number(pontuacao).toLocaleString('pt-BR')} pts. Você consegue bater?`;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 5000);
+}
 
 // ── RESET CARD ────────────────────────────────────────────────
 window.resetCard = function(id) {
@@ -752,5 +898,10 @@ window.toggleRegras = function() {
 
 
 </script>
+<div class="toast-superado" id="toast-superado">
+  <div class="toast-superado-titulo">⚠ VOCÊ FOI SUPERADO!</div>
+  <div class="toast-superado-msg" id="toast-superado-msg"></div>
+</div>
+
 </body>
 </html>
