@@ -61,15 +61,14 @@
       padding: 0; margin: 0;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
     }
     .regras-lista li {
       font-size: var(--text-sm);
       color: rgba(255,255,255,0.7);
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
       line-height: 1.6;
+      padding-left: 16px;
+      position: relative;
     }
     .regras-lista li strong {
       color: var(--color-primary);
@@ -78,8 +77,9 @@
     .regras-lista li::before {
       content: '▸';
       color: var(--color-primary);
-      flex-shrink: 0;
-      margin-top: 1px;
+      position: absolute;
+      left: 0;
+      top: 0;
     }
     .regras-expandido {
       display: none;
@@ -91,16 +91,17 @@
     .regras-expandido li {
       font-size: var(--text-xs);
       color: rgba(255,255,255,0.45);
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
       line-height: 1.5;
-      margin-bottom: 4px;
+      margin-bottom: 6px;
+      padding-left: 14px;
+      position: relative;
     }
     .regras-expandido li::before {
       content: '–';
       color: var(--color-primary);
-      flex-shrink: 0;
+      position: absolute;
+      left: 0;
+      top: 0;
       opacity: 0.6;
     }
     .regras-toggle {
@@ -231,10 +232,7 @@
       content: '';
       position: absolute;
       inset: 0;
-      background-image: var(--card-bg-image, none);
-      background-size: cover;
-      background-position: center;
-      opacity: calc(1 - var(--card-overlay, 0.75));
+      background-image: none;
       pointer-events: none;
       z-index: 0;
     }
@@ -391,7 +389,7 @@
       </ul>
     </div>
 
-    <button class="regras-toggle" id="regras-toggle" onclick="toggleRegras()">
+    <button class="regras-toggle" id="regras-toggle">
       <span class="regras-toggle-icon">▾</span>
       <span id="regras-toggle-label">SAIBA MAIS</span>
     </button>
@@ -533,9 +531,9 @@ function renderFormulario(j) {
     </div>
 
     <div class="card-field">
-      <label class="card-label" for="nome-${j.id}">Seu nome completo</label>
+      <label class="card-label" for="nome-${j.id}">Nome e sobrenome</label>
       <input class="card-input" type="text" id="nome-${j.id}"
-             placeholder="Ex: João Silva" maxlength="80"
+             placeholder="Ex: Maria Silva" maxlength="80"
              autocomplete="name" spellcheck="false">
     </div>
 
