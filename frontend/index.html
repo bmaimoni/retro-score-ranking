@@ -39,6 +39,85 @@
     }
     .page-subtitle { font-size: var(--text-sm); color: var(--color-text-muted); }
 
+    /* ── Regras ── */
+    .regras-card {
+      width: 100%;
+      max-width: 520px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-md);
+      padding: var(--space-md) var(--space-lg);
+      margin-bottom: var(--space-lg);
+    }
+    .regras-titulo {
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      color: var(--color-primary);
+      letter-spacing: 0.1em;
+      margin-bottom: var(--space-sm);
+    }
+    .regras-lista {
+      list-style: none;
+      padding: 0; margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .regras-lista li {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.5;
+    }
+    .regras-lista li::before {
+      content: '▸';
+      color: var(--color-primary);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .regras-expandido {
+      display: none;
+      margin-top: var(--space-sm);
+      padding-top: var(--space-sm);
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .regras-expandido.aberto { display: block; }
+    .regras-expandido li {
+      font-size: var(--text-xs);
+      color: rgba(255,255,255,0.45);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.5;
+      margin-bottom: 4px;
+    }
+    .regras-expandido li::before {
+      content: '–';
+      color: var(--color-primary);
+      flex-shrink: 0;
+      opacity: 0.6;
+    }
+    .regras-toggle {
+      background: none;
+      border: none;
+      color: var(--color-primary);
+      font-size: var(--text-xs);
+      font-family: var(--font-display);
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      padding: var(--space-xs) 0 0;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+    .regras-toggle:hover { opacity: 1; }
+    .regras-toggle-icon { transition: transform 0.25s; display: inline-block; }
+    .regras-toggle.aberto .regras-toggle-icon { transform: rotate(180deg); }
+
     /* ── Lista de jogos ── */
     .jogos-lista {
       width: 100%;
@@ -286,6 +365,32 @@
     <img src="logo-principal.png" alt="Canal3" class="page-logo">
     <h1 class="page-title" id="page-title">ESCOLHA O JOGO</h1>
     <p class="page-subtitle" id="page-subtitle">Selecione o jogo e envie seu placar</p>
+  </div>
+
+  <div class="regras-card animate-slide-up">
+    <div class="regras-titulo">📋 COMO PARTICIPAR</div>
+    <ul class="regras-lista">
+      <li>Tire uma <strong>selfie com seu rosto</strong> e o placar visível na tela atrás de você</li>
+      <li>Escolha um <strong>nick único</strong> — ele aparecerá no ranking público</li>
+      <li>Novo score? Seu <strong>recorde anterior é substituído</strong> automaticamente</li>
+      <li>Fotos passam por <strong>moderação</strong> antes de aparecer no ranking</li>
+    </ul>
+
+    <div class="regras-expandido" id="regras-expandido">
+      <ul>
+        <li>A foto deve mostrar claramente seu rosto e o placar — fotos cortadas ou ilegíveis serão rejeitadas</li>
+        <li>Scores claramente impossíveis ou manipulados digitalmente serão removidos sem aviso</li>
+        <li>Um nick por pessoa — não é permitido criar múltiplos perfis para ocupar mais posições</li>
+        <li>Ao enviar, você concorda que sua foto e nick sejam exibidos publicamente no ranking</li>
+        <li>A organização reserva o direito de remover qualquer entrada sem necessidade de justificativa</li>
+        <li>Dúvidas? Fale com um dos organizadores presentes no evento</li>
+      </ul>
+    </div>
+
+    <button class="regras-toggle" id="regras-toggle" onclick="toggleRegras()">
+      <span class="regras-toggle-icon">▾</span>
+      <span id="regras-toggle-label">SAIBA MAIS</span>
+    </button>
   </div>
 
   <div class="jogos-lista" id="jogos-lista">
