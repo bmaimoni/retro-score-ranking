@@ -24,7 +24,7 @@ async def upload(
     foto: UploadFile | None = File(None, description="Foto com o placar visível (JPEG ou PNG, máx 5MB — opcional)"),
     nick: str = Form(..., min_length=1, max_length=50),
     nome: str | None = Form(default=None, max_length=100),
-    pontuacao: int = Form(..., gt=0),
+    pontuacao: int = Form(..., gt=0, lt=100_000_000),
     jogo_id: UUID4 = Form(...),
     pool=Depends(get_pool),
 ):

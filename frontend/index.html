@@ -759,8 +759,9 @@ function renderFormulario(j) {
 
     <div class="card-field">
       <label class="card-label" for="score-${j.id}">Pontuação</label>
-      <input class="card-input font-mono" type="number" id="score-${j.id}"
-             placeholder="000000" min="1" inputmode="numeric">
+      <input class="card-input font-mono" type="text" id="score-${j.id}"
+             placeholder="000000" inputmode="numeric" pattern="[0-9]*"
+             oninput="this.value=this.value.replace(/[^0-9]/g,'')">
     </div>
 
     <div class="card-consent">
@@ -926,7 +927,7 @@ window.enviarScore = async function(id) {
   const nomeCompleto = document.getElementById(`nome-${id}`).value.trim();
   const nickInput    = document.getElementById(`nick-${id}`).value.trim();
   const nick         = nickInput || nomeCompleto.split(' ').map(p => p[0]).join('').toUpperCase().slice(0,6);
-  const score        = parseInt(document.getElementById(`score-${id}`).value);
+  const score        = parseInt(document.getElementById(`score-${id}`).value.replace(/[^0-9]/g, ''), 10);
   const consent      = document.getElementById(`consent-${id}`).checked;
 
   if (!nomeCompleto)      { showToast('Digite seu nome completo', 'error'); return; }
@@ -1168,21 +1169,29 @@ async function gerarImagemShare(dados) {
   ctx.fillStyle = bgColor || '#0b1331';
   ctx.fillRect(0, 0, W, H);
 
-  // ── Fundo: imagem do jogo com crop centralizado (cover) ──
+  // ── Fundo: imagem do jogo via img element para evitar CORS no canvas ──
   if (bgImage) {
     try {
-      const bg = await carregarImagem(bgImage);
-      if (bg && bg.width > 0) {
-        const scale = Math.max(W / bg.width, H / bg.height);
-        const sw    = W / scale;
-        const sh    = H / scale;
-        const sx    = (bg.width  - sw) / 2;
-        const sy    = (bg.height - sh) / 2;
-        ctx.globalAlpha = 0.30;
-        ctx.drawImage(bg, sx, sy, sw, sh, 0, 0, W, H);
-        ctx.globalAlpha = 1;
+      // Cria canvas temporário via OffscreenCanvas com proxy de imagem
+      // Fallback: usa fetch com blob URL para contornar CORS
+      const imgResp = await fetch(bgImage).catch(() => null);
+      if (imgResp && imgResp.ok) {
+        const blob   = await imgResp.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const bg = await carregarImagem(blobUrl);
+        if (bg && bg.width > 0) {
+          const scale = Math.max(W / bg.width, H / bg.height);
+          const sw    = W / scale;
+          const sh    = H / scale;
+          const sx    = (bg.width  - sw) / 2;
+          const sy    = (bg.height - sh) / 2;
+          ctx.globalAlpha = 0.28;
+          ctx.drawImage(bg, sx, sy, sw, sh, 0, 0, W, H);
+          ctx.globalAlpha = 1;
+        }
+        URL.revokeObjectURL(blobUrl);
       }
-    } catch (_) { /* CORS bloqueou — usa só a cor sólida */ }
+    } catch (_) { /* sem background — cor sólida suficiente */ }
   }
 
   // ── Overlay escuro ──
