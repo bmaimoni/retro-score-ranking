@@ -232,7 +232,10 @@
       content: '';
       position: absolute;
       inset: 0;
-      background-image: none;
+      background-image: var(--card-bg-image, none);
+      background-size: cover;
+      background-position: center;
+      opacity: calc(1 - var(--card-overlay, 0.75));
       pointer-events: none;
       z-index: 0;
     }
@@ -734,6 +737,23 @@ function showToast(msg, tipo='success') {
 function escapar(s='') {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+function toggleRegras() {
+  const exp  = document.getElementById('regras-expandido');
+  const btn  = document.getElementById('regras-toggle');
+  const lbl  = document.getElementById('regras-toggle-label');
+  const icon = btn ? btn.querySelector('.regras-toggle-icon') : null;
+  if (!exp) return;
+  const aberto = exp.classList.toggle('aberto');
+  if (btn)  btn.classList.toggle('aberto', aberto);
+  if (lbl)  lbl.textContent  = aberto ? 'FECHAR' : 'SAIBA MAIS';
+  if (icon) icon.textContent = aberto ? '▴' : '▾';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('regras-toggle');
+  if (btn) btn.addEventListener('click', toggleRegras);
+});
 </script>
 </body>
 </html>
