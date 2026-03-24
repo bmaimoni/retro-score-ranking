@@ -392,7 +392,7 @@
       </ul>
     </div>
 
-    <button class="regras-toggle" id="regras-toggle">
+    <button class="regras-toggle" id="regras-toggle" onclick="toggleRegras()">
       <span class="regras-toggle-icon">▾</span>
       <span id="regras-toggle-label">SAIBA MAIS</span>
     </button>
@@ -738,7 +738,7 @@ function escapar(s='') {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function toggleRegras() {
+window.toggleRegras = function() {
   const exp  = document.getElementById('regras-expandido');
   const btn  = document.getElementById('regras-toggle');
   const lbl  = document.getElementById('regras-toggle-label');
@@ -748,12 +748,9 @@ function toggleRegras() {
   if (btn)  btn.classList.toggle('aberto', aberto);
   if (lbl)  lbl.textContent  = aberto ? 'FECHAR' : 'SAIBA MAIS';
   if (icon) icon.textContent = aberto ? '▴' : '▾';
-}
+};
 
-document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('regras-toggle');
-  if (btn) btn.addEventListener('click', toggleRegras);
-});
+
 </script>
 </body>
 </html>

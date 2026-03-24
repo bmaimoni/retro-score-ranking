@@ -197,6 +197,42 @@
       object-fit: cover;
       border: var(--border-width) solid var(--color-border);
       flex-shrink: 0;
+      cursor: zoom-in;
+      transition: opacity 0.15s;
+    }
+    .player-photo:hover { opacity: 0.85; }
+
+    .lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      cursor: zoom-out;
+    }
+    .lightbox.aberto { display: flex; }
+    .lightbox img {
+      max-width: 90vw;
+      max-height: 90vh;
+      object-fit: contain;
+      border-radius: 8px;
+      cursor: default;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.1);
+    }
+    .lightbox-fechar {
+      position: absolute;
+      top: 20px; right: 24px;
+      background: none;
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      font-size: 20px;
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1;
     }
 
     .player-photo-placeholder {
@@ -556,7 +592,7 @@ function renderRanking(lista, novaEntradaId = null) {
     const isNew    = entry.id === novaEntradaId;
     const delay    = isNew ? 0 : i * STAGGER_DELAY;
     const foto     = entry.foto_url
-      ? `<img class="player-photo" src="${entry.foto_url}" alt="Foto de ${entry.nick}" loading="lazy">`
+      ? `<img class="player-photo" src="${entry.foto_url}" alt="Foto de ${entry.nick}" loading="lazy" onclick="abrirLightbox('${entry.foto_url}')">`
       : `<div class="player-photo-placeholder">${entry.nick.charAt(0).toUpperCase()}</div>`;
 
     return `
@@ -622,5 +658,9 @@ function escapar(str) {
             .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 </script>
+<div class="lightbox" id="lightbox" onclick="fecharLightbox(event)">
+  <button class="lightbox-fechar" onclick="fecharLightbox()">&times;</button>
+  <img id="lightbox-img" src="" alt="Foto ampliada">
+</div>
 </body>
 </html>
