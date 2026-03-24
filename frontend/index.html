@@ -746,15 +746,20 @@ function renderFormulario(j) {
     <div class="card-field">
       <label class="card-label" for="nome-${j.id}">Nome e sobrenome</label>
       <input class="card-input" type="text" id="nome-${j.id}"
-             placeholder="Ex: Maria Silva" maxlength="80"
-             autocomplete="name" spellcheck="false">
+             placeholder="Ex: MARIA SILVA" maxlength="80"
+             autocomplete="name" spellcheck="false"
+             autocapitalize="characters"
+             oninput="this.value=this.value.toUpperCase()"
+             style="text-transform:uppercase">
     </div>
 
     <div class="card-field">
       <label class="card-label" for="nick-${j.id}">Apelido no placar <span style="font-weight:400;opacity:0.55;text-transform:none;letter-spacing:0">(opcional)</span></label>
       <input class="card-input" type="text" id="nick-${j.id}"
              placeholder="Ex: PLAYER1 (padrão: suas iniciais)" maxlength="20"
-             autocomplete="off" autocapitalize="characters" spellcheck="false">
+             autocomplete="off" autocapitalize="characters" spellcheck="false"
+             oninput="this.value=this.value.toUpperCase()"
+             style="text-transform:uppercase">
     </div>
 
     <div class="card-field">
@@ -1178,7 +1183,7 @@ async function gerarImagemShare(dados) {
       const logoW = logo.width * (logoH / logo.height);
       const logoX = (W - logoW) / 2;
       const logoY = (H - logoH) / 2;
-      ctx.globalAlpha = 0.10;
+      ctx.globalAlpha = 0.18;
       ctx.drawImage(logo, logoX, logoY, logoW, logoH);
       ctx.globalAlpha = 1;
     }
