@@ -74,8 +74,8 @@ const TEMAS = {
     },
     assets: {
       icone:      "✈️",
-      icone_url:  "https://thumbnails.libretro.com/Atari%20-%202600/Named_Boxarts/River%20Raid.png",
-      bg_image:   "https://thumbnails.libretro.com/Atari%20-%202600/Named_Snaps/River%20Raid.png",
+      icone_url:  "https://upload.wikimedia.org/wikipedia/en/d/db/River_Raid_cover.jpg",
+      bg_image:   "https://upload.wikimedia.org/wikipedia/en/d/db/River_Raid_cover.jpg",
       bg_overlay: "0.68",
       scanline:   true,
     },
@@ -140,8 +140,8 @@ const TEMAS = {
     },
     assets: {
       icone:      "🏎️",
-      icone_url:  "https://thumbnails.libretro.com/Atari%20-%202600/Named_Boxarts/Enduro.png",
-      bg_image:   "https://thumbnails.libretro.com/Atari%20-%202600/Named_Snaps/Enduro.png",
+      icone_url:  "https://upload.wikimedia.org/wikipedia/en/8/84/Enduro_Coverart.png",
+      bg_image:   "https://upload.wikimedia.org/wikipedia/en/8/84/Enduro_Coverart.png",
       bg_overlay: "0.70",
       scanline:   true,
     },
@@ -162,8 +162,8 @@ const TEMAS = {
     },
     assets: {
       icone:      "👾",
-      icone_url:  "https://thumbnails.libretro.com/Atari%20-%202600/Named_Boxarts/Megamania.png",
-      bg_image:   "https://thumbnails.libretro.com/Atari%20-%202600/Named_Snaps/Megamania.png",
+      icone_url:  "https://upload.wikimedia.org/wikipedia/en/3/31/Megamania-game-cover-atari-2600.jpg",
+      bg_image:   "https://upload.wikimedia.org/wikipedia/en/3/31/Megamania-game-cover-atari-2600.jpg",
       bg_overlay: "0.72",
       scanline:   true,
     },
