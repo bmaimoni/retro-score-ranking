@@ -6,15 +6,16 @@ async def inserir(conn, dados: dict) -> dict:
     row = await conn.fetchrow(
         """
         INSERT INTO entradas
-            (jogo_id, nick, nick_norm, pontuacao, foto_url,
+            (jogo_id, nick, nick_norm, nome, pontuacao, foto_url,
              no_ranking, superado, pendente, ip_hash)
-        VALUES ($1, $2, $3, $4, $5, $6, false, $7, $8)
-        RETURNING id, jogo_id, nick, pontuacao, foto_url,
+        VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9)
+        RETURNING id, jogo_id, nick, nome, pontuacao, foto_url,
                   no_ranking, pendente, criado_em
         """,
         dados["jogo_id"],
         dados["nick"],
         dados["nick_norm"],
+        dados.get("nome"),
         dados["pontuacao"],
         dados["foto_url"],
         dados["no_ranking"],
@@ -32,7 +33,7 @@ async def listar_ranking(pool: Pool, jogo_id: str) -> list[dict]:
     """
     rows = await pool.fetch(
         """
-        SELECT id, nick, pontuacao, foto_url, criado_em
+        SELECT id, nick, nome, pontuacao, foto_url, criado_em
         FROM entradas
         WHERE jogo_id    = $1
           AND no_ranking = true
@@ -54,7 +55,7 @@ async def listar_feed_admin(
     """Feed do admin: todas as entradas, mais recentes primeiro."""
     rows = await pool.fetch(
         """
-        SELECT e.id, e.nick, e.pontuacao, e.foto_url, e.no_ranking,
+        SELECT e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.no_ranking,
                e.superado, e.pendente, e.criado_em, e.moderado_em,
                e.moderado_por, j.nome AS jogo_nome, j.slug AS jogo_slug
         FROM entradas e
@@ -70,7 +71,7 @@ async def listar_feed_admin(
 async def listar_pendentes(pool: Pool) -> list[dict]:
     rows = await pool.fetch(
         """
-        SELECT e.id, e.nick, e.pontuacao, e.foto_url, e.criado_em,
+        SELECT e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.criado_em,
                j.nome AS jogo_nome, j.slug AS jogo_slug
         FROM entradas e
         JOIN jogos j ON j.id = e.jogo_id

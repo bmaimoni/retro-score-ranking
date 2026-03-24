@@ -357,6 +357,25 @@
       display: block;
       line-height: 1;
     }
+    /* Fogos de artifício */
+    @keyframes fogoBurst {
+      0%   { transform: translate(-50%,-50%) scale(0); opacity:1; }
+      80%  { opacity:1; }
+      100% { transform: translate(-50%,-50%) scale(1); opacity:0; }
+    }
+    .fogo-particle {
+      position: fixed;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9998;
+      animation: fogoQueda linear forwards;
+    }
+    @keyframes fogoQueda {
+      0%   { transform: translateY(0) scale(1); opacity:1; }
+      100% { transform: translateY(80px) scale(0.3); opacity:0; }
+    }
+
     .toast-superado {
       position: fixed;
       bottom: 80px; left: 50%;
@@ -752,6 +771,7 @@ window.enviarScore = async function(id) {
     const fd = new FormData();
     if (e.fotoFile) fd.append('foto', e.fotoFile);
     fd.append('nick', nick);
+    if (nomeCompleto) fd.append('nome', nomeCompleto);
     fd.append('pontuacao', score);
     fd.append('jogo_id', id);
 
@@ -790,9 +810,14 @@ window.enviarScore = async function(id) {
         elMotiv.textContent = frasePorPosicao(pos);
         elPos.style.display   = 'block';
         elMotiv.style.display = 'block';
+        // Fogos conforme posição
+        if (pos === 1)      dispararFogos('top1');
+        else if (pos <= 3)  dispararFogos('top3');
+        else                dispararFogos('normal');
       });
     }
     suc.classList.add('visible');
+    if (!data.pendente) dispararFogos('normal');
     // Conecta SSE para receber notificação se for superado
     if (!data.pendente) {
       conectarSSESuperado(e.jogoSlug, id, nick);
@@ -882,6 +907,37 @@ function showToast(msg, tipo='success') {
 
 function escapar(s='') {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Fogos de artifício ────────────────────────────────────────
+function dispararFogos(intensidade = 'normal') {
+  const cores = ['#ff8800','#ffdd00','#cc3377','#ffffff','#ff4400','#00aaff'];
+  const qtd   = intensidade === 'top3' ? 120 : intensidade === 'top1' ? 200 : 60;
+  const cx    = window.innerWidth  / 2;
+  const cy    = window.innerHeight / 2;
+
+  for (let i = 0; i < qtd; i++) {
+    setTimeout(() => {
+      const p = document.createElement('div');
+      p.className = 'fogo-particle';
+      const angle  = Math.random() * Math.PI * 2;
+      const dist   = 80 + Math.random() * (intensidade === 'top1' ? 280 : intensidade === 'top3' ? 220 : 160);
+      const tx     = Math.cos(angle) * dist;
+      const ty     = Math.sin(angle) * dist;
+      const cor    = cores[Math.floor(Math.random() * cores.length)];
+      const dur    = 600 + Math.random() * 800;
+      const size   = intensidade === 'top1' ? 10 : 7;
+      p.style.cssText = `
+        left: ${cx + tx}px; top: ${cy + ty}px;
+        background: ${cor};
+        width: ${size}px; height: ${size}px;
+        animation-duration: ${dur}ms;
+        box-shadow: 0 0 4px ${cor};
+      `;
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), dur);
+    }, Math.random() * (intensidade === 'top1' ? 800 : 400));
+  }
 }
 
 window.toggleRegras = function() {

@@ -385,7 +385,8 @@
         ${foto}
         <div class="tv-info">
           <div class="tv-nick">${e.nick.toUpperCase()}</div>
-          <div class="tv-tempo">${tempoRelativo(e.criado_em)}</div>
+          ${e.nome ? `<div style="font-size:clamp(0.4rem,0.9vw,0.65rem);color:rgba(255,255,255,0.45);margin-top:2px;font-family:sans-serif">${e.nome}</div>` : ''}
+          <div class="tv-tempo">${e.criado_em ? new Date(e.criado_em).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : tempoRelativo(e.criado_em)}</div>
         </div>
         <div class="tv-score">${Number(e.pontuacao).toLocaleString('pt-BR')}</div>
       `;
@@ -446,6 +447,47 @@
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h atrás`;
     return `${Math.floor(diff / 86400000)}d atrás`;
   }
+
+  // ── Fogos periódicos no telão ──────────────────────────────────
+  function fogosTV(qtd = 80) {
+    const cores = ['#ff8800','#ffdd00','#cc3377','#ffffff','#ff4400','#00aaff','#bb44ff'];
+    for (let i = 0; i < qtd; i++) {
+      setTimeout(() => {
+        const p = document.createElement('div');
+        const cx = Math.random() * window.innerWidth;
+        const cy = Math.random() * window.innerHeight * 0.7;
+        const angle = Math.random() * Math.PI * 2;
+        const dist  = 60 + Math.random() * 200;
+        const cor   = cores[Math.floor(Math.random() * cores.length)];
+        const dur   = 700 + Math.random() * 900;
+        p.style.cssText = `
+          position:fixed;
+          left:${cx + Math.cos(angle)*dist}px;
+          top:${cy + Math.sin(angle)*dist}px;
+          width:9px;height:9px;border-radius:50%;
+          background:${cor};box-shadow:0 0 5px ${cor};
+          pointer-events:none;z-index:9999;
+          animation:fogoTV ${dur}ms linear forwards;
+        `;
+        document.body.appendChild(p);
+        setTimeout(() => p.remove(), dur);
+      }, Math.random() * 600);
+    }
+  }
+
+  const fogoStyle = document.createElement('style');
+  fogoStyle.textContent = `@keyframes fogoTV {
+    0%   { opacity:1; transform:scale(1); }
+    100% { opacity:0; transform:translateY(60px) scale(0.3); }
+  }`;
+  document.head.appendChild(fogoStyle);
+
+  // Dispara fogos a cada 3-5 minutos
+  function agendarFogosTV() {
+    const intervalo = (3 + Math.random() * 2) * 60 * 1000;
+    setTimeout(() => { fogosTV(120); agendarFogosTV(); }, intervalo);
+  }
+  agendarFogosTV();
 
   // ── Init ──────────────────────────────────────────────────────
   carregarJogos();
