@@ -131,10 +131,17 @@
       min-width: clamp(28px,4vw,56px);
       text-align: center;
       flex-shrink: 0;
+      line-height: 1;
     }
+    /* Emojis do pódio ficam 2x maiores — compensamos reduzindo a fonte */
+    .tv-pos.p1,
+    .tv-pos.p2,
+    .tv-pos.p3 { font-size: clamp(1.4rem,3.5vw,2.8rem); }
     .tv-pos.p1 { color: #ffd700; }
     .tv-pos.p2 { color: #c0c0c0; }
     .tv-pos.p3 { color: #cd7f32; }
+    /* Posições 4+ em texto puro — fonte menor que os emojis */
+    .tv-pos.pn { font-size: clamp(0.7rem,1.8vw,1.4rem); color: rgba(255,255,255,0.55); }
     .tv-foto {
       width: clamp(36px,5vw,72px);
       height: clamp(36px,5vw,72px);
@@ -435,7 +442,7 @@
     el.innerHTML = '';
     entradas.slice(0, max).forEach((e, i) => {
       const pos = i + 1;
-      const posClass = pos === 1 ? 'p1' : pos === 2 ? 'p2' : pos === 3 ? 'p3' : '';
+      const posClass = pos === 1 ? 'p1' : pos === 2 ? 'p2' : pos === 3 ? 'p3' : 'pn';
       const posTexto = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
       const foto = e.foto_url
         ? `<img class="tv-foto" src="${e.foto_url}" alt="${e.nick}" loading="eager">`
