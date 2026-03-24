@@ -759,8 +759,8 @@ function renderFormulario(j) {
 
     <div class="card-field">
       <label class="card-label" for="score-${j.id}">Pontuação</label>
-      <input class="card-input font-mono" type="text" id="score-${j.id}"
-             placeholder="000000" inputmode="numeric" pattern="[0-9]*"
+      <input class="card-input font-mono" type="tel" id="score-${j.id}"
+             placeholder="000000" inputmode="numeric"
              oninput="this.value=this.value.replace(/[^0-9]/g,'')">
     </div>
 
@@ -1169,30 +1169,20 @@ async function gerarImagemShare(dados) {
   ctx.fillStyle = bgColor || '#0b1331';
   ctx.fillRect(0, 0, W, H);
 
-  // ── Fundo: imagem do jogo via img element para evitar CORS no canvas ──
-  if (bgImage) {
-    try {
-      // Cria canvas temporário via OffscreenCanvas com proxy de imagem
-      // Fallback: usa fetch com blob URL para contornar CORS
-      const imgResp = await fetch(bgImage).catch(() => null);
-      if (imgResp && imgResp.ok) {
-        const blob   = await imgResp.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const bg = await carregarImagem(blobUrl);
-        if (bg && bg.width > 0) {
-          const scale = Math.max(W / bg.width, H / bg.height);
-          const sw    = W / scale;
-          const sh    = H / scale;
-          const sx    = (bg.width  - sw) / 2;
-          const sy    = (bg.height - sh) / 2;
-          ctx.globalAlpha = 0.28;
-          ctx.drawImage(bg, sx, sy, sw, sh, 0, 0, W, H);
-          ctx.globalAlpha = 1;
-        }
-        URL.revokeObjectURL(blobUrl);
-      }
-    } catch (_) { /* sem background — cor sólida suficiente */ }
-  }
+  // ── Logo Canal3 como fundo (sem CORS, arquivo local) ──
+  try {
+    const logo = await carregarImagem('./logo-share.png');
+    if (logo && logo.width > 0) {
+      // Centraliza o logo mantendo proporção, com altura de ~60% do canvas
+      const logoH = H * 0.58;
+      const logoW = logo.width * (logoH / logo.height);
+      const logoX = (W - logoW) / 2;
+      const logoY = (H - logoH) / 2;
+      ctx.globalAlpha = 0.10;
+      ctx.drawImage(logo, logoX, logoY, logoW, logoH);
+      ctx.globalAlpha = 1;
+    }
+  } catch (_) {}
 
   // ── Overlay escuro ──
   ctx.fillStyle = 'rgba(0,0,0,0.58)';
@@ -1270,12 +1260,13 @@ async function gerarImagemShare(dados) {
     ctx.fillText(nomeDisplay, txtX, temFotoOk ? 420 : 462);
   }
 
-  // Score — fonte adaptável: estima ~18px por char em Press Start 2P a 88px
+  // Score — fonte adaptável baseada em largura disponível com margem segura
   const scoreStr = Number(score).toLocaleString('pt-BR');
   const scoreChars = scoreStr.length;
-  // Press Start 2P: ~0.7em de largura por char
-  let scoreFontSize = Math.min(88, Math.floor(maxTxtW / (scoreChars * 0.72)));
-  scoreFontSize = Math.max(scoreFontSize, 44); // mínimo 44px
+  // Press Start 2P: ~0.68em por char. Usa 90% da largura disponível como limite
+  const scoreLimite = maxTxtW * 0.90;
+  let scoreFontSize = Math.min(88, Math.floor(scoreLimite / (scoreChars * 0.68)));
+  scoreFontSize = Math.max(scoreFontSize, 36); // mínimo 36px
   ctx.font = `bold ${scoreFontSize}px "Press Start 2P", monospace`;
   ctx.fillStyle = cor;
   ctx.fillText(scoreStr, txtX, temFotoOk ? 548 : 600);
