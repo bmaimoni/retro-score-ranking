@@ -115,17 +115,7 @@ async def resolver_pendente(
         pool, str(entrada_id), body.aprovar, moderador
     )
     if not entrada:
-        # Verifica se a entrada existe mas já foi processada
-        existente = await entrada_repo.buscar_por_id(pool, str(entrada_id))
-        if existente:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Entrada já foi processada (pendente={existente['pendente']}, no_ranking={existente['no_ranking']})",
-            )
-        raise HTTPException(
-            status_code=404,
-            detail="Entrada não encontrada",
-        )
+        raise HTTPException(status_code=404, detail="Entrada não encontrada")
 
     if body.aprovar:
         row = await pool.fetchrow("SELECT slug FROM jogos WHERE id = $1", entrada["jogo_id"])

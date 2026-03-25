@@ -121,8 +121,7 @@ async def resolver_pendente(
             no_ranking   = $1,
             moderado_em  = now(),
             moderado_por = $2
-        WHERE id      = $3
-          AND pendente = true
+        WHERE id = $3
         RETURNING id, jogo_id, nick, pontuacao, foto_url,
                   no_ranking, pendente, superado, criado_em
         """,
