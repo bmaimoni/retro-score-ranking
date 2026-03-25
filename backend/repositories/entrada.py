@@ -72,11 +72,44 @@ async def listar_feed_admin(
 async def listar_pendentes(pool: Pool) -> list[dict]:
     rows = await pool.fetch(
         """
-        SELECT e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.criado_em,
-               j.nome AS jogo_nome, j.slug AS jogo_slug
+        SELECT
+            e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.criado_em,
+            j.nome AS jogo_nome, j.slug AS jogo_slug,
+            -- Melhor score atual deste nick neste jogo (no ranking)
+            (
+                SELECT MAX(e2.pontuacao)
+                FROM entradas e2
+                WHERE e2.jogo_id   = e.jogo_id
+                  AND e2.nick_norm = e.nick_norm
+                  AND e2.no_ranking = true
+                  AND e2.pendente   = false
+                  AND e2.arquivado  = false
+            ) AS melhor_score_atual,
+            -- Lider atual do jogo
+            (
+                SELECT MAX(e3.pontuacao)
+                FROM entradas e3
+                WHERE e3.jogo_id   = e.jogo_id
+                  AND e3.no_ranking = true
+                  AND e3.pendente   = false
+                  AND e3.superado   = false
+                  AND e3.arquivado  = false
+            ) AS lider_pontuacao,
+            -- Posição que ocuparia se aprovado
+            (
+                SELECT COUNT(*) + 1
+                FROM entradas e4
+                WHERE e4.jogo_id   = e.jogo_id
+                  AND e4.no_ranking = true
+                  AND e4.pendente   = false
+                  AND e4.superado   = false
+                  AND e4.arquivado  = false
+                  AND e4.pontuacao  > e.pontuacao
+            ) AS posicao_se_aprovado
         FROM entradas e
         JOIN jogos j ON j.id = e.jogo_id
         WHERE e.pendente = true
+          AND e.arquivado = false
         ORDER BY e.criado_em ASC
         """,
     )

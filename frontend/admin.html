@@ -1104,21 +1104,50 @@ function cardEntrada(e, tipo) {
     ? '<span class="badge badge-pending">pendente</span>'
     : (!e.no_ranking ? '<span class="badge badge-error">oculto</span>' : '');
 
-  return `
-    <div class="${classes}" data-id="${e.id}">
-      ${foto}
+  // Info de contexto para pendentes
+  let rankingCtxHtml = '';
+  if (e.pendente && e.posicao_se_aprovado !== undefined) {
+    const pos   = e.posicao_se_aprovado;
+    const lider = e.lider_pontuacao;
+    const atual = e.melhor_score_atual;
+
+    const posLabel = pos === 1 ? '🥇 ficaria em 1º lugar'
+                   : pos === 2 ? '🥈 ficaria em 2º lugar'
+                   : pos === 3 ? '🥉 ficaria em 3º lugar'
+                   : `ficaria em ${pos}º lugar`;
+
+    const superaLider = lider && e.pontuacao > lider;
+    const superaAtual = atual && e.pontuacao > atual;
+
+    const tags = [];
+    if (superaLider) tags.push('<span style="color:#ffd700;font-weight:600">★ novo recorde</span>');
+    else if (superaAtual) tags.push('<span style="color:#4caf50">↑ supera score atual do nick</span>');
+    else if (atual) tags.push(`<span style="opacity:0.5">score atual: ${Number(atual).toLocaleString('pt-BR')}</span>`);
+    else tags.push('<span style="opacity:0.5">sem score anterior</span>');
+
+    rankingCtxHtml = \`
+      <div style="font-size:10px;margin-top:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span style="color:var(--color-primary)">\${posLabel}</span>
+        \${tags.join('')}
+      </div>\`;
+  }
+
+  return \`
+    <div class="\${classes}" data-id="\${e.id}">
+      \${foto}
       <div class="entrada-info">
-        <div class="entrada-nick">${escapar(e.nick)} ${status}</div>
-        ${motivoHtml}
+        <div class="entrada-nick">\${escapar(e.nick)} \${status}</div>
+        \${motivoHtml}
+        \${rankingCtxHtml}
         <div class="entrada-meta">
-          <span>${e.jogo_nome || ''}</span>
-          <span class="entrada-score">${(e.pontuacao || 0).toLocaleString('pt-BR')} pts</span>
-          <span>${tempoRelativo(e.criado_em)}</span>
+          <span>\${e.jogo_nome || ''}</span>
+          <span class="entrada-score">\${(e.pontuacao || 0).toLocaleString('pt-BR')} pts</span>
+          <span>\${tempoRelativo(e.criado_em)}</span>
         </div>
       </div>
-      <div class="entrada-actions">${acoes}</div>
+      <div class="entrada-actions">\${acoes}</div>
     </div>
-  `;
+  \`;
 }
 
 function bindCardActions(container) {
@@ -1129,10 +1158,16 @@ function bindCardActions(container) {
     btn.addEventListener('click', async () => await moderarEntrada(btn.dataset.id, true));
   });
   container.querySelectorAll('.btn-aprovar').forEach(btn => {
-    btn.addEventListener('click', async () => await resolverPendente(btn.dataset.id, true));
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; btn.textContent = '...';
+      await resolverPendente(btn.dataset.id, true);
+    });
   });
   container.querySelectorAll('.btn-rejeitar').forEach(btn => {
-    btn.addEventListener('click', async () => await resolverPendente(btn.dataset.id, false));
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; btn.textContent = '...';
+      await resolverPendente(btn.dataset.id, false);
+    });
   });
 }
 
@@ -1149,11 +1184,15 @@ async function resolverPendente(id, aprovar) {
     const resp = await apiFetch(`/api/admin/entradas/${id}/pendente`, 'PATCH', { aprovar });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      showToast(err.detail || `Erro ${resp.status}`, 'error');
+      if (resp.status === 409) {
+        showToast('Entrada já foi processada — recarregando lista', 'error');
+      } else {
+        showToast(err.detail || `Erro ${resp.status}`, 'error');
+      }
+      carregarFeed();
       return;
     }
-    showToast(aprovar ? 'Entrada aprovada!' : 'Entrada rejeitada', aprovar ? 'success' : 'error');
-    carregarPendentes();
+    showToast(aprovar ? '✓ Entrada aprovada!' : 'Entrada ocultada', aprovar ? 'success' : 'error');
     carregarFeed();
   } catch { showToast('Erro ao resolver pendente', 'error'); }
 }
