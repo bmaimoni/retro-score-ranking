@@ -4,7 +4,6 @@ from middleware.auth import require_admin
 from utils.db import get_pool
 from services.sse import broker
 import repositories.entrada as entrada_repo
-import repositories.evento  as evento_repo
 import repositories.jogo as jogo_repo
 import structlog
 
@@ -303,47 +302,3 @@ async def restaurar_ranking(
 
     log.info("ranking_restaurado", jogo_id=body.jogo_id, total=count, moderador=moderador)
     return {"ok": True, "total_restauradas": count}
-
-# ── EVENTOS ───────────────────────────────────────────────────────────────────
-
-@router.get("/eventos")
-async def listar_eventos(pool=Depends(get_pool), _=Depends(verificar_token)):
-    return await evento_repo.listar(pool)
-
-
-@router.post("/eventos", status_code=201)
-async def criar_evento(
-    nome:      str = Body(...),
-    slug:      str = Body(...),
-    descricao: str | None = Body(default=None),
-    pool=Depends(get_pool),
-    _=Depends(verificar_token),
-):
-    from asyncpg import UniqueViolationError
-    try:
-        evento = await evento_repo.criar(pool, nome, slug, descricao)
-        return evento
-    except Exception as exc:
-        if "unique" in str(exc).lower():
-            raise HTTPException(status_code=409, detail="Slug já existe")
-        raise
-
-
-@router.post("/eventos/{evento_id}/ativar")
-async def ativar_evento(evento_id: str, pool=Depends(get_pool), _=Depends(verificar_token)):
-    evento = await evento_repo.buscar_por_id(pool, evento_id)
-    if not evento:
-        raise HTTPException(status_code=404, detail="Evento não encontrado")
-    await pool.execute(
-        "UPDATE evento_config SET valor = $1, atualizado_em = now() WHERE chave = 'evento_ativo_id'",
-        evento_id,
-    )
-    return {"ok": True, "evento_ativo": evento}
-
-
-@router.post("/eventos/desativar")
-async def desativar_evento(pool=Depends(get_pool), _=Depends(verificar_token)):
-    await pool.execute(
-        "UPDATE evento_config SET valor = '', atualizado_em = now() WHERE chave = 'evento_ativo_id'"
-    )
-    return {"ok": True, "evento_ativo": None}
