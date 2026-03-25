@@ -1146,7 +1146,12 @@ async function moderarEntrada(id, noRanking) {
 
 async function resolverPendente(id, aprovar) {
   try {
-    await apiFetch(`/api/admin/entradas/${id}/pendente`, 'PATCH', { aprovar });
+    const resp = await apiFetch(`/api/admin/entradas/${id}/pendente`, 'PATCH', { aprovar });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      showToast(err.detail || `Erro ${resp.status}`, 'error');
+      return;
+    }
     showToast(aprovar ? 'Entrada aprovada!' : 'Entrada rejeitada', aprovar ? 'success' : 'error');
     carregarPendentes();
     carregarFeed();
