@@ -103,7 +103,6 @@ async def upload(
                     "pendente":  pendente,
                     "ip_hash":   ip_hash,
                     "evento_id": evento_id,
-                    "evento_id": evento_id,
                 })
 
     except Exception as exc:
