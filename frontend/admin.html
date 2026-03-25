@@ -368,6 +368,13 @@
     }
     @media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
 
+    .btn-action.selecionado {
+      background: var(--color-primary) !important;
+      color: #000 !important;
+      border-color: var(--color-primary) !important;
+      opacity: 1 !important;
+    }
+
     /* ── Config do evento ── */
     .config-grid {
       display: flex;
@@ -1151,6 +1158,18 @@ const _telaoParams = { tamanho: 'normal', modo: 'fixo', intervalo: '15' };
 
 function setTelaoParam(chave, valor) {
   _telaoParams[chave] = valor;
+
+  // Marca o botão selecionado visualmente
+  const grupos = {
+    tamanho: ['normal','medio','grande'],
+    modo:    ['fixo','carrossel'],
+  };
+  if (grupos[chave]) {
+    document.querySelectorAll(`[onclick*="setTelaoParam('${chave}'"]`).forEach(btn => {
+      btn.classList.toggle('selecionado', btn.getAttribute('onclick').includes(`'${valor}'`));
+    });
+  }
+
   if (chave === 'modo') {
     document.getElementById('config-carrossel').style.display =
       valor === 'carrossel' ? 'block' : 'none';
@@ -1160,6 +1179,15 @@ function setTelaoParam(chave, valor) {
   link.href  = `/telao.html?${qs}`;
   showToast(`Telão: ${chave} = ${valor}`, 'success');
 }
+
+// Marca defaults ao carregar
+document.addEventListener('DOMContentLoaded', () => {
+  // Marca 'normal' e 'fixo' como selecionados por padrão
+  setTimeout(() => {
+    setTelaoParam('tamanho', _telaoParams.tamanho);
+    setTelaoParam('modo',    _telaoParams.modo);
+  }, 100);
+});
 
 async function arquivarJogo() {
   const jogoId = document.getElementById('manut-jogo-select').value;

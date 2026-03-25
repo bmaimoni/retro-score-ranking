@@ -496,6 +496,11 @@
 
   <!-- Footer -->
   <footer class="ranking-footer">
+    <div class="footer-qr-hint">
+      <a href="index.html" style="color:var(--color-text-muted);text-decoration:none;font-size:var(--text-xs)">
+        ▶ Participar
+      </a>
+    </div>
     <span class="footer-count" id="footer-count"></span>
   </footer>
 
@@ -562,6 +567,9 @@ async function selecionarJogo(jogo) {
 
   // Aplica tema do jogo
   aplicarTema(jogo.slug);
+  // No ranking, usa contain em vez de auto 70vh para não esticar
+  document.body.style.backgroundSize       = 'contain';
+  document.body.style.backgroundPosition   = 'center top';
 
   // Atualiza tabs
   document.querySelectorAll('.game-tab').forEach(t => {
