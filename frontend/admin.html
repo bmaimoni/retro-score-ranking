@@ -1125,29 +1125,29 @@ function cardEntrada(e, tipo) {
     else if (atual) tags.push(`<span style="opacity:0.5">score atual: ${Number(atual).toLocaleString('pt-BR')}</span>`);
     else tags.push('<span style="opacity:0.5">sem score anterior</span>');
 
-    rankingCtxHtml = \`
+    rankingCtxHtml = `
       <div style="font-size:10px;margin-top:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <span style="color:var(--color-primary)">\${posLabel}</span>
-        \${tags.join('')}
-      </div>\`;
+        <span style="color:var(--color-primary)">${posLabel}</span>
+        ${tags.join('')}
+      </div>`;
   }
 
-  return \`
-    <div class="\${classes}" data-id="\${e.id}">
-      \${foto}
+  return `
+    <div class="${classes}" data-id="${e.id}">
+      ${foto}
       <div class="entrada-info">
-        <div class="entrada-nick">\${escapar(e.nick)} \${status}</div>
-        \${motivoHtml}
-        \${rankingCtxHtml}
+        <div class="entrada-nick">${escapar(e.nick)} ${status}</div>
+        ${motivoHtml}
+        ${rankingCtxHtml}
         <div class="entrada-meta">
-          <span>\${e.jogo_nome || ''}</span>
-          <span class="entrada-score">\${(e.pontuacao || 0).toLocaleString('pt-BR')} pts</span>
-          <span>\${tempoRelativo(e.criado_em)}</span>
+          <span>${e.jogo_nome || ''}</span>
+          <span class="entrada-score">${(e.pontuacao || 0).toLocaleString('pt-BR')} pts</span>
+          <span>${tempoRelativo(e.criado_em)}</span>
         </div>
       </div>
-      <div class="entrada-actions">\${acoes}</div>
+      <div class="entrada-actions">${acoes}</div>
     </div>
-  \`;
+  `;
 }
 
 function bindCardActions(container) {
