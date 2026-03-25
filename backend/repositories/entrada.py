@@ -22,7 +22,6 @@ async def inserir(conn, dados: dict) -> dict:
         dados["pendente"],
         dados["ip_hash"],
         dados.get("evento_id"),
-        dados.get("evento_id"),
     )
     return dict(row)
 
