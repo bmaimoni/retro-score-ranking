@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import get_settings
 from utils.db import get_pool, close_pool
-from routers import upload, ranking, jogos, admin, eventos
+from routers import upload, ranking, jogos, admin, eventos, evento_publico
 
 # ── Logging estruturado ───────────────────────────────────────────────────────
 structlog.configure(
@@ -22,11 +22,9 @@ logging.basicConfig(level=logging.INFO)
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: inicializa pool de conexões
     await get_pool()
     structlog.get_logger().info("app_startup", env=get_settings().environment)
     yield
-    # Shutdown: fecha pool graciosamente
     await close_pool()
     structlog.get_logger().info("app_shutdown")
 
@@ -38,7 +36,6 @@ app = FastAPI(
     title="Retro Score Ranking API",
     description="Backend para eventos de videogame retrô — C4 v1.0",
     version="1.0.0",
-    # Desabilita docs em produção
     docs_url=None if settings.is_production else "/docs",
     redoc_url=None if settings.is_production else "/redoc",
     lifespan=lifespan,
@@ -59,6 +56,7 @@ app.include_router(ranking.router)
 app.include_router(jogos.router)
 app.include_router(admin.router)
 app.include_router(eventos.router)
+app.include_router(evento_publico.router)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

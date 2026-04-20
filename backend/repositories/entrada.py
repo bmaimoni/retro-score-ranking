@@ -194,3 +194,30 @@ async def historico_nick(pool: Pool, jogo_id: str, nick_norm: str) -> list[dict]
         jogo_id, nick_norm,
     )
     return [dict(r) for r in rows]
+
+
+async def listar_ranking_por_evento(
+    pool: Pool,
+    jogo_id: str,
+    evento_id: str,
+) -> list[dict]:
+    """
+    Ranking filtrado por evento.
+    Retorna apenas scores registrados neste evento específico.
+    """
+    rows = await pool.fetch(
+        """
+        SELECT id, nick, nome, pontuacao, foto_url, evento_id, criado_em
+        FROM entradas
+        WHERE jogo_id    = $1
+          AND evento_id  = $2
+          AND no_ranking = true
+          AND superado   = false
+          AND pendente   = false
+          AND arquivado  = false
+        ORDER BY pontuacao DESC
+        """,
+        jogo_id,
+        evento_id,
+    )
+    return [dict(r) for r in rows]
