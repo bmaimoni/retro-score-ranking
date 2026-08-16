@@ -27,7 +27,7 @@ async def get_lideres(pool=Depends(get_pool)):
           AND e.superado   = false
           AND e.pendente   = false
           AND j.ativo      = true
-        ORDER BY e.jogo_id, e.pontuacao DESC
+        ORDER BY e.jogo_id, e.pontuacao DESC, e.criado_em ASC, e.id ASC
         """
     )
     return {str(r["jogo_id"]): {"slug": r["slug"], "nick": r["nick"], "pontuacao": r["pontuacao"]} for r in rows}

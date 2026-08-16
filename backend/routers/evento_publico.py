@@ -60,26 +60,10 @@ async def get_jogos_evento(slug: str, pool=Depends(get_pool)):
     return jogos
 
 
-# ── Ranking filtrado por evento ───────────────────────────────
-
-@router.get("/{slug}/ranking/{jogo_slug}")
-async def get_ranking_evento(slug: str, jogo_slug: str, pool=Depends(get_pool)):
-    """
-    Ranking de um jogo filtrado pelo evento.
-    Retorna apenas scores registrados neste evento.
-    """
-    evento = await _get_evento_publico(slug, pool)
-    jogo   = await jogo_repo.buscar_por_slug(pool, jogo_slug)
-    if not jogo:
-        raise HTTPException(status_code=404, detail="Jogo não encontrado")
-
-    entradas = await entrada_repo.listar_ranking_por_evento(
-        pool, str(jogo["id"]), str(evento["id"])
-    )
-    return {"jogo": jogo, "evento": slug, "entradas": entradas}
-
-
 # ── Líderes por evento ────────────────────────────────────────
+# IMPORTANTE: esta rota deve vir ANTES de /{slug}/ranking/{jogo_slug},
+# senão "lideres" é capturado como jogo_slug pela rota genérica e
+# este endpoint fica inacessível.
 
 @router.get("/{slug}/ranking/lideres")
 async def get_lideres_evento(slug: str, pool=Depends(get_pool)):
@@ -105,7 +89,7 @@ async def get_lideres_evento(slug: str, pool=Depends(get_pool)):
           AND e.superado   = false
           AND e.pendente   = false
           AND e.arquivado  = false
-        ORDER BY e.jogo_id, e.pontuacao DESC
+        ORDER BY e.jogo_id, e.pontuacao DESC, e.criado_em ASC, e.id ASC
         """,
         str(evento["id"]),
     )
@@ -117,3 +101,22 @@ async def get_lideres_evento(slug: str, pool=Depends(get_pool)):
         }
         for r in rows
     }
+
+
+# ── Ranking filtrado por evento ───────────────────────────────
+
+@router.get("/{slug}/ranking/{jogo_slug}")
+async def get_ranking_evento(slug: str, jogo_slug: str, pool=Depends(get_pool)):
+    """
+    Ranking de um jogo filtrado pelo evento.
+    Retorna apenas scores registrados neste evento.
+    """
+    evento = await _get_evento_publico(slug, pool)
+    jogo   = await jogo_repo.buscar_por_slug(pool, jogo_slug)
+    if not jogo:
+        raise HTTPException(status_code=404, detail="Jogo não encontrado")
+
+    entradas = await entrada_repo.listar_ranking_por_evento(
+        pool, str(jogo["id"]), str(evento["id"])
+    )
+    return {"jogo": jogo, "evento": slug, "entradas": entradas}

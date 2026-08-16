@@ -30,18 +30,25 @@ async def listar_ranking(pool: Pool, jogo_id: str) -> list[dict]:
     """
     Ranking público: apenas entradas visíveis, não superadas, não pendentes.
     Ordenadas por pontuação decrescente.
+
+    Em caso de empate de pontuação, desempata por criado_em (quem alcançou
+    primeiro fica na frente) e por id como critério final. Sem isso, o
+    Postgres não garante ordem estável entre linhas empatadas — a ordem
+    pode mudar entre consultas e fazer uma entrada "sumir" de listas
+    truncadas (ex.: top 10 do telão).
+
     Usa o índice parcial idx_ranking.
     """
     rows = await pool.fetch(
         """
-        SELECT id, nick, nome, pontuacao, foto_url, evento_id, criado_em, evento_id
+        SELECT id, nick, nome, pontuacao, foto_url, evento_id, criado_em
         FROM entradas
         WHERE jogo_id    = $1
           AND no_ranking = true
           AND superado   = false
           AND pendente   = false
           AND arquivado  = false
-        ORDER BY pontuacao DESC
+        ORDER BY pontuacao DESC, criado_em ASC, id ASC
         """,
         jogo_id,
     )
@@ -204,6 +211,9 @@ async def listar_ranking_por_evento(
     """
     Ranking filtrado por evento.
     Retorna apenas scores registrados neste evento específico.
+
+    Mesmo desempate de listar_ranking (criado_em ASC, id ASC) para evitar
+    ordem instável entre pontuações empatadas.
     """
     rows = await pool.fetch(
         """
@@ -215,7 +225,7 @@ async def listar_ranking_por_evento(
           AND superado   = false
           AND pendente   = false
           AND arquivado  = false
-        ORDER BY pontuacao DESC
+        ORDER BY pontuacao DESC, criado_em ASC, id ASC
         """,
         jogo_id,
         evento_id,
