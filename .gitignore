@@ -21,3 +21,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Patches aplicados via git apply (ferramenta de trabalho, não fazem parte do histórico)
+*.patch

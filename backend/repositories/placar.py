@@ -4,8 +4,88 @@ from asyncpg import Pool
 async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
     """Busca placar pelo slug. Retorna None se não existir."""
     row = await pool.fetchrow(
-        "SELECT id, nome, slug, escopo FROM placares WHERE slug = $1",
+        "SELECT id, nome, slug, escopo, criado_em FROM placares WHERE slug = $1",
         slug,
+    )
+    return dict(row) if row else None
+
+
+async def buscar_por_id(pool: Pool, placar_id: str) -> dict | None:
+    row = await pool.fetchrow(
+        "SELECT id, nome, slug, escopo, criado_em FROM placares WHERE id = $1",
+        placar_id,
+    )
+    return dict(row) if row else None
+
+
+async def listar_todos(pool: Pool) -> list[dict]:
+    """Todos os placares — para o painel admin."""
+    rows = await pool.fetch(
+        "SELECT id, nome, slug, escopo, criado_em FROM placares ORDER BY criado_em DESC"
+    )
+    return [dict(r) for r in rows]
+
+
+async def criar(pool: Pool, nome: str, slug: str) -> dict:
+    """
+    Cria um placar customizado. O placar global é único e seedado por
+    migração — não é criado via este endpoint (ver EVENTOS_SPEC.md §3,
+    índice único parcial idx_placares_unico_global impede um segundo).
+    """
+    row = await pool.fetchrow(
+        """
+        INSERT INTO placares (nome, slug, escopo)
+        VALUES ($1, $2, 'customizado')
+        RETURNING id, nome, slug, escopo, criado_em
+        """,
+        nome, slug,
+    )
+    return dict(row)
+
+
+async def listar_eventos_do_placar(pool: Pool, placar_id: str) -> list[dict]:
+    """Eventos vinculados a um placar customizado (ativos e inativos)."""
+    rows = await pool.fetch(
+        """
+        SELECT e.id, e.nome, e.slug, pe.ativo, pe.criado_em
+        FROM placar_eventos pe
+        JOIN eventos e ON e.id = pe.evento_id
+        WHERE pe.placar_id = $1
+        ORDER BY pe.criado_em DESC
+        """,
+        placar_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def adicionar_evento(pool: Pool, placar_id: str, evento_id: str) -> dict:
+    """Vincula um evento ao placar. Se já existir (mesmo inativo), reativa."""
+    row = await pool.fetchrow(
+        """
+        INSERT INTO placar_eventos (placar_id, evento_id)
+        VALUES ($1, $2)
+        ON CONFLICT (placar_id, evento_id)
+        DO UPDATE SET ativo = true
+        RETURNING placar_id, evento_id, ativo, criado_em
+        """,
+        placar_id, evento_id,
+    )
+    return dict(row)
+
+
+async def remover_evento(pool: Pool, placar_id: str, evento_id: str) -> dict | None:
+    """
+    Remove um evento do placar (soft — ativo=false, sem DELETE físico).
+    app_user não tem permissão de DELETE em placar_eventos.
+    """
+    row = await pool.fetchrow(
+        """
+        UPDATE placar_eventos
+        SET ativo = false
+        WHERE placar_id = $1 AND evento_id = $2
+        RETURNING placar_id, evento_id, ativo, criado_em
+        """,
+        placar_id, evento_id,
     )
     return dict(row) if row else None
 
@@ -39,7 +119,10 @@ async def listar_ranking(pool: Pool, jogo_id: str, placar: dict) -> list[dict]:
             SELECT id, nick, nome, pontuacao, foto_url, evento_id, criado_em
             FROM entradas
             WHERE jogo_id    = $1
-              AND evento_id IN (SELECT evento_id FROM placar_eventos WHERE placar_id = $2)
+              AND evento_id IN (
+                  SELECT evento_id FROM placar_eventos
+                  WHERE placar_id = $2 AND ativo = true
+              )
               AND no_ranking = true
               AND superado   = false
               AND pendente   = false
@@ -75,7 +158,10 @@ async def listar_lideres(pool: Pool, placar: dict) -> dict:
                 e.jogo_id, j.slug, e.nick, e.pontuacao
             FROM entradas e
             JOIN jogos j ON j.id = e.jogo_id
-            WHERE e.evento_id IN (SELECT evento_id FROM placar_eventos WHERE placar_id = $1)
+            WHERE e.evento_id IN (
+                SELECT evento_id FROM placar_eventos
+                WHERE placar_id = $1 AND ativo = true
+            )
               AND e.no_ranking = true
               AND e.superado   = false
               AND e.pendente   = false

@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import get_settings
 from utils.db import get_pool, close_pool
-from routers import ranking, jogos, admin, eventos, evento_publico, placar_publico, telao_publico
+from routers import ranking, jogos, admin, eventos, evento_publico, placar_publico, telao_publico, placares_admin, teloes_admin
 
 # ── Logging estruturado ───────────────────────────────────────────────────────
 structlog.configure(
@@ -58,6 +58,8 @@ app.include_router(eventos.router)
 app.include_router(evento_publico.router)
 app.include_router(placar_publico.router)
 app.include_router(telao_publico.router)
+app.include_router(placares_admin.router)
+app.include_router(teloes_admin.router)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────
