@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, UUID4
 from middleware.auth import require_admin
 from utils.db import get_pool
@@ -34,22 +34,37 @@ class AtualizarJogo(BaseModel):
 
 @router.get("/feed")
 async def feed_entradas(
+    response: Response,
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
     pool=Depends(get_pool),
     _: str = Depends(require_admin),
 ):
-    """Feed de todas as entradas recentes, incluindo ocultas e pendentes."""
+    """
+    Feed de todas as entradas recentes, incluindo ocultas e pendentes.
+    Total de registros disponível no header X-Total-Count, para o
+    frontend montar controles de paginação real (ver docs/EVENTOS_SPEC.md §5).
+    """
+    total = await entrada_repo.contar_feed_admin(pool)
+    response.headers["X-Total-Count"] = str(total)
     return await entrada_repo.listar_feed_admin(pool, limit=limit, offset=offset)
 
 
 @router.get("/pendentes")
 async def listar_pendentes(
+    response: Response,
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
     pool=Depends(get_pool),
     _: str = Depends(require_admin),
 ):
-    """Entradas aguardando decisão do moderador (vieram pelo rate limit)."""
-    return await entrada_repo.listar_pendentes(pool)
+    """
+    Entradas aguardando decisão do moderador (vieram pelo rate limit).
+    Total de registros disponível no header X-Total-Count.
+    """
+    total = await entrada_repo.contar_pendentes(pool)
+    response.headers["X-Total-Count"] = str(total)
+    return await entrada_repo.listar_pendentes(pool, limit=limit, offset=offset)
 
 
 # ── MODERAÇÃO DE ENTRADAS ─────────────────────────────────────────────────────

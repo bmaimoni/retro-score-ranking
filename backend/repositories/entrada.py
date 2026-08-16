@@ -76,7 +76,12 @@ async def listar_feed_admin(
     return [dict(r) for r in rows]
 
 
-async def listar_pendentes(pool: Pool) -> list[dict]:
+async def contar_feed_admin(pool: Pool) -> int:
+    """Total de entradas no feed do admin — para paginação."""
+    return await pool.fetchval("SELECT COUNT(*) FROM entradas")
+
+
+async def listar_pendentes(pool: Pool, limit: int = 50, offset: int = 0) -> list[dict]:
     rows = await pool.fetch(
         """
         SELECT
@@ -118,9 +123,18 @@ async def listar_pendentes(pool: Pool) -> list[dict]:
         WHERE e.pendente = true
           AND e.arquivado = false
         ORDER BY e.criado_em ASC
+        LIMIT $1 OFFSET $2
         """,
+        limit, offset,
     )
     return [dict(r) for r in rows]
+
+
+async def contar_pendentes(pool: Pool) -> int:
+    """Total de entradas pendentes — para paginação."""
+    return await pool.fetchval(
+        "SELECT COUNT(*) FROM entradas WHERE pendente = true AND arquivado = false"
+    )
 
 
 async def atualizar_visibilidade(

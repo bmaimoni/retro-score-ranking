@@ -3,7 +3,7 @@ Router admin de eventos — requer autenticação.
 Prefixo: /api/admin/eventos
 """
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from datetime import datetime
 from utils.db import get_pool
 from middleware.auth import require_admin
@@ -20,8 +20,16 @@ class EventoCreate(BaseModel):
     publico:      bool = True
     logo_url:     str | None = None
     cor_primaria: str | None = None
-    data_inicio:  datetime | None = None
-    data_fim:     datetime | None = None
+    data_inicio:  datetime
+    data_fim:     datetime
+
+    @field_validator("data_fim")
+    @classmethod
+    def data_fim_apos_inicio(cls, v, info):
+        inicio = info.data.get("data_inicio")
+        if inicio and v <= inicio:
+            raise ValueError("data_fim deve ser posterior a data_inicio")
+        return v
 
 
 class EventoUpdate(BaseModel):

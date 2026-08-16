@@ -1,0 +1,2086 @@
+From a12558ec6dd2c45ecc8312b2f25c0e143836763c Mon Sep 17 00:00:00 2001
+From: Bruno Maimoni <bmaimoni@gmail.com>
+Date: Sun, 16 Aug 2026 19:47:37 +0000
+Subject: [PATCH] =?UTF-8?q?feat:=20implementa=20backend=20de=20EVENTOS=5FS?=
+ =?UTF-8?q?PEC.md=20=E2=80=94=20placares,=20tel=C3=B5es,=20upload=20por=20?=
+ =?UTF-8?q?evento?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Implementa a camada de aplicação completa sobre a migration 011:
+
+Upload movido para endpoint escopado:
+  - POST /api/upload removido
+  - POST /api/e/{slug}/upload — novo local único de envio
+  - Checagem de janela [data_inicio, data_fim] antes de aceitar score,
+    independente de publico (visibilidade permanece separada)
+  - evento_repo.buscar_ativo_mais_recente removido (não faz mais
+    sentido com eventos simultâneos)
+
+routers/eventos.py:
+  - data_inicio/data_fim obrigatórios na criação (EventoCreate),
+    com validação data_fim > data_inicio
+
+Placares (repositories/placar.py + routers/placar_publico.py):
+  - GET /api/p/{slug}/ranking/{jogo_slug}
+  - GET /api/p/{slug}/ranking/lideres
+  - escopo='global': ranking sem filtro de evento (todos, presentes
+    e futuros)
+  - escopo='customizado': filtra por placar_eventos
+  - Mesma armadilha de ordenação de rota /lideres já documentada em
+    SPEC.md §8, replicada corretamente aqui
+
+Telões (repositories/telao.py + routers/telao_publico.py):
+  - GET /api/teloes/{slug}/config — retorna top_n e jogos ordenados
+    via telao_jogos, independente de evento_jogos
+
+Paginação real (repositories/entrada.py + routers/admin.py):
+  - contar_feed_admin / contar_pendentes (nova)
+  - listar_pendentes ganha limit/offset (antes não tinha nenhuma
+    paginação)
+  - Ambos endpoints expõem contagem total via header X-Total-Count,
+    sem quebrar o formato de resposta (lista simples) que o
+    admin.html já consome
+
+Testes:
+  - test_upload.py e test_fluxo_upload.py reescritos por completo
+    para o endpoint evento-scoped
+  - test_eventos.py: janela obrigatória, validação data_fim > inicio,
+    upload 404/403/422 conforme estado do evento
+  - test_admin.py: paginação real (X-Total-Count, limit/offset) em
+    feed e pendentes
+  - test_placar_publico.py (novo): ranking global vs. customizado,
+    inclusive verificação da SQL real via fake_pool — não só
+    comportamento mockado
+  - test_telao_publico.py (novo): config pública, filtro de jogos
+    ativos, 404
+
+137 passed (era 118 no início desta sessão — 19 testes novos, todos
+passando). Mesmas 8 falhas pré-existentes de sempre (exigem Postgres
+real, ConnectionRefusedError — sem relação com esta mudança).
+
+Ver docs/EVENTOS_SPEC.md §7 para o restante do roadmap: admin (CRUD
+de placares/telões) e frontend (ranking.html paginação+busca,
+telao.html lendo a nova config) ainda pendentes.
+---
+ backend/main.py                      |   5 +-
+ backend/repositories/entrada.py      |  16 +-
+ backend/repositories/evento.py       |  14 --
+ backend/repositories/placar.py       |  91 +++++++++++
+ backend/repositories/telao.py        |  44 ++++++
+ backend/routers/admin.py             |  23 ++-
+ backend/routers/evento_publico.py    | 186 +++++++++++++++++++++-
+ backend/routers/eventos.py           |  14 +-
+ backend/routers/placar_publico.py    |  53 +++++++
+ backend/routers/telao_publico.py     |  31 ++++
+ backend/routers/upload.py            | 159 -------------------
+ backend/tests/test_admin.py          |  73 ++++++++-
+ backend/tests/test_eventos.py        | 155 +++++++++++++-----
+ backend/tests/test_fluxo_upload.py   | 122 +++++++-------
+ backend/tests/test_placar_publico.py | 190 ++++++++++++++++++++++
+ backend/tests/test_telao_publico.py  | 123 +++++++++++++++
+ backend/tests/test_upload.py         | 228 +++++++++++++++------------
+ 17 files changed, 1146 insertions(+), 381 deletions(-)
+ create mode 100644 backend/repositories/placar.py
+ create mode 100644 backend/repositories/telao.py
+ create mode 100644 backend/routers/placar_publico.py
+ create mode 100644 backend/routers/telao_publico.py
+ delete mode 100644 backend/routers/upload.py
+ create mode 100644 backend/tests/test_placar_publico.py
+ create mode 100644 backend/tests/test_telao_publico.py
+
+diff --git a/backend/main.py b/backend/main.py
+index 965f1ff..dddbff8 100644
+--- a/backend/main.py
++++ b/backend/main.py
+@@ -5,7 +5,7 @@ from fastapi import FastAPI
+ from fastapi.middleware.cors import CORSMiddleware
+ from config import get_settings
+ from utils.db import get_pool, close_pool
+-from routers import upload, ranking, jogos, admin, eventos, evento_publico
++from routers import ranking, jogos, admin, eventos, evento_publico, placar_publico, telao_publico
+ 
+ # ── Logging estruturado ───────────────────────────────────────────────────────
+ structlog.configure(
+@@ -51,12 +51,13 @@ app.add_middleware(
+ )
+ 
+ # ── Routers ───────────────────────────────────────────────────────────────────
+-app.include_router(upload.router)
+ app.include_router(ranking.router)
+ app.include_router(jogos.router)
+ app.include_router(admin.router)
+ app.include_router(eventos.router)
+ app.include_router(evento_publico.router)
++app.include_router(placar_publico.router)
++app.include_router(telao_publico.router)
+ 
+ 
+ # ── Health check ──────────────────────────────────────────────────────────────
+diff --git a/backend/repositories/entrada.py b/backend/repositories/entrada.py
+index 3a0d24a..6e1b103 100644
+--- a/backend/repositories/entrada.py
++++ b/backend/repositories/entrada.py
+@@ -76,7 +76,12 @@ async def listar_feed_admin(
+     return [dict(r) for r in rows]
+ 
+ 
+-async def listar_pendentes(pool: Pool) -> list[dict]:
++async def contar_feed_admin(pool: Pool) -> int:
++    """Total de entradas no feed do admin — para paginação."""
++    return await pool.fetchval("SELECT COUNT(*) FROM entradas")
++
++
++async def listar_pendentes(pool: Pool, limit: int = 50, offset: int = 0) -> list[dict]:
+     rows = await pool.fetch(
+         """
+         SELECT
+@@ -118,11 +123,20 @@ async def listar_pendentes(pool: Pool) -> list[dict]:
+         WHERE e.pendente = true
+           AND e.arquivado = false
+         ORDER BY e.criado_em ASC
++        LIMIT $1 OFFSET $2
+         """,
++        limit, offset,
+     )
+     return [dict(r) for r in rows]
+ 
+ 
++async def contar_pendentes(pool: Pool) -> int:
++    """Total de entradas pendentes — para paginação."""
++    return await pool.fetchval(
++        "SELECT COUNT(*) FROM entradas WHERE pendente = true AND arquivado = false"
++    )
++
++
+ async def atualizar_visibilidade(
+     pool: Pool,
+     entrada_id: str,
+diff --git a/backend/repositories/evento.py b/backend/repositories/evento.py
+index 2b57b40..01d5145 100644
+--- a/backend/repositories/evento.py
++++ b/backend/repositories/evento.py
+@@ -28,20 +28,6 @@ async def listar_ativos(pool: Pool) -> list[dict]:
+     return [dict(r) for r in rows]
+ 
+ 
+-async def buscar_ativo_mais_recente(pool: Pool) -> dict | None:
+-    """Retorna o evento ativo mais recente — usado no upload."""
+-    row = await pool.fetchrow(
+-        """
+-        SELECT id, nome, slug
+-        FROM eventos
+-        WHERE ativo = true
+-        ORDER BY criado_em DESC
+-        LIMIT 1
+-        """
+-    )
+-    return dict(row) if row else None
+-
+-
+ async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
+     """Busca evento pelo slug. Retorna None se não existir."""
+     row = await pool.fetchrow(
+diff --git a/backend/repositories/placar.py b/backend/repositories/placar.py
+new file mode 100644
+index 0000000..a8dbeb6
+--- /dev/null
++++ b/backend/repositories/placar.py
+@@ -0,0 +1,91 @@
++from asyncpg import Pool
++
++
++async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
++    """Busca placar pelo slug. Retorna None se não existir."""
++    row = await pool.fetchrow(
++        "SELECT id, nome, slug, escopo FROM placares WHERE slug = $1",
++        slug,
++    )
++    return dict(row) if row else None
++
++
++async def listar_ranking(pool: Pool, jogo_id: str, placar: dict) -> list[dict]:
++    """
++    Ranking de um jogo dentro do escopo do placar:
++      - escopo='global'      → todos os eventos (presentes e futuros), sem filtro
++      - escopo='customizado' → só eventos vinculados via placar_eventos
++
++    Mesmo desempate dos demais rankings (criado_em ASC, id ASC) — ver
++    docs/EVENTOS_SPEC.md §4.2.
++    """
++    if placar["escopo"] == "global":
++        rows = await pool.fetch(
++            """
++            SELECT id, nick, nome, pontuacao, foto_url, evento_id, criado_em
++            FROM entradas
++            WHERE jogo_id    = $1
++              AND no_ranking = true
++              AND superado   = false
++              AND pendente   = false
++              AND arquivado  = false
++            ORDER BY pontuacao DESC, criado_em ASC, id ASC
++            """,
++            jogo_id,
++        )
++    else:
++        rows = await pool.fetch(
++            """
++            SELECT id, nick, nome, pontuacao, foto_url, evento_id, criado_em
++            FROM entradas
++            WHERE jogo_id    = $1
++              AND evento_id IN (SELECT evento_id FROM placar_eventos WHERE placar_id = $2)
++              AND no_ranking = true
++              AND superado   = false
++              AND pendente   = false
++              AND arquivado  = false
++            ORDER BY pontuacao DESC, criado_em ASC, id ASC
++            """,
++            jogo_id, placar["id"],
++        )
++    return [dict(r) for r in rows]
++
++
++async def listar_lideres(pool: Pool, placar: dict) -> dict:
++    """Top 1 de cada jogo ativo, dentro do escopo do placar."""
++    if placar["escopo"] == "global":
++        rows = await pool.fetch(
++            """
++            SELECT DISTINCT ON (e.jogo_id)
++                e.jogo_id, j.slug, e.nick, e.pontuacao
++            FROM entradas e
++            JOIN jogos j ON j.id = e.jogo_id
++            WHERE e.no_ranking = true
++              AND e.superado   = false
++              AND e.pendente   = false
++              AND e.arquivado  = false
++              AND j.ativo      = true
++            ORDER BY e.jogo_id, e.pontuacao DESC, e.criado_em ASC, e.id ASC
++            """
++        )
++    else:
++        rows = await pool.fetch(
++            """
++            SELECT DISTINCT ON (e.jogo_id)
++                e.jogo_id, j.slug, e.nick, e.pontuacao
++            FROM entradas e
++            JOIN jogos j ON j.id = e.jogo_id
++            WHERE e.evento_id IN (SELECT evento_id FROM placar_eventos WHERE placar_id = $1)
++              AND e.no_ranking = true
++              AND e.superado   = false
++              AND e.pendente   = false
++              AND e.arquivado  = false
++              AND j.ativo      = true
++            ORDER BY e.jogo_id, e.pontuacao DESC, e.criado_em ASC, e.id ASC
++            """,
++            placar["id"],
++        )
++    return {
++        str(r["jogo_id"]): {"slug": r["slug"], "nick": r["nick"], "pontuacao": r["pontuacao"]}
++        for r in rows
++    }
+diff --git a/backend/repositories/telao.py b/backend/repositories/telao.py
+new file mode 100644
+index 0000000..622384f
+--- /dev/null
++++ b/backend/repositories/telao.py
+@@ -0,0 +1,44 @@
++from asyncpg import Pool
++
++
++async def buscar_config_por_slug(pool: Pool, slug: str) -> dict | None:
++    """
++    Config pública de um telão: nome, top_n (posições fixas exibidas, sem
++    paginação — ver docs/EVENTOS_SPEC.md §5), o evento ou placar ao qual
++    aponta, e os jogos do carrossel já ordenados.
++    """
++    telao = await pool.fetchrow(
++        """
++        SELECT t.id, t.nome, t.slug, t.top_n,
++               t.evento_id, e.slug AS evento_slug,
++               t.placar_id, p.slug AS placar_slug
++        FROM teloes t
++        LEFT JOIN eventos  e ON e.id = t.evento_id
++        LEFT JOIN placares p ON p.id = t.placar_id
++        WHERE t.slug = $1
++        """,
++        slug,
++    )
++    if not telao:
++        return None
++
++    jogos = await pool.fetch(
++        """
++        SELECT j.nome, j.slug, tj.ordem
++        FROM telao_jogos tj
++        JOIN jogos j ON j.id = tj.jogo_id
++        WHERE tj.telao_id = $1
++          AND tj.ativo    = true
++        ORDER BY tj.ordem
++        """,
++        telao["id"],
++    )
++
++    return {
++        "nome":        telao["nome"],
++        "slug":        telao["slug"],
++        "top_n":       telao["top_n"],
++        "evento_slug": telao["evento_slug"],
++        "placar_slug": telao["placar_slug"],
++        "jogos":       [dict(j) for j in jogos],
++    }
+diff --git a/backend/routers/admin.py b/backend/routers/admin.py
+index 1c9d9db..c715473 100644
+--- a/backend/routers/admin.py
++++ b/backend/routers/admin.py
+@@ -1,4 +1,4 @@
+-from fastapi import APIRouter, Depends, HTTPException, Query
++from fastapi import APIRouter, Depends, HTTPException, Query, Response
+ from pydantic import BaseModel, UUID4
+ from middleware.auth import require_admin
+ from utils.db import get_pool
+@@ -34,22 +34,37 @@ class AtualizarJogo(BaseModel):
+ 
+ @router.get("/feed")
+ async def feed_entradas(
++    response: Response,
+     limit: int = Query(default=50, le=200),
+     offset: int = Query(default=0, ge=0),
+     pool=Depends(get_pool),
+     _: str = Depends(require_admin),
+ ):
+-    """Feed de todas as entradas recentes, incluindo ocultas e pendentes."""
++    """
++    Feed de todas as entradas recentes, incluindo ocultas e pendentes.
++    Total de registros disponível no header X-Total-Count, para o
++    frontend montar controles de paginação real (ver docs/EVENTOS_SPEC.md §5).
++    """
++    total = await entrada_repo.contar_feed_admin(pool)
++    response.headers["X-Total-Count"] = str(total)
+     return await entrada_repo.listar_feed_admin(pool, limit=limit, offset=offset)
+ 
+ 
+ @router.get("/pendentes")
+ async def listar_pendentes(
++    response: Response,
++    limit: int = Query(default=50, le=200),
++    offset: int = Query(default=0, ge=0),
+     pool=Depends(get_pool),
+     _: str = Depends(require_admin),
+ ):
+-    """Entradas aguardando decisão do moderador (vieram pelo rate limit)."""
+-    return await entrada_repo.listar_pendentes(pool)
++    """
++    Entradas aguardando decisão do moderador (vieram pelo rate limit).
++    Total de registros disponível no header X-Total-Count.
++    """
++    total = await entrada_repo.contar_pendentes(pool)
++    response.headers["X-Total-Count"] = str(total)
++    return await entrada_repo.listar_pendentes(pool, limit=limit, offset=offset)
+ 
+ 
+ # ── MODERAÇÃO DE ENTRADAS ─────────────────────────────────────────────────────
+diff --git a/backend/routers/evento_publico.py b/backend/routers/evento_publico.py
+index 6083242..fc737f7 100644
+--- a/backend/routers/evento_publico.py
++++ b/backend/routers/evento_publico.py
+@@ -3,19 +3,36 @@ Router público de eventos — acessível sem autenticação.
+ Prefixo: /api/e/{slug}
+ 
+ Endpoints:
+-  GET /api/e/{slug}/config        → config pública do evento
+-  GET /api/e/{slug}/jogos         → jogos ativos do evento
+-  GET /api/e/{slug}/ranking/{jogo_slug} → ranking filtrado por evento
++  GET  /api/e/{slug}/config             → config pública do evento
++  GET  /api/e/{slug}/jogos              → jogos ativos do evento
++  GET  /api/e/{slug}/ranking/lideres    → top 1 de cada jogo do evento
++  GET  /api/e/{slug}/ranking/{jogo_slug} → ranking filtrado por evento
++  POST /api/e/{slug}/upload             → envio de score para o evento
++
++Ver docs/EVENTOS_SPEC.md para o desenho completo (eventos simultâneos,
++janela de envio, integração com auth em docs/AUTH_SPEC.md §4.3).
+ """
+-from fastapi import APIRouter, Depends, HTTPException
++import filetype
++import structlog
++from datetime import datetime, timezone
++from fastapi import APIRouter, Depends, HTTPException, Request, File, Form, UploadFile
++from pydantic import UUID4
+ from utils.db import get_pool
++from utils.ip import get_client_ip, hash_ip
++from services import storage, rate_limit as rl, nick as nick_svc, score as score_svc
++from services.sse import broker
+ import repositories.evento      as evento_repo
+ import repositories.evento_jogo as evento_jogo_repo
+ import repositories.jogo        as jogo_repo
+ import repositories.entrada     as entrada_repo
+ 
++log = structlog.get_logger()
++
+ router = APIRouter(prefix="/api/e", tags=["evento-publico"])
+ 
++ALLOWED_MIME = {"image/jpeg", "image/png"}
++MAX_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
++
+ 
+ async def _get_evento_publico(slug: str, pool) -> dict:
+     """Helper: busca evento público ou levanta 404/403."""
+@@ -29,6 +46,23 @@ async def _get_evento_publico(slug: str, pool) -> dict:
+     return evento
+ 
+ 
++async def _get_evento_aceitando_envios(slug: str, pool) -> dict:
++    """
++    Helper: além das checagens de _get_evento_publico, garante que o
++    momento atual está dentro da janela [data_inicio, data_fim] do evento.
++    Visibilidade (publico) e janela de envio são independentes — ver
++    docs/EVENTOS_SPEC.md §3.
++    """
++    evento = await _get_evento_publico(slug, pool)
++    agora = datetime.now(timezone.utc)
++    if not (evento["data_inicio"] <= agora <= evento["data_fim"]):
++        raise HTTPException(
++            status_code=422,
++            detail="Este evento não está mais aceitando novas pontuações.",
++        )
++    return evento
++
++
+ # ── Config pública do evento ──────────────────────────────────
+ 
+ @router.get("/{slug}/config")
+@@ -120,3 +154,147 @@ async def get_ranking_evento(slug: str, jogo_slug: str, pool=Depends(get_pool)):
+         pool, str(jogo["id"]), str(evento["id"])
+     )
+     return {"jogo": jogo, "evento": slug, "entradas": entradas}
++
++
++# ── Upload de score ───────────────────────────────────────────
++
++@router.post("/{slug}/upload", status_code=201)
++async def upload_evento(
++    slug: str,
++    request: Request,
++    foto: UploadFile | None = File(None, description="Foto com o placar visível (JPEG ou PNG, máx 5MB — opcional)"),
++    nick: str = Form(..., min_length=1, max_length=50),
++    nome: str | None = Form(default=None, max_length=100),
++    pontuacao: int = Form(..., gt=0, lt=100_000_000),
++    jogo_id: UUID4 = Form(...),
++    pool=Depends(get_pool),
++):
++    """
++    Endpoint principal de participação, escopado por evento.
++
++    Fluxo:
++    1. Evento existe / está publico / dentro da janela de envio (data_inicio-data_fim)
++    2. Valida tipo e tamanho da foto
++    3. Valida score contra o jogo
++    4. Calcula hash do IP e verifica rate limit
++    5. Faz upload da foto para o Storage (imutável)
++    6. Dentro de uma transação:
++       a. Marca entrada anterior do nick como superada
++       b. Insere nova entrada (pendente se rate limit atingido), sempre
++          com evento_id preenchido
++    7. Notifica clientes SSE se a entrada for visível imediatamente
++
++    Nota de integração (docs/AUTH_SPEC.md §4.3): quando a autenticação
++    existir, a checagem de sessão/nick_claims entra entre os passos 1 e 2.
++    """
++    evento = await _get_evento_aceitando_envios(slug, pool)
++
++    # ── 2. Validação da foto (opcional) ──────────────────────────────────────
++    if foto is not None:
++        conteudo = await foto.read()
++        await foto.seek(0)  # rewind para uso posterior
++
++        if len(conteudo) > MAX_SIZE_BYTES:
++            raise HTTPException(status_code=413, detail="Foto excede o limite de 5MB")
++
++        # Valida pelo magic bytes, não pela extensão declarada
++        tipo = filetype.guess(conteudo)
++        mime_detectado = tipo.mime if tipo else "application/octet-stream"
++        if mime_detectado not in ALLOWED_MIME:
++            raise HTTPException(
++                status_code=422,
++                detail=f"Formato inválido ({mime_detectado}). Apenas JPEG e PNG são aceitos",
++            )
++
++    # ── 3. Validação do score ─────────────────────────────────────────────────
++    await score_svc.validar_score(pool, str(jogo_id), pontuacao)
++
++    # ── 4. Rate limit ─────────────────────────────────────────────────────────
++    ip = get_client_ip(request)
++    ip_hash = hash_ip(ip)
++    pendente = await rl.checar_rate_limit(pool, ip_hash)
++
++    if pendente:
++        log.info("upload_rate_limited", ip_hash=ip_hash[:8], nick=nick[:20])
++
++    # ── 5. Upload da foto (se fornecida) ─────────────────────────────────────
++    foto_url = await storage.upload_foto(foto) if foto is not None else None
++
++    # Sem foto → vai para moderação (sem evidência visual do placar)
++    if foto is None:
++        pendente = True
++
++    # ── 6. Transação: marcar anterior como superado + inserir nova entrada ────
++    nick_normalizado = nick_svc.normalizar_nick(nick)
++
++    try:
++        async with pool.acquire() as conn:
++            async with conn.transaction():
++                await nick_svc.marcar_anterior_como_superado(
++                    pool, nick_normalizado, str(jogo_id), conn=conn
++                )
++
++                entrada = await entrada_repo.inserir(conn, {
++                    "jogo_id":   str(jogo_id),
++                    "nick":      nick.strip(),
++                    "nick_norm": nick_normalizado,
++                    "nome":      nome.strip() if nome else None,
++                    "pontuacao": pontuacao,
++                    "foto_url":  foto_url,
++                    "no_ranking": not pendente,
++                    "pendente":  pendente,
++                    "ip_hash":   ip_hash,
++                    "evento_id": str(evento["id"]),
++                })
++
++    except Exception as exc:
++        # Conflito de EXCLUDE constraint = race condition de nick simultâneo
++        if "nick_ativo_unico" in str(exc):
++            raise HTTPException(
++                status_code=409,
++                detail="Outro envio deste nick está sendo processado. Tente em instantes.",
++            )
++        import traceback
++        log.error("upload_db_error",
++                  error=repr(exc),
++                  error_type=type(exc).__name__,
++                  traceback=traceback.format_exc())
++        raise HTTPException(status_code=500, detail="Erro interno ao salvar entrada")
++
++    # ── 7. Notifica SSE se visível imediatamente ──────────────────────────────
++    if not pendente:
++        jogo_slug = await _slug_from_id(pool, str(jogo_id))
++        await broker.publish(jogo_slug, "novo_registro", {
++            "id":        str(entrada["id"]),
++            "nick":      entrada["nick"],
++            "pontuacao": entrada["pontuacao"],
++            "foto_url":  entrada["foto_url"],
++            "criado_em": str(entrada["criado_em"]),
++        })
++
++    log.info(
++        "upload_ok",
++        entrada_id=str(entrada["id"]),
++        evento_slug=slug,
++        nick=nick[:20],
++        pendente=pendente,
++    )
++
++    return {
++        "id":       str(entrada["id"]),
++        "nick":     entrada["nick"],
++        "pontuacao": entrada["pontuacao"],
++        "foto_url": entrada["foto_url"],
++        "pendente": entrada["pendente"],
++        "mensagem": (
++            "Sua pontuação está em análise e aparecerá em breve no ranking."
++            if pendente else
++            "Você está no ranking!"
++        ),
++    }
++
++
++async def _slug_from_id(pool, jogo_id: str) -> str:
++    """Helper: busca o slug pelo id do jogo para o publish SSE."""
++    row = await pool.fetchrow("SELECT slug FROM jogos WHERE id = $1", jogo_id)
++    return row["slug"] if row else jogo_id
+diff --git a/backend/routers/eventos.py b/backend/routers/eventos.py
+index 518088e..b829bc7 100644
+--- a/backend/routers/eventos.py
++++ b/backend/routers/eventos.py
+@@ -3,7 +3,7 @@ Router admin de eventos — requer autenticação.
+ Prefixo: /api/admin/eventos
+ """
+ from fastapi import APIRouter, Depends, HTTPException
+-from pydantic import BaseModel
++from pydantic import BaseModel, field_validator
+ from datetime import datetime
+ from utils.db import get_pool
+ from middleware.auth import require_admin
+@@ -20,8 +20,16 @@ class EventoCreate(BaseModel):
+     publico:      bool = True
+     logo_url:     str | None = None
+     cor_primaria: str | None = None
+-    data_inicio:  datetime | None = None
+-    data_fim:     datetime | None = None
++    data_inicio:  datetime
++    data_fim:     datetime
++
++    @field_validator("data_fim")
++    @classmethod
++    def data_fim_apos_inicio(cls, v, info):
++        inicio = info.data.get("data_inicio")
++        if inicio and v <= inicio:
++            raise ValueError("data_fim deve ser posterior a data_inicio")
++        return v
+ 
+ 
+ class EventoUpdate(BaseModel):
+diff --git a/backend/routers/placar_publico.py b/backend/routers/placar_publico.py
+new file mode 100644
+index 0000000..9e18c2d
+--- /dev/null
++++ b/backend/routers/placar_publico.py
+@@ -0,0 +1,53 @@
++"""
++Router público de placares — acessível sem autenticação.
++Prefixo: /api/p/{slug}
++
++Endpoints:
++  GET /api/p/{slug}/ranking/lideres      → top 1 de cada jogo, no escopo do placar
++  GET /api/p/{slug}/ranking/{jogo_slug}  → ranking de um jogo, no escopo do placar
++
++Ver docs/EVENTOS_SPEC.md §3-4 para o desenho completo (placar global
++seedado por migração + placares customizados curados pelo admin).
++"""
++from fastapi import APIRouter, Depends, HTTPException
++from utils.db import get_pool
++import repositories.placar as placar_repo
++import repositories.jogo   as jogo_repo
++
++router = APIRouter(prefix="/api/p", tags=["placar-publico"])
++
++
++async def _get_placar(slug: str, pool) -> dict:
++    """Helper: busca placar ou levanta 404."""
++    placar = await placar_repo.buscar_por_slug(pool, slug)
++    if not placar:
++        raise HTTPException(status_code=404, detail="Placar não encontrado")
++    return placar
++
++
++# ── Líderes do placar ─────────────────────────────────────────
++# IMPORTANTE: esta rota deve vir ANTES de /{slug}/ranking/{jogo_slug},
++# senão "lideres" é capturado como jogo_slug pela rota genérica
++# (mesma armadilha já documentada em SPEC.md §8 e evento_publico.py).
++
++@router.get("/{slug}/ranking/lideres")
++async def get_lideres_placar(slug: str, pool=Depends(get_pool)):
++    """Top 1 de cada jogo ativo, dentro do escopo do placar."""
++    placar = await _get_placar(slug, pool)
++    return await placar_repo.listar_lideres(pool, placar)
++
++
++# ── Ranking do placar ─────────────────────────────────────────
++
++@router.get("/{slug}/ranking/{jogo_slug}")
++async def get_ranking_placar(slug: str, jogo_slug: str, pool=Depends(get_pool)):
++    """
++    Ranking de um jogo dentro do escopo do placar (global ou customizado).
++    """
++    placar = await _get_placar(slug, pool)
++    jogo   = await jogo_repo.buscar_por_slug(pool, jogo_slug)
++    if not jogo:
++        raise HTTPException(status_code=404, detail="Jogo não encontrado")
++
++    entradas = await placar_repo.listar_ranking(pool, str(jogo["id"]), placar)
++    return {"jogo": jogo, "placar": slug, "entradas": entradas}
+diff --git a/backend/routers/telao_publico.py b/backend/routers/telao_publico.py
+new file mode 100644
+index 0000000..0d15166
+--- /dev/null
++++ b/backend/routers/telao_publico.py
+@@ -0,0 +1,31 @@
++"""
++Router público de telões — acessível sem autenticação.
++Prefixo: /api/teloes/{slug}
++
++Endpoints:
++  GET /api/teloes/{slug}/config → configuração de exibição do telão
++
++Ver docs/EVENTOS_SPEC.md §3-5: um telão aponta pra exatamente um evento OU
++um placar, mostra top_n posições fixas (sem paginação — é uma tela grande,
++não navegável), e escolhe seus próprios jogos/ordem via telao_jogos.
++"""
++from fastapi import APIRouter, Depends, HTTPException
++from utils.db import get_pool
++import repositories.telao as telao_repo
++
++router = APIRouter(prefix="/api/teloes", tags=["telao-publico"])
++
++
++@router.get("/{slug}/config")
++async def get_config_telao(slug: str, pool=Depends(get_pool)):
++    """
++    Configuração de exibição de um telão: quantas posições mostrar
++    (top_n), e por quais jogos girar o carrossel. O frontend usa
++    evento_slug ou placar_slug (exatamente um dos dois vem preenchido)
++    para buscar o ranking de cada jogo em /api/e/{slug}/ranking/{jogo_slug}
++    ou /api/p/{slug}/ranking/{jogo_slug}.
++    """
++    config = await telao_repo.buscar_config_por_slug(pool, slug)
++    if not config:
++        raise HTTPException(status_code=404, detail="Telão não encontrado")
++    return config
+diff --git a/backend/routers/upload.py b/backend/routers/upload.py
+deleted file mode 100644
+index 4305fc6..0000000
+--- a/backend/routers/upload.py
++++ /dev/null
+@@ -1,159 +0,0 @@
+-import filetype
+-from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException
+-from pydantic import UUID4
+-from utils.db import get_pool
+-from utils.ip import get_client_ip, hash_ip
+-from services import storage, rate_limit as rl, nick as nick_svc, score as score_svc
+-from services.sse import broker
+-import repositories.entrada as entrada_repo
+-import repositories.evento  as evento_repo
+-import repositories.jogo as jogo_repo
+-from fastapi import Request
+-import structlog
+-
+-log = structlog.get_logger()
+-
+-router = APIRouter(prefix="/api", tags=["upload"])
+-
+-ALLOWED_MIME = {"image/jpeg", "image/png"}
+-MAX_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+-
+-
+-@router.post("/upload", status_code=201)
+-async def upload(
+-    request: Request,
+-    foto: UploadFile | None = File(None, description="Foto com o placar visível (JPEG ou PNG, máx 5MB — opcional)"),
+-    nick: str = Form(..., min_length=1, max_length=50),
+-    nome: str | None = Form(default=None, max_length=100),
+-    pontuacao: int = Form(..., gt=0, lt=100_000_000),
+-    jogo_id: UUID4 = Form(...),
+-    pool=Depends(get_pool),
+-):
+-    """
+-    Endpoint principal de participação.
+-
+-    Fluxo:
+-    1. Valida tipo e tamanho da foto
+-    2. Valida score contra o jogo
+-    3. Calcula hash do IP e verifica rate limit
+-    4. Faz upload da foto para o Storage (imutável)
+-    5. Dentro de uma transação:
+-       a. Marca entrada anterior do nick como superada
+-       b. Insere nova entrada (pendente se rate limit atingido)
+-    6. Notifica clientes SSE se a entrada for visível imediatamente
+-    """
+-
+-    # ── 1. Validação da foto (opcional) ──────────────────────────────────────
+-    if foto is not None:
+-        conteudo = await foto.read()
+-        await foto.seek(0)  # rewind para uso posterior
+-
+-        if len(conteudo) > MAX_SIZE_BYTES:
+-            raise HTTPException(status_code=413, detail="Foto excede o limite de 5MB")
+-
+-        # Valida pelo magic bytes, não pela extensão declarada
+-        tipo = filetype.guess(conteudo)
+-        mime_detectado = tipo.mime if tipo else "application/octet-stream"
+-        if mime_detectado not in ALLOWED_MIME:
+-            raise HTTPException(
+-                status_code=422,
+-                detail=f"Formato inválido ({mime_detectado}). Apenas JPEG e PNG são aceitos",
+-            )
+-
+-    # ── 2. Validação do score ─────────────────────────────────────────────────
+-    await score_svc.validar_score(pool, str(jogo_id), pontuacao)
+-
+-    # ── 3. Rate limit ─────────────────────────────────────────────────────────
+-    ip = get_client_ip(request)
+-    ip_hash = hash_ip(ip)
+-    pendente = await rl.checar_rate_limit(pool, ip_hash)
+-
+-    if pendente:
+-        log.info("upload_rate_limited", ip_hash=ip_hash[:8], nick=nick[:20])
+-
+-    # ── 4. Upload da foto (se fornecida) ─────────────────────────────────────
+-    foto_url = await storage.upload_foto(foto) if foto is not None else None
+-
+-    # Sem foto → vai para moderação (sem evidência visual do placar)
+-    if foto is None:
+-        pendente = True
+-
+-    # ── 5. Busca evento ativo para associar ao score ─────────────────────────
+-    evento    = await evento_repo.buscar_ativo_mais_recente(pool)
+-    evento_id = str(evento["id"]) if evento else None
+-
+-    # ── 6. Transação: marcar anterior como superado + inserir nova entrada ────
+-    nick_normalizado = nick_svc.normalizar_nick(nick)
+-
+-    try:
+-        async with pool.acquire() as conn:
+-            async with conn.transaction():
+-                await nick_svc.marcar_anterior_como_superado(
+-                    pool, nick_normalizado, str(jogo_id), conn=conn
+-                )
+-
+-                entrada = await entrada_repo.inserir(conn, {
+-                    "jogo_id":   str(jogo_id),
+-                    "nick":      nick.strip(),
+-                    "nick_norm": nick_normalizado,
+-                    "nome":      nome.strip() if nome else None,
+-                    "pontuacao": pontuacao,
+-                    "foto_url":  foto_url,
+-                    "no_ranking": not pendente,
+-                    "pendente":  pendente,
+-                    "ip_hash":   ip_hash,
+-                    "evento_id": evento_id,
+-                })
+-
+-    except Exception as exc:
+-        # Conflito de EXCLUDE constraint = race condition de nick simultâneo
+-        if "nick_ativo_unico" in str(exc):
+-            raise HTTPException(
+-                status_code=409,
+-                detail="Outro envio deste nick está sendo processado. Tente em instantes.",
+-            )
+-        import traceback
+-        log.error("upload_db_error",
+-                  error=repr(exc),
+-                  error_type=type(exc).__name__,
+-                  traceback=traceback.format_exc())
+-        raise HTTPException(status_code=500, detail="Erro interno ao salvar entrada")
+-
+-    # ── 6. Notifica SSE se visível imediatamente ──────────────────────────────
+-    if not pendente:
+-        slug = await _slug_from_id(pool, str(jogo_id))
+-        jogo = await jogo_repo.buscar_por_slug(pool, slug)
+-        slug = jogo["slug"] if jogo else str(jogo_id)
+-        await broker.publish(slug, "novo_registro", {
+-            "id":        str(entrada["id"]),
+-            "nick":      entrada["nick"],
+-            "pontuacao": entrada["pontuacao"],
+-            "foto_url":  entrada["foto_url"],
+-            "criado_em": str(entrada["criado_em"]),
+-        })
+-
+-    log.info(
+-        "upload_ok",
+-        entrada_id=str(entrada["id"]),
+-        nick=nick[:20],
+-        pendente=pendente,
+-    )
+-
+-    return {
+-        "id":       str(entrada["id"]),
+-        "nick":     entrada["nick"],
+-        "pontuacao": entrada["pontuacao"],
+-        "foto_url": entrada["foto_url"],
+-        "pendente": entrada["pendente"],
+-        "mensagem": (
+-            "Sua pontuação está em análise e aparecerá em breve no ranking."
+-            if pendente else
+-            "Você está no ranking!"
+-        ),
+-    }
+-
+-
+-async def _slug_from_id(pool, jogo_id: str) -> str:
+-    """Helper: busca o slug pelo id do jogo para o publish SSE."""
+-    row = await pool.fetchrow("SELECT slug FROM jogos WHERE id = $1", jogo_id)
+-    return row["slug"] if row else jogo_id
+\ No newline at end of file
+diff --git a/backend/tests/test_admin.py b/backend/tests/test_admin.py
+index 24b38c1..0ab1b6d 100644
+--- a/backend/tests/test_admin.py
++++ b/backend/tests/test_admin.py
+@@ -81,7 +81,8 @@ async def test_token_correto_retorna_200(client):
+     pool.fetch = AsyncMock(return_value=[])
+     app.dependency_overrides[get_pool] = lambda: pool
+ 
+-    with patch("repositories.entrada.listar_feed_admin", AsyncMock(return_value=[])):
++    with patch("repositories.entrada.listar_feed_admin", AsyncMock(return_value=[])), \
++         patch("repositories.entrada.contar_feed_admin",  AsyncMock(return_value=0)):
+         resp = await client.get("/api/admin/feed", headers=AUTH_HEADER)
+     assert resp.status_code == 200
+ 
+@@ -306,4 +307,72 @@ async def test_restaurar_ranking_sem_confirmar_retorna_400(client):
+     resp = await client.post("/api/admin/manutencao/restaurar-ranking",
+                              json={"confirmar": ""},
+                              headers=AUTH_HEADER)
+-    assert resp.status_code == 400
+\ No newline at end of file
++    assert resp.status_code == 400
++
++
++# ── Paginação real: feed e pendentes (EVENTOS_SPEC.md §5) ─────────────────────
++
++@pytest.mark.asyncio
++async def test_feed_expoe_total_no_header(client):
++    """
++    GET /api/admin/feed retorna X-Total-Count com a contagem geral —
++    independente de quantos itens vieram na página atual (limit/offset).
++    """
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("repositories.entrada.listar_feed_admin", AsyncMock(return_value=[make_entrada()])), \
++         patch("repositories.entrada.contar_feed_admin",  AsyncMock(return_value=137)):
++        resp = await client.get("/api/admin/feed?limit=1&offset=0", headers=AUTH_HEADER)
++
++    assert resp.status_code == 200
++    assert resp.headers["X-Total-Count"] == "137"
++    assert len(resp.json()) == 1
++
++
++@pytest.mark.asyncio
++async def test_feed_repassa_limit_e_offset_ao_repository(client):
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++    listar_mock = AsyncMock(return_value=[])
++
++    with patch("repositories.entrada.listar_feed_admin", listar_mock), \
++         patch("repositories.entrada.contar_feed_admin",  AsyncMock(return_value=0)):
++        await client.get("/api/admin/feed?limit=20&offset=40", headers=AUTH_HEADER)
++
++    listar_mock.assert_called_once_with(pool, limit=20, offset=40)
++
++
++@pytest.mark.asyncio
++async def test_pendentes_expoe_total_no_header(client):
++    """GET /api/admin/pendentes também ganhou paginação real (antes não tinha)."""
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("repositories.entrada.listar_pendentes", AsyncMock(return_value=[])), \
++         patch("repositories.entrada.contar_pendentes",  AsyncMock(return_value=9)):
++        resp = await client.get("/api/admin/pendentes?limit=5&offset=0", headers=AUTH_HEADER)
++
++    assert resp.status_code == 200
++    assert resp.headers["X-Total-Count"] == "9"
++
++
++@pytest.mark.asyncio
++async def test_pendentes_repassa_limit_e_offset_ao_repository(client):
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++    listar_mock = AsyncMock(return_value=[])
++
++    with patch("repositories.entrada.listar_pendentes", listar_mock), \
++         patch("repositories.entrada.contar_pendentes",  AsyncMock(return_value=0)):
++        await client.get("/api/admin/pendentes?limit=10&offset=20", headers=AUTH_HEADER)
++
++    listar_mock.assert_called_once_with(pool, limit=10, offset=20)
++
++
++@pytest.mark.asyncio
++async def test_pendentes_limit_acima_de_200_retorna_422(client):
++    """Mesmo teto do feed (le=200) — protege contra páginas gigantes."""
++    app.dependency_overrides[get_pool] = lambda: MagicMock()
++    resp = await client.get("/api/admin/pendentes?limit=500", headers=AUTH_HEADER)
++    assert resp.status_code == 422
+\ No newline at end of file
+diff --git a/backend/tests/test_eventos.py b/backend/tests/test_eventos.py
+index d162c39..3373e6c 100644
+--- a/backend/tests/test_eventos.py
++++ b/backend/tests/test_eventos.py
+@@ -3,6 +3,7 @@ Testes do repositório e endpoints de eventos.
+ """
+ import uuid
+ import pytest
++from datetime import datetime, timezone, timedelta
+ from unittest.mock import AsyncMock, MagicMock, patch
+ from main import app
+ from utils.db import get_pool
+@@ -41,11 +42,24 @@ def make_uuid():
+     return str(uuid.uuid4())
+ 
+ 
+-def _evento(ativo=True, nome="Canal3 Expo 2024", slug="canal3-expo-2024"):
++def _evento(ativo=True, publico=True, nome="Canal3 Expo 2024", slug="canal3-expo-2024"):
+     return {
+         "id": make_uuid(), "nome": nome, "slug": slug,
+-        "ativo": ativo, "data_inicio": "2024-11-02T00:00:00",
+-        "data_fim": None, "criado_em": "2024-01-01T00:00:00",
++        "ativo": ativo, "publico": publico,
++        "data_inicio": datetime.now(timezone.utc) - timedelta(days=1),
++        "data_fim":    datetime.now(timezone.utc) + timedelta(days=1),
++        "criado_em": "2024-01-01T00:00:00",
++    }
++
++
++def _evento_fora_da_janela(nome="Evento Encerrado", slug="evento-encerrado"):
++    """Evento publico=true mas fora da janela de envio — visível, sem receber score."""
++    return {
++        "id": make_uuid(), "nome": nome, "slug": slug,
++        "ativo": True, "publico": True,
++        "data_inicio": datetime.now(timezone.utc) - timedelta(days=10),
++        "data_fim":    datetime.now(timezone.utc) - timedelta(days=1),
++        "criado_em": "2024-01-01T00:00:00",
+     }
+ 
+ 
+@@ -93,13 +107,46 @@ async def test_criar_evento(client):
+ 
+     with patch("repositories.evento.criar", AsyncMock(return_value=_evento())):
+         resp = await client.post("/api/admin/eventos",
+-            json={"nome": "Canal3 Expo 2024", "slug": "canal3-expo-2024"},
++            json={
++                "nome": "Canal3 Expo 2024", "slug": "canal3-expo-2024",
++                "data_inicio": "2024-11-01T00:00:00Z",
++                "data_fim":    "2024-11-30T23:59:59Z",
++            },
+             headers=AUTH_HEADER)
+ 
+     assert resp.status_code == 201
+     assert resp.json()["slug"] == "canal3-expo-2024"
+ 
+ 
++@pytest.mark.asyncio
++async def test_criar_evento_sem_janela_retorna_422(client):
++    """data_inicio/data_fim são obrigatórios — ver EVENTOS_SPEC.md §2, decisão #1."""
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    resp = await client.post("/api/admin/eventos",
++        json={"nome": "Sem Janela", "slug": "sem-janela"},
++        headers=AUTH_HEADER)
++
++    assert resp.status_code == 422
++
++
++@pytest.mark.asyncio
++async def test_criar_evento_data_fim_antes_de_inicio_retorna_422(client):
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    resp = await client.post("/api/admin/eventos",
++        json={
++            "nome": "Janela Invertida", "slug": "janela-invertida",
++            "data_inicio": "2024-11-30T00:00:00Z",
++            "data_fim":    "2024-11-01T00:00:00Z",
++        },
++        headers=AUTH_HEADER)
++
++    assert resp.status_code == 422
++
++
+ @pytest.mark.asyncio
+ async def test_criar_evento_sem_auth_retorna_401(client):
+     app.dependency_overrides.pop(require_admin, None)  # remove override p/ testar auth real
+@@ -116,7 +163,11 @@ async def test_criar_evento_slug_duplicado_retorna_409(client):
+     with patch("repositories.evento.criar",
+                AsyncMock(side_effect=Exception("unique constraint"))):
+         resp = await client.post("/api/admin/eventos",
+-            json={"nome": "Dup", "slug": "dup"},
++            json={
++                "nome": "Dup", "slug": "dup",
++                "data_inicio": "2024-11-01T00:00:00Z",
++                "data_fim":    "2024-11-30T23:59:59Z",
++            },
+             headers=AUTH_HEADER)
+ 
+     assert resp.status_code == 409
+@@ -154,8 +205,8 @@ async def test_atualizar_evento_inexistente_retorna_404(client):
+ # ── Upload associa evento_id ──────────────────────────────────
+ 
+ @pytest.mark.asyncio
+-async def test_upload_associa_evento_ativo(client):
+-    """Upload deve buscar evento ativo e incluir evento_id na entrada."""
++async def test_upload_associa_evento_id(client):
++    """Upload no endpoint escopado deve incluir evento_id na entrada."""
+     import io
+     evento  = _evento()
+     jogo_id = make_uuid()
+@@ -171,16 +222,15 @@ async def test_upload_associa_evento_ativo(client):
+     app.dependency_overrides[get_pool] = lambda: pool
+     inserir_mock = AsyncMock(return_value=entrada)
+ 
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          AsyncMock()), \
+-         patch("routers.upload.entrada_repo.inserir",    inserir_mock), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=evento)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="megamania")), \
+-         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "megamania"})):
+-        resp = await client.post("/api/upload",
++    with patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
++         patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
++         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.broker.publish",          AsyncMock()), \
++         patch("routers.evento_publico.entrada_repo.inserir",    inserir_mock), \
++         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=evento)), \
++         patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="megamania")):
++        resp = await client.post(f"/api/e/{evento['slug']}/upload",
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": jogo_id},
+             files=[("foto", ("f.jpg", io.BytesIO(jpeg), "image/jpeg"))])
+ 
+@@ -190,35 +240,60 @@ async def test_upload_associa_evento_ativo(client):
+ 
+ 
+ @pytest.mark.asyncio
+-async def test_upload_sem_evento_ativo_evento_id_none(client):
+-    """Sem evento ativo, evento_id deve ser None — upload não é bloqueado."""
++async def test_upload_evento_inexistente_retorna_404(client):
++    """Sem evento_id na URL não existe mais — evento inexistente é sempre 404."""
+     import io
+     jogo_id = make_uuid()
+-    entrada = {
+-        "id": make_uuid(), "jogo_id": jogo_id, "nick": "P1", "nome": None,
+-        "pontuacao": 5000, "foto_url": "https://cdn/f.jpg",
+-        "no_ranking": True, "pendente": False,
+-        "evento_id": None, "criado_em": "2024-01-01",
+-    }
+     jpeg = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xff\xd9"
+ 
+-    pool = _make_pool(entrada)
++    pool = MagicMock()
+     app.dependency_overrides[get_pool] = lambda: pool
+-    inserir_mock = AsyncMock(return_value=entrada)
+ 
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          AsyncMock()), \
+-         patch("routers.upload.entrada_repo.inserir",    inserir_mock), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="megamania")), \
+-         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "megamania"})):
+-        resp = await client.post("/api/upload",
++    with patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=None)):
++        resp = await client.post("/api/e/nao-existe/upload",
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": jogo_id},
+             files=[("foto", ("f.jpg", io.BytesIO(jpeg), "image/jpeg"))])
+ 
+-    assert resp.status_code == 201
+-    dados = inserir_mock.call_args[0][1]
+-    assert dados.get("evento_id") is None
+\ No newline at end of file
++    assert resp.status_code == 404
++
++
++@pytest.mark.asyncio
++async def test_upload_fora_da_janela_retorna_422(client):
++    """
++    Evento publico=true mas fora de [data_inicio, data_fim]: visível,
++    mas não aceita mais envios (EVENTOS_SPEC.md §3).
++    """
++    import io
++    evento  = _evento_fora_da_janela()
++    jogo_id = make_uuid()
++    jpeg = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xff\xd9"
++
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=evento)):
++        resp = await client.post(f"/api/e/{evento['slug']}/upload",
++            data={"nick": "P1", "pontuacao": "5000", "jogo_id": jogo_id},
++            files=[("foto", ("f.jpg", io.BytesIO(jpeg), "image/jpeg"))])
++
++    assert resp.status_code == 422
++    assert "não está mais aceitando" in resp.json()["detail"]
++
++
++@pytest.mark.asyncio
++async def test_upload_evento_nao_publico_retorna_403(client):
++    """Evento existente mas publico=false não aceita envio nem leitura."""
++    import io
++    evento  = _evento(publico=False)
++    jogo_id = make_uuid()
++    jpeg = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00\xff\xd9"
++
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=evento)):
++        resp = await client.post(f"/api/e/{evento['slug']}/upload",
++            data={"nick": "P1", "pontuacao": "5000", "jogo_id": jogo_id},
++            files=[("foto", ("f.jpg", io.BytesIO(jpeg), "image/jpeg"))])
++
++    assert resp.status_code == 403
+\ No newline at end of file
+diff --git a/backend/tests/test_fluxo_upload.py b/backend/tests/test_fluxo_upload.py
+index 3b4b398..165b11c 100644
+--- a/backend/tests/test_fluxo_upload.py
++++ b/backend/tests/test_fluxo_upload.py
+@@ -4,18 +4,29 @@ Testes de integração do fluxo completo de upload.
+ import io
+ import uuid
+ import pytest
++from datetime import datetime, timezone, timedelta
+ from unittest.mock import AsyncMock, MagicMock, patch
+ from main import app
+ from utils.db import get_pool
+ 
+ JOGO_ID = "550e8400-e29b-41d4-a716-446655440000"
+-URL     = "/api/upload"
++URL     = "/api/e/canal3expo/upload"
+ 
+ 
+ def make_uuid():
+     return str(uuid.uuid4())
+ 
+ 
++def _evento_ok():
++    """Evento aberto: publico=true e dentro da janela de envio."""
++    return {
++        "id": make_uuid(), "nome": "Canal3 Expo", "slug": "canal3expo",
++        "ativo": True, "publico": True,
++        "data_inicio": datetime.now(timezone.utc) - timedelta(days=1),
++        "data_fim":    datetime.now(timezone.utc) + timedelta(days=1),
++    }
++
++
+ def make_jpeg_bytes():
+     return (b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+             b"\xff\xd9")
+@@ -69,15 +80,15 @@ async def test_upload_com_foto_entra_direto_no_ranking(client):
+ 
+     app.dependency_overrides[get_pool] = lambda: pool
+ 
+-    with patch("routers.upload.storage.upload_foto",  AsyncMock(return_value="https://cdn/f.jpg")), \
+-         patch("routers.upload.rl.checar_rate_limit", AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",        broker), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",  AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",         AsyncMock(return_value="pac-man")), \
+-         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
++    with patch("routers.evento_publico.storage.upload_foto",  AsyncMock(return_value="https://cdn/f.jpg")), \
++         patch("routers.evento_publico.rl.checar_rate_limit", AsyncMock(return_value=False)), \
++         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.broker.publish",        broker), \
++         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
++         patch("routers.evento_publico.entrada_repo.inserir",  AsyncMock(return_value=entry)), \
++         patch("routers.evento_publico._slug_from_id",         AsyncMock(return_value="pac-man")), \
++         patch("routers.evento_publico.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
+         resp = await client.post(URL,
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
+             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+@@ -95,13 +106,13 @@ async def test_upload_sem_foto_vai_para_moderacao(client):
+ 
+     app.dependency_overrides[get_pool] = lambda: pool
+ 
+-    with patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          broker), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")):
++    with patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
++         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.broker.publish",          broker), \
++         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
++         patch("routers.evento_publico.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
++         patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")):
+         resp = await client.post(URL,
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID})
+ 
+@@ -118,14 +129,14 @@ async def test_rate_limit_ativado_vai_para_moderacao(client):
+ 
+     app.dependency_overrides[get_pool] = lambda: pool
+ 
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=True)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          broker), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")):
++    with patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
++         patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=True)), \
++         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.broker.publish",          broker), \
++         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
++         patch("routers.evento_publico.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
++         patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")):
+         resp = await client.post(URL,
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
+             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+@@ -143,15 +154,15 @@ async def test_nick_repetido_marca_anterior_como_superado(client):
+ 
+     app.dependency_overrides[get_pool] = lambda: pool
+ 
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", marcar_mock), \
+-         patch("routers.upload.broker.publish",          AsyncMock()), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
+-         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
++    with patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
++         patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
++         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", marcar_mock), \
++         patch("routers.evento_publico.broker.publish",          AsyncMock()), \
++         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
++         patch("routers.evento_publico.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
++         patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")), \
++         patch("routers.evento_publico.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
+         await client.post(URL,
+             data={"nick": "P1", "pontuacao": "9999", "jogo_id": JOGO_ID},
+             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+@@ -166,9 +177,10 @@ async def test_score_acima_do_maximo_retorna_422(client):
+ 
+     app.dependency_overrides[get_pool] = lambda: pool
+ 
+-    with patch("routers.upload.storage.upload_foto",  AsyncMock(return_value="https://cdn/f.jpg")), \
+-         patch("routers.upload.rl.checar_rate_limit", AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score",
++    with patch("routers.evento_publico.storage.upload_foto",  AsyncMock(return_value="https://cdn/f.jpg")), \
++         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
++         patch("routers.evento_publico.rl.checar_rate_limit", AsyncMock(return_value=False)), \
++         patch("routers.evento_publico.score_svc.validar_score",
+                AsyncMock(side_effect=HTTPException(422, "Pontuacao excede o maximo"))):
+         resp = await client.post(URL,
+             data={"nick": "P1", "pontuacao": "9999999", "jogo_id": JOGO_ID},
+@@ -189,15 +201,15 @@ async def test_nome_salvo_no_banco(client):
+ 
+     app.dependency_overrides[get_pool] = lambda: pool
+ 
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          AsyncMock()), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    inserir_mock), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
+-         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
++    with patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
++         patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
++         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.broker.publish",          AsyncMock()), \
++         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
++         patch("routers.evento_publico.entrada_repo.inserir",    inserir_mock), \
++         patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")), \
++         patch("routers.evento_publico.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
+         resp = await client.post(URL,
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID, "nome": "Carlos Lima"},
+             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+@@ -215,15 +227,15 @@ async def test_upload_sem_nome_funciona(client):
+ 
+     app.dependency_overrides[get_pool] = lambda: pool
+ 
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          AsyncMock()), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
+-         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
++    with patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
++         patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
++         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
++         patch("routers.evento_publico.broker.publish",          AsyncMock()), \
++         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
++         patch("routers.evento_publico.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
++         patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")), \
++         patch("routers.evento_publico.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
+         resp = await client.post(URL,
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
+             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+diff --git a/backend/tests/test_placar_publico.py b/backend/tests/test_placar_publico.py
+new file mode 100644
+index 0000000..b067804
+--- /dev/null
++++ b/backend/tests/test_placar_publico.py
+@@ -0,0 +1,190 @@
++"""
++Testes do router público de placares — /api/p/{slug}/...
++Ver docs/EVENTOS_SPEC.md §3-4.
++"""
++import uuid
++import pytest
++from unittest.mock import AsyncMock, MagicMock, patch
++from main import app
++from utils.db import get_pool
++
++
++def make_uuid():
++    return str(uuid.uuid4())
++
++
++def _placar_global():
++    return {"id": make_uuid(), "nome": "Hall da Fama Geral", "slug": "geral", "escopo": "global"}
++
++
++def _placar_customizado():
++    return {"id": make_uuid(), "nome": "Temporada 2026", "slug": "temporada-2026", "escopo": "customizado"}
++
++
++def _jogo():
++    return {"id": make_uuid(), "nome": "Pac-Man", "slug": "pac-man", "score_max": 999990}
++
++
++@pytest.fixture(autouse=True)
++def clear_overrides():
++    yield
++    app.dependency_overrides.pop(get_pool, None)
++
++
++# ── Placar inexistente ────────────────────────────────────────────────────────
++
++@pytest.mark.asyncio
++async def test_placar_inexistente_retorna_404(client):
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("repositories.placar.buscar_por_slug", AsyncMock(return_value=None)):
++        resp = await client.get("/api/p/nao-existe/ranking/pac-man")
++
++    assert resp.status_code == 404
++
++
++# ── Ranking por placar ─────────────────────────────────────────────────────────
++
++@pytest.mark.asyncio
++async def test_ranking_placar_global_sem_filtro_de_evento(client):
++    """
++    Placar global: a query não filtra por evento (repositories.placar.listar_ranking
++    decide isso sozinha) — o teste garante que o router repassa o placar certo
++    e devolve o que o repository retornar.
++    """
++    placar = _placar_global()
++    jogo   = _jogo()
++    entradas = [
++        {"id": make_uuid(), "nick": "A", "pontuacao": 99000, "evento_id": make_uuid()},
++        {"id": make_uuid(), "nick": "B", "pontuacao": 88000, "evento_id": make_uuid()},
++    ]
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("repositories.placar.buscar_por_slug", AsyncMock(return_value=placar)), \
++         patch("repositories.jogo.buscar_por_slug",   AsyncMock(return_value=jogo)), \
++         patch("repositories.placar.listar_ranking",  AsyncMock(return_value=entradas)) as listar_mock:
++        resp = await client.get("/api/p/geral/ranking/pac-man")
++
++    assert resp.status_code == 200
++    data = resp.json()
++    assert data["placar"] == "geral"
++    assert len(data["entradas"]) == 2
++    # Garante que o placar (com escopo) foi repassado ao repository
++    listar_mock.assert_called_once_with(pool, jogo["id"], placar)
++
++
++@pytest.mark.asyncio
++async def test_ranking_placar_customizado(client):
++    placar = _placar_customizado()
++    jogo   = _jogo()
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("repositories.placar.buscar_por_slug", AsyncMock(return_value=placar)), \
++         patch("repositories.jogo.buscar_por_slug",   AsyncMock(return_value=jogo)), \
++         patch("repositories.placar.listar_ranking",  AsyncMock(return_value=[])):
++        resp = await client.get("/api/p/temporada-2026/ranking/pac-man")
++
++    assert resp.status_code == 200
++    assert resp.json()["placar"] == "temporada-2026"
++
++
++@pytest.mark.asyncio
++async def test_ranking_placar_jogo_inexistente_retorna_404(client):
++    placar = _placar_global()
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("repositories.placar.buscar_por_slug", AsyncMock(return_value=placar)), \
++         patch("repositories.jogo.buscar_por_slug",   AsyncMock(return_value=None)):
++        resp = await client.get("/api/p/geral/ranking/nao-existe")
++
++    assert resp.status_code == 404
++
++
++# ── Líderes do placar ──────────────────────────────────────────────────────────
++
++@pytest.mark.asyncio
++async def test_lideres_placar_retorna_top1_por_jogo(client):
++    placar = _placar_global()
++    lideres = {make_uuid(): {"slug": "pac-man", "nick": "CAMPEAO", "pontuacao": 99000}}
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("repositories.placar.buscar_por_slug", AsyncMock(return_value=placar)), \
++         patch("repositories.placar.listar_lideres",  AsyncMock(return_value=lideres)):
++        resp = await client.get("/api/p/geral/ranking/lideres")
++
++    assert resp.status_code == 200
++    assert list(resp.json().values())[0]["nick"] == "CAMPEAO"
++
++
++@pytest.mark.asyncio
++async def test_rota_lideres_nao_e_capturada_como_jogo_slug(client):
++    """
++    Regressão da armadilha já documentada em SPEC.md §8: /ranking/lideres
++    precisa ser resolvida pela rota específica, não pela genérica
++    /ranking/{jogo_slug} tratando 'lideres' como se fosse um jogo.
++    """
++    placar = _placar_global()
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("repositories.placar.buscar_por_slug", AsyncMock(return_value=placar)), \
++         patch("repositories.placar.listar_lideres",  AsyncMock(return_value={})) as lideres_mock, \
++         patch("repositories.jogo.buscar_por_slug",   AsyncMock(return_value=None)) as jogo_mock:
++        resp = await client.get("/api/p/geral/ranking/lideres")
++
++    assert resp.status_code == 200
++    lideres_mock.assert_called_once()
++    jogo_mock.assert_not_called()
++
++
++# ── Repository: SQL muda de verdade entre global e customizado ────────────────
++
++@pytest.mark.asyncio
++async def test_repository_ranking_global_nao_filtra_evento(fake_pool):
++    import repositories.placar as placar_repo
++
++    fake_pool.set_fetch([])
++    placar = _placar_global()
++
++    await placar_repo.listar_ranking(fake_pool, "jogo-id", placar)
++
++    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
++    assert "placar_eventos" not in sql
++    assert "evento_id" not in sql or "IN (SELECT evento_id" not in sql
++
++
++@pytest.mark.asyncio
++async def test_repository_ranking_customizado_filtra_por_placar_eventos(fake_pool):
++    import repositories.placar as placar_repo
++
++    fake_pool.set_fetch([])
++    placar = _placar_customizado()
++
++    await placar_repo.listar_ranking(fake_pool, "jogo-id", placar)
++
++    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
++    assert "placar_eventos" in sql
++    assert "WHERE placar_id = $2" in sql
++    # jogo_id e placar_id são os dois parâmetros posicionais
++    assert fake_pool.fetch.call_args[0][1:] == ("jogo-id", placar["id"])
++
++
++@pytest.mark.asyncio
++async def test_repository_lideres_global_vs_customizado_sql_diferente(fake_pool):
++    import repositories.placar as placar_repo
++
++    fake_pool.set_fetch([])
++    await placar_repo.listar_lideres(fake_pool, _placar_global())
++    sql_global = " ".join(fake_pool.fetch.call_args[0][0].split())
++
++    fake_pool.set_fetch([])
++    await placar_repo.listar_lideres(fake_pool, _placar_customizado())
++    sql_customizado = " ".join(fake_pool.fetch.call_args[0][0].split())
++
++    assert "placar_eventos" not in sql_global
++    assert "placar_eventos" in sql_customizado
+diff --git a/backend/tests/test_telao_publico.py b/backend/tests/test_telao_publico.py
+new file mode 100644
+index 0000000..5a1a743
+--- /dev/null
++++ b/backend/tests/test_telao_publico.py
+@@ -0,0 +1,123 @@
++"""
++Testes do router público de telões — /api/teloes/{slug}/config.
++Ver docs/EVENTOS_SPEC.md §3-5.
++"""
++import uuid
++import pytest
++from unittest.mock import AsyncMock, MagicMock, patch
++from main import app
++from utils.db import get_pool
++
++
++def make_uuid():
++    return str(uuid.uuid4())
++
++
++@pytest.fixture(autouse=True)
++def clear_overrides():
++    yield
++    app.dependency_overrides.pop(get_pool, None)
++
++
++@pytest.mark.asyncio
++async def test_telao_inexistente_retorna_404(client):
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("repositories.telao.buscar_config_por_slug", AsyncMock(return_value=None)):
++        resp = await client.get("/api/teloes/nao-existe/config")
++
++    assert resp.status_code == 404
++
++
++@pytest.mark.asyncio
++async def test_telao_de_placar_retorna_config_completa(client):
++    """Telão apontando pra um placar (ex.: Hall da Fama Geral)."""
++    config = {
++        "nome": "Hall da Fama Geral",
++        "slug": "geral",
++        "top_n": 10,
++        "evento_slug": None,
++        "placar_slug": "geral",
++        "jogos": [
++            {"nome": "Donkey Kong", "slug": "donkey-kong", "ordem": 0},
++            {"nome": "Galaga",      "slug": "galaga",      "ordem": 1},
++        ],
++    }
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("repositories.telao.buscar_config_por_slug", AsyncMock(return_value=config)):
++        resp = await client.get("/api/teloes/geral/config")
++
++    assert resp.status_code == 200
++    data = resp.json()
++    assert data["top_n"] == 10
++    assert data["placar_slug"] == "geral"
++    assert data["evento_slug"] is None
++    assert len(data["jogos"]) == 2
++    assert data["jogos"][0]["slug"] == "donkey-kong"
++
++
++@pytest.mark.asyncio
++async def test_telao_de_evento_retorna_config_completa(client):
++    """Telão apontando pra um evento específico (não um placar)."""
++    config = {
++        "nome": "Telão Entrada Principal",
++        "slug": "entrada-principal",
++        "top_n": 5,
++        "evento_slug": "canal3expo",
++        "placar_slug": None,
++        "jogos": [{"nome": "Pac-Man", "slug": "pac-man", "ordem": 0}],
++    }
++    pool = MagicMock()
++    app.dependency_overrides[get_pool] = lambda: pool
++
++    with patch("repositories.telao.buscar_config_por_slug", AsyncMock(return_value=config)):
++        resp = await client.get("/api/teloes/entrada-principal/config")
++
++    assert resp.status_code == 200
++    data = resp.json()
++    assert data["evento_slug"] == "canal3expo"
++    assert data["placar_slug"] is None
++    assert data["top_n"] == 5
++
++
++# ── Repository: SQL monta jogos ordenados e só ativos ─────────────────────────
++
++@pytest.mark.asyncio
++async def test_repository_busca_apenas_jogos_ativos_do_telao():
++    """
++    telao_jogos.ativo=false não deve aparecer na config — a query do
++    repository filtra isso (ver repositories/telao.py).
++    """
++    import repositories.telao as telao_repo
++
++    telao_row = {
++        "id": make_uuid(), "nome": "Hall da Fama Geral", "slug": "geral",
++        "top_n": 10, "evento_id": None, "evento_slug": None,
++        "placar_id": make_uuid(), "placar_slug": "geral",
++    }
++    pool = MagicMock()
++    pool.fetchrow = AsyncMock(return_value=telao_row)
++    pool.fetch    = AsyncMock(return_value=[{"nome": "Pac-Man", "slug": "pac-man", "ordem": 0}])
++
++    resultado = await telao_repo.buscar_config_por_slug(pool, "geral")
++
++    assert resultado["nome"] == "Hall da Fama Geral"
++    assert len(resultado["jogos"]) == 1
++    # Confirma que a query de jogos filtra por ativo=true (checando a SQL enviada)
++    sql_jogos = pool.fetch.call_args[0][0]
++    assert "tj.ativo    = true" in sql_jogos or "ativo = true" in " ".join(sql_jogos.split())
++
++
++@pytest.mark.asyncio
++async def test_repository_retorna_none_para_slug_inexistente():
++    import repositories.telao as telao_repo
++
++    pool = MagicMock()
++    pool.fetchrow = AsyncMock(return_value=None)
++
++    resultado = await telao_repo.buscar_config_por_slug(pool, "nao-existe")
++
++    assert resultado is None
+diff --git a/backend/tests/test_upload.py b/backend/tests/test_upload.py
+index 0ae1c36..0f897ee 100644
+--- a/backend/tests/test_upload.py
++++ b/backend/tests/test_upload.py
+@@ -1,17 +1,22 @@
+ """
+-Testes unitários do endpoint POST /api/upload.
++Testes unitários do endpoint POST /api/e/{slug}/upload.
+ Cobrem: validação de arquivo, campos obrigatórios e regras de negócio.
++
++Endpoint escopado por evento desde EVENTOS_SPEC.md — o antigo
++POST /api/upload (genérico, sem evento) foi removido.
+ """
+ import io
+ import uuid
+ import pytest
++from datetime import datetime, timezone, timedelta
+ from unittest.mock import AsyncMock, MagicMock, patch
+ from main import app
+ from utils.db import get_pool
+ 
+-JOGO_ID  = "550e8400-e29b-41d4-a716-446655440000"
+-URL      = "/api/upload"
+-FOTO_URL = "https://cdn.example.com/foto.jpg"
++JOGO_ID   = "550e8400-e29b-41d4-a716-446655440000"
++EVENTO_SLUG = "canal3expo"
++URL       = f"/api/e/{EVENTO_SLUG}/upload"
++FOTO_URL  = "https://cdn.example.com/foto.jpg"
+ 
+ 
+ def make_jpeg_bytes():
+@@ -29,6 +34,16 @@ def make_pdf_bytes():
+     return b"%PDF-1.4 fake content that is definitely not an image"
+ 
+ 
++def _evento():
++    """Evento aberto: publico=true e dentro da janela de envio."""
++    return {
++        "id": str(uuid.uuid4()), "nome": "Canal3 Expo", "slug": EVENTO_SLUG,
++        "ativo": True, "publico": True,
++        "data_inicio": datetime.now(timezone.utc) - timedelta(days=1),
++        "data_fim":    datetime.now(timezone.utc) + timedelta(days=1),
++    }
++
++
+ def _entrada(pendente=False, foto_url=FOTO_URL, nome=None):
+     return {
+         "id": str(uuid.uuid4()), "jogo_id": JOGO_ID,
+@@ -77,22 +92,60 @@ def _setup(pendente=False, foto_url=FOTO_URL, nome=None):
+     return entry, pool
+ 
+ 
++def _patches(entry, publish_mock=None, inserir_mock=None):
++    """Contexto padrão de patches para o fluxo de upload evento-scoped."""
++    return [
++        patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento())),
++        patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)),
++        patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)),
++        patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)),
++        patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)),
++        patch("routers.evento_publico.broker.publish",          publish_mock or AsyncMock()),
++        patch("routers.evento_publico.entrada_repo.inserir",    inserir_mock or AsyncMock(return_value=entry)),
++        patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")),
++    ]
++
++
++def _apply(patches):
++    from contextlib import ExitStack
++    stack = ExitStack()
++    for p in patches:
++        stack.enter_context(p)
++    return stack
++
++
++# ── Validação de evento (novidade do endpoint escopado) ───────────────────────
++
++@pytest.mark.asyncio
++async def test_rejeita_evento_inexistente(client):
++    pool = MagicMock()
++    pool.fetchrow = AsyncMock(return_value=None)
++    app.dependency_overrides[get_pool] = lambda: pool
++    with patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=None)):
++        resp = await client.post(URL,
++            data={"nick": "X", "pontuacao": "1", "jogo_id": JOGO_ID},
++            files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
++    assert resp.status_code == 404
++
++
+ # ── Validação de arquivo ──────────────────────────────────────────────────────
+ 
+ @pytest.mark.asyncio
+ async def test_rejeita_acima_de_5mb(client):
+     grande = b"x" * (5 * 1024 * 1024 + 1)
+-    resp = await client.post(URL,
+-        data={"nick": "X", "pontuacao": "1", "jogo_id": JOGO_ID},
+-        files=[("foto", ("f.jpg", io.BytesIO(grande), "image/jpeg"))])
++    with patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento())):
++        resp = await client.post(URL,
++            data={"nick": "X", "pontuacao": "1", "jogo_id": JOGO_ID},
++            files=[("foto", ("f.jpg", io.BytesIO(grande), "image/jpeg"))])
+     assert resp.status_code == 413
+ 
+ 
+ @pytest.mark.asyncio
+ async def test_rejeita_pdf_com_extensao_jpg(client):
+-    resp = await client.post(URL,
+-        data={"nick": "X", "pontuacao": "1", "jogo_id": JOGO_ID},
+-        files=[("foto", ("f.jpg", io.BytesIO(make_pdf_bytes()), "image/jpeg"))])
++    with patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento())):
++        resp = await client.post(URL,
++            data={"nick": "X", "pontuacao": "1", "jogo_id": JOGO_ID},
++            files=[("foto", ("f.jpg", io.BytesIO(make_pdf_bytes()), "image/jpeg"))])
+     assert resp.status_code == 422
+     assert "Formato inválido" in resp.json()["detail"]
+ 
+@@ -100,15 +153,7 @@ async def test_rejeita_pdf_com_extensao_jpg(client):
+ @pytest.mark.asyncio
+ async def test_aceita_jpeg_valido(client):
+     entry, _ = _setup()
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          AsyncMock()), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
+-         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
++    with _apply(_patches(entry)):
+         resp = await client.post(URL,
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
+             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+@@ -118,15 +163,7 @@ async def test_aceita_jpeg_valido(client):
+ @pytest.mark.asyncio
+ async def test_aceita_png_valido(client):
+     entry, _ = _setup()
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          AsyncMock()), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
+-         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
++    with _apply(_patches(entry)):
+         resp = await client.post(URL,
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
+             files=[("foto", ("f.png", io.BytesIO(make_png_bytes()), "image/png"))])
+@@ -137,25 +174,28 @@ async def test_aceita_png_valido(client):
+ 
+ @pytest.mark.asyncio
+ async def test_rejeita_sem_nick(client):
+-    resp = await client.post(URL,
+-        data={"pontuacao": "1000", "jogo_id": JOGO_ID},
+-        files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
++    with patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento())):
++        resp = await client.post(URL,
++            data={"pontuacao": "1000", "jogo_id": JOGO_ID},
++            files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+     assert resp.status_code == 422
+ 
+ 
+ @pytest.mark.asyncio
+ async def test_rejeita_score_zero(client):
+-    resp = await client.post(URL,
+-        data={"nick": "X", "pontuacao": "0", "jogo_id": JOGO_ID},
+-        files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
++    with patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento())):
++        resp = await client.post(URL,
++            data={"nick": "X", "pontuacao": "0", "jogo_id": JOGO_ID},
++            files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+     assert resp.status_code == 422
+ 
+ 
+ @pytest.mark.asyncio
+ async def test_rejeita_score_negativo(client):
+-    resp = await client.post(URL,
+-        data={"nick": "X", "pontuacao": "-100", "jogo_id": JOGO_ID},
+-        files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
++    with patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento())):
++        resp = await client.post(URL,
++            data={"nick": "X", "pontuacao": "-100", "jogo_id": JOGO_ID},
++            files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+     assert resp.status_code == 422
+ 
+ 
+@@ -164,13 +204,8 @@ async def test_rejeita_score_negativo(client):
+ @pytest.mark.asyncio
+ async def test_sem_foto_entra_como_pendente(client):
+     entry, _ = _setup(pendente=True, foto_url=None)
+-    with patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          AsyncMock()), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")):
++    patches = _patches(entry)
++    with _apply(patches):
+         resp = await client.post(URL,
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID})
+     assert resp.status_code == 201
+@@ -182,14 +217,17 @@ async def test_sem_foto_entra_como_pendente(client):
+ @pytest.mark.asyncio
+ async def test_rate_limit_entra_como_pendente(client):
+     entry, _ = _setup(pendente=True)
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=True)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          AsyncMock()), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")):
++    patches = [
++        patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento())),
++        patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)),
++        patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=True)),
++        patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)),
++        patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)),
++        patch("routers.evento_publico.broker.publish",          AsyncMock()),
++        patch("routers.evento_publico.entrada_repo.inserir",    AsyncMock(return_value=entry)),
++        patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")),
++    ]
++    with _apply(patches):
+         resp = await client.post(URL,
+             data={"nick": "Spam", "pontuacao": "1000", "jogo_id": JOGO_ID},
+             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+@@ -201,14 +239,17 @@ async def test_rate_limit_entra_como_pendente(client):
+ async def test_pendente_nao_publica_sse(client):
+     entry, _ = _setup(pendente=True)
+     broker_mock = AsyncMock()
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=True)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          broker_mock), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")):
++    patches = [
++        patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento())),
++        patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)),
++        patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=True)),
++        patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)),
++        patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)),
++        patch("routers.evento_publico.broker.publish",          broker_mock),
++        patch("routers.evento_publico.entrada_repo.inserir",    AsyncMock(return_value=entry)),
++        patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")),
++    ]
++    with _apply(patches):
+         await client.post(URL,
+             data={"nick": "P", "pontuacao": "1", "jogo_id": JOGO_ID},
+             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+@@ -219,15 +260,7 @@ async def test_pendente_nao_publica_sse(client):
+ async def test_upload_normal_publica_sse(client):
+     entry, _ = _setup()
+     broker_mock = AsyncMock()
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          broker_mock), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
+-         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
++    with _apply(_patches(entry, publish_mock=broker_mock)):
+         await client.post(URL,
+             data={"nick": "P", "pontuacao": "5000", "jogo_id": JOGO_ID},
+             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+@@ -238,15 +271,7 @@ async def test_upload_normal_publica_sse(client):
+ @pytest.mark.asyncio
+ async def test_retorno_contem_mensagem(client):
+     entry, _ = _setup()
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          AsyncMock()), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
+-         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
++    with _apply(_patches(entry)):
+         resp = await client.post(URL,
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
+             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+@@ -254,6 +279,31 @@ async def test_retorno_contem_mensagem(client):
+     assert "ranking" in resp.json()["mensagem"].lower()
+ 
+ 
++@pytest.mark.asyncio
++async def test_evento_id_gravado_na_entrada(client):
++    """A entrada gravada deve sempre incluir o evento_id do evento da URL."""
++    entry, _ = _setup()
++    inserir_mock = AsyncMock(return_value=entry)
++    evento = _evento()
++    patches = [
++        patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=evento)),
++        patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)),
++        patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)),
++        patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)),
++        patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)),
++        patch("routers.evento_publico.broker.publish",          AsyncMock()),
++        patch("routers.evento_publico.entrada_repo.inserir",    inserir_mock),
++        patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")),
++    ]
++    with _apply(patches):
++        resp = await client.post(URL,
++            data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
++            files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
++    assert resp.status_code == 201
++    dados_inseridos = inserir_mock.call_args[0][1]
++    assert dados_inseridos.get("evento_id") == evento["id"]
++
++
+ # ── Campo nome ────────────────────────────────────────────────────────────────
+ 
+ @pytest.mark.asyncio
+@@ -261,15 +311,7 @@ async def test_nome_enviado_e_salvo(client):
+     """Campo nome deve ser repassado para o repositório."""
+     entry, _ = _setup(nome="Maria Silva")
+     inserir_mock = AsyncMock(return_value=entry)
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          AsyncMock()), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    inserir_mock), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
+-         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
++    with _apply(_patches(entry, inserir_mock=inserir_mock)):
+         resp = await client.post(URL,
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID, "nome": "Maria Silva"},
+             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+@@ -282,16 +324,8 @@ async def test_nome_enviado_e_salvo(client):
+ async def test_nome_opcional_sem_nome(client):
+     """Upload sem nome deve funcionar normalmente."""
+     entry, _ = _setup()
+-    with patch("routers.upload.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)), \
+-         patch("routers.upload.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+-         patch("routers.upload.score_svc.validar_score", AsyncMock(return_value=None)), \
+-         patch("routers.upload.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+-         patch("routers.upload.broker.publish",          AsyncMock()), \
+-         patch("routers.upload.evento_repo.buscar_ativo_mais_recente", AsyncMock(return_value=None)), \
+-         patch("routers.upload.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
+-         patch("routers.upload._slug_from_id",           AsyncMock(return_value="pac-man")), \
+-         patch("routers.upload.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
++    with _apply(_patches(entry)):
+         resp = await client.post(URL,
+             data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
+             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+-    assert resp.status_code == 201
+\ No newline at end of file
++    assert resp.status_code == 201
+-- 
+2.43.0
+

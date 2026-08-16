@@ -81,7 +81,8 @@ async def test_token_correto_retorna_200(client):
     pool.fetch = AsyncMock(return_value=[])
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("repositories.entrada.listar_feed_admin", AsyncMock(return_value=[])):
+    with patch("repositories.entrada.listar_feed_admin", AsyncMock(return_value=[])), \
+         patch("repositories.entrada.contar_feed_admin",  AsyncMock(return_value=0)):
         resp = await client.get("/api/admin/feed", headers=AUTH_HEADER)
     assert resp.status_code == 200
 
@@ -307,3 +308,71 @@ async def test_restaurar_ranking_sem_confirmar_retorna_400(client):
                              json={"confirmar": ""},
                              headers=AUTH_HEADER)
     assert resp.status_code == 400
+
+
+# ── Paginação real: feed e pendentes (EVENTOS_SPEC.md §5) ─────────────────────
+
+@pytest.mark.asyncio
+async def test_feed_expoe_total_no_header(client):
+    """
+    GET /api/admin/feed retorna X-Total-Count com a contagem geral —
+    independente de quantos itens vieram na página atual (limit/offset).
+    """
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.entrada.listar_feed_admin", AsyncMock(return_value=[make_entrada()])), \
+         patch("repositories.entrada.contar_feed_admin",  AsyncMock(return_value=137)):
+        resp = await client.get("/api/admin/feed?limit=1&offset=0", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.headers["X-Total-Count"] == "137"
+    assert len(resp.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_feed_repassa_limit_e_offset_ao_repository(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    listar_mock = AsyncMock(return_value=[])
+
+    with patch("repositories.entrada.listar_feed_admin", listar_mock), \
+         patch("repositories.entrada.contar_feed_admin",  AsyncMock(return_value=0)):
+        await client.get("/api/admin/feed?limit=20&offset=40", headers=AUTH_HEADER)
+
+    listar_mock.assert_called_once_with(pool, limit=20, offset=40)
+
+
+@pytest.mark.asyncio
+async def test_pendentes_expoe_total_no_header(client):
+    """GET /api/admin/pendentes também ganhou paginação real (antes não tinha)."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.entrada.listar_pendentes", AsyncMock(return_value=[])), \
+         patch("repositories.entrada.contar_pendentes",  AsyncMock(return_value=9)):
+        resp = await client.get("/api/admin/pendentes?limit=5&offset=0", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.headers["X-Total-Count"] == "9"
+
+
+@pytest.mark.asyncio
+async def test_pendentes_repassa_limit_e_offset_ao_repository(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    listar_mock = AsyncMock(return_value=[])
+
+    with patch("repositories.entrada.listar_pendentes", listar_mock), \
+         patch("repositories.entrada.contar_pendentes",  AsyncMock(return_value=0)):
+        await client.get("/api/admin/pendentes?limit=10&offset=20", headers=AUTH_HEADER)
+
+    listar_mock.assert_called_once_with(pool, limit=10, offset=20)
+
+
+@pytest.mark.asyncio
+async def test_pendentes_limit_acima_de_200_retorna_422(client):
+    """Mesmo teto do feed (le=200) — protege contra páginas gigantes."""
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.get("/api/admin/pendentes?limit=500", headers=AUTH_HEADER)
+    assert resp.status_code == 422

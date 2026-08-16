@@ -28,20 +28,6 @@ async def listar_ativos(pool: Pool) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def buscar_ativo_mais_recente(pool: Pool) -> dict | None:
-    """Retorna o evento ativo mais recente — usado no upload."""
-    row = await pool.fetchrow(
-        """
-        SELECT id, nome, slug
-        FROM eventos
-        WHERE ativo = true
-        ORDER BY criado_em DESC
-        LIMIT 1
-        """
-    )
-    return dict(row) if row else None
-
-
 async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
     """Busca evento pelo slug. Retorna None se não existir."""
     row = await pool.fetchrow(

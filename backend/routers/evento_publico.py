@@ -3,18 +3,35 @@ Router público de eventos — acessível sem autenticação.
 Prefixo: /api/e/{slug}
 
 Endpoints:
-  GET /api/e/{slug}/config        → config pública do evento
-  GET /api/e/{slug}/jogos         → jogos ativos do evento
-  GET /api/e/{slug}/ranking/{jogo_slug} → ranking filtrado por evento
+  GET  /api/e/{slug}/config             → config pública do evento
+  GET  /api/e/{slug}/jogos              → jogos ativos do evento
+  GET  /api/e/{slug}/ranking/lideres    → top 1 de cada jogo do evento
+  GET  /api/e/{slug}/ranking/{jogo_slug} → ranking filtrado por evento
+  POST /api/e/{slug}/upload             → envio de score para o evento
+
+Ver docs/EVENTOS_SPEC.md para o desenho completo (eventos simultâneos,
+janela de envio, integração com auth em docs/AUTH_SPEC.md §4.3).
 """
-from fastapi import APIRouter, Depends, HTTPException
+import filetype
+import structlog
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, Request, File, Form, UploadFile
+from pydantic import UUID4
 from utils.db import get_pool
+from utils.ip import get_client_ip, hash_ip
+from services import storage, rate_limit as rl, nick as nick_svc, score as score_svc
+from services.sse import broker
 import repositories.evento      as evento_repo
 import repositories.evento_jogo as evento_jogo_repo
 import repositories.jogo        as jogo_repo
 import repositories.entrada     as entrada_repo
 
+log = structlog.get_logger()
+
 router = APIRouter(prefix="/api/e", tags=["evento-publico"])
+
+ALLOWED_MIME = {"image/jpeg", "image/png"}
+MAX_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
 async def _get_evento_publico(slug: str, pool) -> dict:
@@ -26,6 +43,23 @@ async def _get_evento_publico(slug: str, pool) -> dict:
         raise HTTPException(status_code=404, detail="Evento não encontrado")
     if not evento["publico"]:
         raise HTTPException(status_code=403, detail="Este evento está temporariamente inacessível")
+    return evento
+
+
+async def _get_evento_aceitando_envios(slug: str, pool) -> dict:
+    """
+    Helper: além das checagens de _get_evento_publico, garante que o
+    momento atual está dentro da janela [data_inicio, data_fim] do evento.
+    Visibilidade (publico) e janela de envio são independentes — ver
+    docs/EVENTOS_SPEC.md §3.
+    """
+    evento = await _get_evento_publico(slug, pool)
+    agora = datetime.now(timezone.utc)
+    if not (evento["data_inicio"] <= agora <= evento["data_fim"]):
+        raise HTTPException(
+            status_code=422,
+            detail="Este evento não está mais aceitando novas pontuações.",
+        )
     return evento
 
 
@@ -120,3 +154,147 @@ async def get_ranking_evento(slug: str, jogo_slug: str, pool=Depends(get_pool)):
         pool, str(jogo["id"]), str(evento["id"])
     )
     return {"jogo": jogo, "evento": slug, "entradas": entradas}
+
+
+# ── Upload de score ───────────────────────────────────────────
+
+@router.post("/{slug}/upload", status_code=201)
+async def upload_evento(
+    slug: str,
+    request: Request,
+    foto: UploadFile | None = File(None, description="Foto com o placar visível (JPEG ou PNG, máx 5MB — opcional)"),
+    nick: str = Form(..., min_length=1, max_length=50),
+    nome: str | None = Form(default=None, max_length=100),
+    pontuacao: int = Form(..., gt=0, lt=100_000_000),
+    jogo_id: UUID4 = Form(...),
+    pool=Depends(get_pool),
+):
+    """
+    Endpoint principal de participação, escopado por evento.
+
+    Fluxo:
+    1. Evento existe / está publico / dentro da janela de envio (data_inicio-data_fim)
+    2. Valida tipo e tamanho da foto
+    3. Valida score contra o jogo
+    4. Calcula hash do IP e verifica rate limit
+    5. Faz upload da foto para o Storage (imutável)
+    6. Dentro de uma transação:
+       a. Marca entrada anterior do nick como superada
+       b. Insere nova entrada (pendente se rate limit atingido), sempre
+          com evento_id preenchido
+    7. Notifica clientes SSE se a entrada for visível imediatamente
+
+    Nota de integração (docs/AUTH_SPEC.md §4.3): quando a autenticação
+    existir, a checagem de sessão/nick_claims entra entre os passos 1 e 2.
+    """
+    evento = await _get_evento_aceitando_envios(slug, pool)
+
+    # ── 2. Validação da foto (opcional) ──────────────────────────────────────
+    if foto is not None:
+        conteudo = await foto.read()
+        await foto.seek(0)  # rewind para uso posterior
+
+        if len(conteudo) > MAX_SIZE_BYTES:
+            raise HTTPException(status_code=413, detail="Foto excede o limite de 5MB")
+
+        # Valida pelo magic bytes, não pela extensão declarada
+        tipo = filetype.guess(conteudo)
+        mime_detectado = tipo.mime if tipo else "application/octet-stream"
+        if mime_detectado not in ALLOWED_MIME:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Formato inválido ({mime_detectado}). Apenas JPEG e PNG são aceitos",
+            )
+
+    # ── 3. Validação do score ─────────────────────────────────────────────────
+    await score_svc.validar_score(pool, str(jogo_id), pontuacao)
+
+    # ── 4. Rate limit ─────────────────────────────────────────────────────────
+    ip = get_client_ip(request)
+    ip_hash = hash_ip(ip)
+    pendente = await rl.checar_rate_limit(pool, ip_hash)
+
+    if pendente:
+        log.info("upload_rate_limited", ip_hash=ip_hash[:8], nick=nick[:20])
+
+    # ── 5. Upload da foto (se fornecida) ─────────────────────────────────────
+    foto_url = await storage.upload_foto(foto) if foto is not None else None
+
+    # Sem foto → vai para moderação (sem evidência visual do placar)
+    if foto is None:
+        pendente = True
+
+    # ── 6. Transação: marcar anterior como superado + inserir nova entrada ────
+    nick_normalizado = nick_svc.normalizar_nick(nick)
+
+    try:
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await nick_svc.marcar_anterior_como_superado(
+                    pool, nick_normalizado, str(jogo_id), conn=conn
+                )
+
+                entrada = await entrada_repo.inserir(conn, {
+                    "jogo_id":   str(jogo_id),
+                    "nick":      nick.strip(),
+                    "nick_norm": nick_normalizado,
+                    "nome":      nome.strip() if nome else None,
+                    "pontuacao": pontuacao,
+                    "foto_url":  foto_url,
+                    "no_ranking": not pendente,
+                    "pendente":  pendente,
+                    "ip_hash":   ip_hash,
+                    "evento_id": str(evento["id"]),
+                })
+
+    except Exception as exc:
+        # Conflito de EXCLUDE constraint = race condition de nick simultâneo
+        if "nick_ativo_unico" in str(exc):
+            raise HTTPException(
+                status_code=409,
+                detail="Outro envio deste nick está sendo processado. Tente em instantes.",
+            )
+        import traceback
+        log.error("upload_db_error",
+                  error=repr(exc),
+                  error_type=type(exc).__name__,
+                  traceback=traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Erro interno ao salvar entrada")
+
+    # ── 7. Notifica SSE se visível imediatamente ──────────────────────────────
+    if not pendente:
+        jogo_slug = await _slug_from_id(pool, str(jogo_id))
+        await broker.publish(jogo_slug, "novo_registro", {
+            "id":        str(entrada["id"]),
+            "nick":      entrada["nick"],
+            "pontuacao": entrada["pontuacao"],
+            "foto_url":  entrada["foto_url"],
+            "criado_em": str(entrada["criado_em"]),
+        })
+
+    log.info(
+        "upload_ok",
+        entrada_id=str(entrada["id"]),
+        evento_slug=slug,
+        nick=nick[:20],
+        pendente=pendente,
+    )
+
+    return {
+        "id":       str(entrada["id"]),
+        "nick":     entrada["nick"],
+        "pontuacao": entrada["pontuacao"],
+        "foto_url": entrada["foto_url"],
+        "pendente": entrada["pendente"],
+        "mensagem": (
+            "Sua pontuação está em análise e aparecerá em breve no ranking."
+            if pendente else
+            "Você está no ranking!"
+        ),
+    }
+
+
+async def _slug_from_id(pool, jogo_id: str) -> str:
+    """Helper: busca o slug pelo id do jogo para o publish SSE."""
+    row = await pool.fetchrow("SELECT slug FROM jogos WHERE id = $1", jogo_id)
+    return row["slug"] if row else jogo_id
