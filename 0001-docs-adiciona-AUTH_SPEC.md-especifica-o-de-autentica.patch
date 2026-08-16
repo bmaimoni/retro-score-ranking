@@ -1,0 +1,801 @@
+From 7ff361e9f6e82f4e114b8ee757dfd659fa1d957a Mon Sep 17 00:00:00 2001
+From: Bruno Maimoni <bmaimoni@gmail.com>
+Date: Sun, 16 Aug 2026 17:25:32 +0000
+Subject: [PATCH] =?UTF-8?q?docs:=20adiciona=20AUTH=5FSPEC.md=20=E2=80=94?=
+ =?UTF-8?q?=20especifica=C3=A7=C3=A3o=20de=20autentica=C3=A7=C3=A3o=20e=20?=
+ =?UTF-8?q?identidade=20Canal3?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Documento de especificação para o serviço de identidade compartilhado
+Canal3 (User/Identity/Session/nick_claims), motivado pelo problema de
+nicks sobrescritos sem dono no retro-score-ranking.
+
+Decisões fechadas nesta rodada de iteração:
+  - User.id: UUIDv4
+  - Account linking automático por e-mail verificado
+  - Escopo: plataforma compartilhada Canal3 (não só o ranking) —
+    preparação para futuros sistemas (quiz, bonificação)
+  - Sessão híbrida: cookie no Auth Service + JWT curto por app consumidor
+  - Provedores MVP: Google + Magic Link (via Resend)
+  - Login opt-in — entrada anônima no ranking continua funcionando
+  - Modelo de nick por 'claim': livre até o primeiro login, protegido
+    daí em diante, com escopo de plataforma inteira (não só um app)
+  - TTL de sessão: 30 dias sliding
+  - Retenção de log de auditoria: 1 ano
+  - CPF/telefone adiado para o desenho do sistema de bonificação
+
+Também remove o arquivo .patch residual que ficou commitado junto com
+o SPEC.md anterior (limpeza).
+---
+ ...EC.md-especifica-es-centrais-do-proj.patch | 427 ------------------
+ docs/AUTH_SPEC.md                             | 322 +++++++++++++
+ 2 files changed, 322 insertions(+), 427 deletions(-)
+ delete mode 100644 0001-docs-adiciona-SPEC.md-especifica-es-centrais-do-proj.patch
+ create mode 100644 docs/AUTH_SPEC.md
+
+diff --git a/0001-docs-adiciona-SPEC.md-especifica-es-centrais-do-proj.patch b/0001-docs-adiciona-SPEC.md-especifica-es-centrais-do-proj.patch
+deleted file mode 100644
+index 8dae1cd..0000000
+--- a/0001-docs-adiciona-SPEC.md-especifica-es-centrais-do-proj.patch
++++ /dev/null
+@@ -1,427 +0,0 @@
+-From 1981e65b661c943f0edb8d2c90eb4138ee9be44d Mon Sep 17 00:00:00 2001
+-From: Bruno Maimoni <bmaimoni@gmail.com>
+-Date: Sun, 16 Aug 2026 15:32:52 +0000
+-Subject: [PATCH] =?UTF-8?q?docs:=20adiciona=20SPEC.md=20=E2=80=94=20especi?=
+- =?UTF-8?q?fica=C3=A7=C3=B5es=20centrais=20do=20projeto?=
+-MIME-Version: 1.0
+-Content-Type: text/plain; charset=UTF-8
+-Content-Transfer-Encoding: 8bit
+-
+-Documento de referência único cobrindo: visão geral, stack, arquitetura
+-de código, modelo de dados (schema + regras de negócio por tabela),
+-fluxos principais (upload, moderação, ranking ao vivo, multi-evento),
+-segurança, decisões de UX/produto já tomadas, estado do multi-evento,
+-convenções de teste e de trabalho, e backlog atualizado.
+-
+-Construído a partir do código atual (commit 4f9f1a7), não de memória
+-de conversas — schema, routers, services e regras de negócio foram
+-lidos diretamente do repositório para garantir fidelidade.
+-
+-Objetivo: ser o ponto de partida para qualquer especificação nova —
+-mudanças de produto/arquitetura são discutidas e registradas aqui
+-antes da escrita de código.
+----
+- docs/SPEC.md | 391 +++++++++++++++++++++++++++++++++++++++++++++++++++
+- 1 file changed, 391 insertions(+)
+- create mode 100644 docs/SPEC.md
+-
+-diff --git a/docs/SPEC.md b/docs/SPEC.md
+-new file mode 100644
+-index 0000000..fdfd321
+---- /dev/null
+-+++ b/docs/SPEC.md
+-@@ -0,0 +1,391 @@
+-+# Retro Score Ranking — Especificações do Projeto
+-+
+-+> **Como usar este documento:** este é o ponto de partida para qualquer mudança no
+-+> projeto. Antes de escrever código para uma nova especificação, ela deve ser
+-+> discutida e registrada aqui primeiro — como uma seção nova, uma alteração em
+-+> seção existente, ou uma entrada no backlog. Código é a implementação do que
+-+> está descrito neste arquivo, não o contrário.
+-+>
+-+> Última sincronização com o código: commit `4f9f1a7` (2026-08-16).
+-+
+-+---
+-+
+-+## 1. Visão geral
+-+
+-+**Retro Score Ranking** é um sistema de ranking ao vivo para eventos presenciais
+-+de retrogaming (Canal3 High Score / Canal3 Expo). Visitantes fotografam a tela
+-+do jogo com o placar visível, enviam a foto junto com nick e pontuação, e
+-+aparecem imediatamente em um ranking público exibido em telão.
+-+
+-+**Objetivo de produto:** criar competição e engajamento no evento físico, com
+-+moderação leve (a ferramenta deve ser divertida e rápida de usar por visitantes
+-+casuais, e simples de moderar por um humano em tempo real).
+-+
+-+**Deploy ao vivo:** [retro-score-ranking.vercel.app](https://retro-score-ranking.vercel.app)
+-+
+-+---
+-+
+-+## 2. Stack técnica
+-+
+-+| Camada | Tecnologia |
+-+|---|---|
+-+| Backend | FastAPI (Python 3.12), `asyncpg` |
+-+| Banco | PostgreSQL via Supabase |
+-+| Storage de fotos | Supabase Object Storage |
+-+| Frontend | HTML/CSS/JS vanilla (sem framework/build step) |
+-+| Deploy backend | Railway |
+-+| Deploy frontend | Vercel |
+-+| Realtime | Server-Sent Events (SSE), implementado à mão (`services/sse.py`) |
+-+| Logging | `structlog` (JSON estruturado) |
+-+
+-+Sem ORM — todo acesso a dados é SQL cru via `asyncpg`, organizado em
+-+`repositories/`.
+-+
+-+---
+-+
+-+## 3. Arquitetura de código
+-+
+-+```
+-+backend/
+-+  main.py                 # bootstrap FastAPI, lifespan (pool de conexões), CORS
+-+  config.py                # Settings via pydantic-settings (.env)
+-+  middleware/auth.py       # require_admin — Bearer token, hmac.compare_digest
+-+  routers/                 # camada HTTP (validação de entrada, orquestração)
+-+    upload.py               # POST /api/upload — fluxo principal de participação
+-+    ranking.py               # GET /api/ranking/*, SSE /api/events/ranking/{slug}
+-+    jogos.py                  # GET /api/jogos, /api/jogos/config
+-+    admin.py                   # moderação, gestão de jogos, config, manutenção
+-+    eventos.py                   # CRUD de eventos (admin) — /api/admin/eventos
+-+    evento_publico.py             # rotas públicas escopadas por evento — /api/e/{slug}
+-+  services/                # regras de negócio puras (sem HTTP)
+-+    nick.py                  # normalização de nick + "marcar superado"
+-+    score.py                  # validação de pontuação vs score_max do jogo
+-+    rate_limit.py             # decide se entrada vai para moderação
+-+    storage.py                 # upload de foto pro Supabase Storage
+-+    sse.py                      # broker pub/sub em memória para eventos ao vivo
+-+  repositories/            # SQL cru, uma função por operação
+-+    entrada.py, jogo.py, evento.py, evento_config.py, evento_jogo.py
+-+  utils/
+-+    db.py                     # pool asyncpg (get_pool/close_pool)
+-+    ip.py                      # extração e hash (SHA-256 + salt) do IP do cliente
+-+  migrations/               # SQL numerado sequencialmente, aplicado manualmente
+-+                             # no Supabase SQL Editor (sem Alembic)
+-+  tests/                    # pytest + pytest-asyncio + httpx (ASGITransport)
+-+    smoke/                    # E2E com Playwright (fase C, precisa ambiente real)
+-+
+-+frontend/
+-+  index.html                # tela de upload (o visitante usa no celular)
+-+  ranking.html               # ranking público de um jogo (scrollável, com histórico por nick)
+-+  telao.html                  # exibição para o telão do evento (carrossel entre jogos, SSE)
+-+  admin.html                   # painel de moderação (feed, pendentes, gestão de jogos/config)
+-+  temas.js                      # temas visuais por slug de jogo (cores, tipografia, ícone)
+-+  style.css                      # estilos compartilhados
+-+```
+-+
+-+**Padrão de camadas:** `router` (HTTP) → `service` (regra de negócio) →
+-+`repository` (SQL). Routers não fazem SQL diretamente, exceto consultas
+-+simples e específicas de uma única rota (ex.: joins de leitura em
+-+`ranking.py`/`evento_publico.py` que não justificam um repository próprio).
+-+
+-+---
+-+
+-+## 4. Modelo de dados
+-+
+-+### `jogos`
+-+Catálogo de jogos disponíveis (global, não por evento).
+-+
+-+| Coluna | Tipo | Notas |
+-+|---|---|---|
+-+| `id` | uuid PK | |
+-+| `nome` | text | |
+-+| `slug` | text UNIQUE | usado em URLs (`/ranking/{slug}`) |
+-+| `ativo` | boolean | jogos inativos somem dos seletores |
+-+| `score_max` | integer nullable | `NULL` = sem limite; valida no upload |
+-+| `criado_em` | timestamptz | |
+-+
+-+### `entradas`
+-+Cada tentativa/envio de score. É o histórico completo — nada é deletado por
+-+padrão (soft delete via `arquivado`).
+-+
+-+| Coluna | Tipo | Notas |
+-+|---|---|---|
+-+| `id` | uuid PK | |
+-+| `jogo_id` | uuid FK → jogos | `ON DELETE CASCADE` |
+-+| `evento_id` | uuid FK → eventos, nullable | atribuído automaticamente no upload |
+-+| `nick` | text | como digitado, para exibição |
+-+| `nick_norm` | text | lowercase + trim + espaços colapsados, para comparação |
+-+| `nome` | text nullable | nome/sobrenome real (opcional, migração 008) |
+-+| `pontuacao` | integer | `CHECK (pontuacao > 0)` |
+-+| `foto_url` | text nullable | **imutável — nunca é deletada**, mesmo se a entrada for oculta |
+-+| `no_ranking` | boolean | `false` = oculta (moderação manual) |
+-+| `superado` | boolean | `true` quando o mesmo nick envia um score novo no mesmo jogo |
+-+| `pendente` | boolean | `true` = aguardando moderação (rate limit ou sem foto) |
+-+| `arquivado` | boolean | soft delete via manutenção admin |
+-+| `arquivado_em` / `arquivado_por` | | auditoria do soft delete |
+-+| `ip_hash` | text | `SHA-256(ip + salt)` — nunca armazena IP em texto puro |
+-+| `criado_em` | timestamptz | |
+-+| `moderado_em` / `moderado_por` | | auditoria de moderação |
+-+
+-+**Constraint crítica** — `nick_ativo_unico` (EXCLUDE USING gist): impede dois
+-+registros simultaneamente "ativos" (`superado=false AND no_ranking=true AND
+-+pendente=false AND arquivado=false`) com o mesmo `nick_norm` + `jogo_id`.
+-+Aplicada no banco, não só na aplicação — protege contra race conditions em
+-+envios concorrentes.
+-+
+-+**Regra de negócio: superação por nick.** Ao inserir um novo score, a entrada
+-+ativa anterior do mesmo `nick_norm` no mesmo jogo é marcada `superado=true`
+-+**incondicionalmente** — mesmo que o novo score seja menor. Ou seja, cada nick
+-+só pode ter uma entrada "valendo" por vez: a mais recente. (Ver §7 — decisão
+-+consciente, não bug.)
+-+
+-+**Regra de negócio: desempate de ranking.** Todas as queries de ranking
+-+ordenam por `pontuacao DESC, criado_em ASC, id ASC`. Em empate de pontuação,
+-+quem alcançou o score primeiro fica melhor posicionado. Isso é obrigatório —
+-+sem desempate, o Postgres não garante ordem estável entre linhas empatadas, o
+-+que já causou o bug de "score some do ranking" (corrigido no commit `7a3e77c`).
+-+
+-+### `eventos`
+-+Um evento físico (ex.: uma edição da Canal3 Expo).
+-+
+-+| Coluna | Tipo | Notas |
+-+|---|---|---|
+-+| `id` | uuid PK | |
+-+| `nome` / `slug` | text | slug único, usado em `/api/e/{slug}/...` |
+-+| `ativo` | boolean | eventos inativos não aparecem em `/ativos` |
+-+| `publico` | boolean | `false` = telão/ranking desse evento ficam inacessíveis (override do admin), mesmo com o evento `ativo` |
+-+| `logo_url` / `cor_primaria` | text nullable | identidade visual por evento |
+-+| `data_inicio` / `data_fim` | timestamptz | |
+-+
+-+### `evento_jogos` (N:N)
+-+Vincula jogos a eventos, com ativação e ordem independentes por evento.
+-+
+-+| Coluna | Tipo | Notas |
+-+|---|---|---|
+-+| `evento_id`, `jogo_id` | FK | `UNIQUE(evento_id, jogo_id)` |
+-+| `ativo` | boolean | jogo pode estar desativado só nesse evento |
+-+| `ordem` | int | ordem de exibição no evento |
+-+
+-+Jogo com scores associados não pode ser removido da tabela `jogos`
+-+(`ON DELETE RESTRICT` em `evento_jogos.jogo_id`).
+-+
+-+### `evento_config`
+-+Chave-valor genérico para textos e configurações da tela de upload (título,
+-+subtítulo, texto de sucesso, texto LGPD, rate limit). Editável pelo admin sem
+-+deploy.
+-+
+-+---
+-+
+-+## 5. Fluxos principais
+-+
+-+### 5.1 Upload de score (`POST /api/upload`)
+-+1. Valida foto (opcional): tipo por *magic bytes* (não pela extensão), máx 5MB.
+-+   Aceita apenas JPEG/PNG.
+-+2. Valida pontuação contra `score_max` do jogo (`services/score.py`).
+-+3. Calcula `ip_hash` e checa rate limit (`services/rate_limit.py`) — limite e
+-+   janela configuráveis via `evento_config`, com fallback pra env vars.
+-+4. Se dentro do limite e com foto → `pendente=false` (aparece na hora).
+-+   Se rate limit excedido **ou** sem foto → `pendente=true` (vai pra fila de
+-+   moderação do admin).
+-+5. Upload da foto pro Supabase Storage (se houver).
+-+6. Busca evento ativo mais recente e associa à entrada.
+-+7. Transação: marca entrada anterior do nick como `superado=true` + insere a
+-+   nova.
+-+8. Se não pendente, publica evento SSE `novo_registro` pros clientes do
+-+   ranking/telão daquele jogo.
+-+
+-+Conflito de `nick_ativo_unico` (dois envios simultâneos do mesmo nick) retorna
+-+`409` com mensagem amigável, não `500`.
+-+
+-+### 5.2 Moderação (admin)
+-+- **Feed** (`GET /api/admin/feed`): todas as entradas recentes, incluindo
+-+  ocultas/pendentes — paginado.
+-+- **Pendentes** (`GET /api/admin/pendentes`): fila de decisão.
+-+- **Ocultar/reativar** (`PATCH /api/admin/entradas/{id}`): alterna
+-+  `no_ranking`. A foto nunca é deletada. Emite `ocultar`/`reativar` via SSE.
+-+- **Resolver pendente** (`PATCH /api/admin/entradas/{id}/pendente`): aprova
+-+  (`no_ranking=true`) ou rejeita (`no_ranking=false`) uma entrada da fila.
+-+  Aprovação emite `novo_registro` via SSE.
+-+- **Manutenção** (`POST /api/admin/manutencao/limpar-ranking` e
+-+  `restaurar-ranking`): limpa um jogo específico ou todos, com soft delete
+-+  (padrão, reversível) ou hard delete (`permanente=true`, irreversível).
+-+  Exige `confirmar="CONFIRMAR"` no corpo — proteção contra clique acidental.
+-+
+-+### 5.3 Ranking ao vivo (público)
+-+- **Snapshot**: `GET /api/ranking/{slug}` — lista ordenada atual.
+-+- **Líderes**: `GET /api/ranking/lideres` — top 1 de cada jogo ativo (usado
+-+  nos cards do index). *(Rota registrada antes de `/{slug}` para não ser
+-+  capturada pela rota genérica — ver §8.)*
+-+- **Histórico por nick**: `GET /api/ranking/{slug}/historico/{nick}` — todas
+-+  as tentativas do nick, mais recente primeiro, incluindo superadas/pendentes.
+-+- **Stream**: `GET /api/events/ranking/{slug}` (SSE) — eventos
+-+  `novo_registro`, `ocultar`, `reativar` em tempo real. Consumido por
+-+  `ranking.html` e `telao.html`.
+-+
+-+### 5.4 Multi-evento (público, escopado por slug)
+-+Prefixo `/api/e/{slug}/...`, implementado em `evento_publico.py`:
+-+- `GET /config` — nome, logo, cor primária do evento.
+-+- `GET /jogos` — jogos ativos **naquele evento** (via `evento_jogos`).
+-+- `GET /ranking/lideres` — top 1 por jogo, escopado ao evento.
+-+- `GET /ranking/{jogo_slug}` — ranking escopado ao evento.
+-+
+-+Acesso público checa: evento existe → `ativo=true` → `publico=true` (nessa
+-+ordem; `publico=false` retorna `403`, evento inexistente ou inativo retorna
+-+`404` — não vaza se o evento existe mas está desativado).
+-+
+-+---
+-+
+-+## 6. Segurança
+-+
+-+- **RLS habilitado** nas 4 tabelas públicas (`entradas`, `jogos`, `eventos`,
+-+  `evento_config`) e em `evento_jogos`.
+-+- **`app_user`** dedicado no Postgres com permissões mínimas
+-+  (SELECT/INSERT/UPDATE em geral + DELETE só em `entradas`), substituindo o
+-+  usuário `postgres` (superuser) na `DATABASE_URL` do Railway.
+-+- **IP nunca em texto puro**: sempre `SHA-256(ip + IP_HASH_SALT)`.
+-+- **Admin**: token único via `ADMIN_SECRET`, comparado com
+-+  `hmac.compare_digest` (evita timing attack). Sem múltiplos usuários/roles
+-+  ainda (ver backlog — login/registro).
+-+- **Validação de arquivo**: tipo verificado pelos *magic bytes* do conteúdo,
+-+  não pela extensão ou `Content-Type` declarado pelo cliente.
+-+- **Sem credenciais no histórico do git** (confirmado — só placeholders em
+-+  `.env.example`).
+-+
+-+---
+-+
+-+## 7. Decisões de UX e produto já tomadas
+-+
+-+Registradas aqui para não serem re-discutidas/revertidas sem querer:
+-+
+-+- **Sem contagem total de participantes** no ranking público — evita
+-+  desmotivar quem está mal posicionado.
+-+- **Câmera vs. galeria**: no iOS, priorizar prompt de câmera é melhor UX que
+-+  abrir a galeria direto.
+-+- **Nick e nome em uppercase** nos campos de exibição.
+-+- **Superação incondicional por nick**: um novo envio do mesmo nick sempre
+-+  substitui o anterior como "ativo", mesmo que a pontuação seja menor —
+-+  reflete a tentativa mais recente, não a melhor histórica. (Se isso mudar,
+-+  precisa de decisão explícita — impacta `services/nick.py` e a constraint
+-+  `nick_ativo_unico`.)
+-+- **Desempate por ordem de chegada**: "quem alcançou a pontuação primeiro fica
+-+  na frente" em caso de empate exato.
+-+- **Evento desativado continua público por padrão**: `ativo=false` não
+-+  esconde o telão/ranking automaticamente — isso é controlado à parte por
+-+  `publico` (override manual do admin). Decisão tomada durante o design
+-+  multi-evento (§8, Migration 010).
+-+- **Scores órfãos** (sem `evento_id`, de antes da migração 009/010) foram
+-+  todos associados ao evento `canal3expo`.
+-+
+-+---
+-+
+-+## 8. Estado atual do multi-evento
+-+
+-+Migration 010 (aplicada) trouxe: `evento_jogos` (N:N), campos visuais em
+-+`eventos` (`logo_url`, `cor_primaria`, `publico`), e migração de scores
+-+órfãos.
+-+
+-+5 decisões arquiteturais já validadas:
+-+1. Desativar um evento **não** esconde telão/ranking por padrão — precisa do
+-+   flag `publico=false` explícito.
+-+2. Admins de evento poderão propor jogos para o catálogo global (ainda não
+-+   implementado — backlog).
+-+3. Ranking geral cross-event fica **deferido até existir login/registro de
+-+   usuário** (sem isso não há como atribuir/mesclar identidade entre
+-+   eventos).
+-+4. Um único `admin.html` com dropdown de seleção de evento (painel de admin
+-+   ainda não fatorado assim — hoje modera globalmente, sem filtro por
+-+   evento).
+-+5. Scores órfãos → `canal3expo`.
+-+
+-+**Armadilha de ordenação de rotas FastAPI**: em qualquer router que tenha uma
+-+rota `/{slug}/algo/{param}` e outra `/{slug}/algo/palavra-fixa`, a rota fixa
+-+**precisa ser registrada antes** da rota com parâmetro dinâmico, ou o FastAPI
+-+a captura como se fosse o parâmetro. Já causou um bug real (`/lideres` em
+-+`evento_publico.py` ficou inacessível — corrigido no commit `7a3e77c`).
+-+Manter esse cuidado em qualquer rota nova desse padrão.
+-+
+-+---
+-+
+-+## 9. Testes
+-+
+-+- `pytest` + `pytest-asyncio` + `httpx.AsyncClient` (via `ASGITransport`, sem
+-+  subir servidor real).
+-+- `FakePool`/`fake_pool` (em `conftest.py`) simula `asyncpg.Pool` para testes
+-+  unitários de repository sem banco real.
+-+- Testes de router usam `app.dependency_overrides[get_pool]` + `patch()` nos
+-+  repositories/services.
+-+- **Regra estabelecida**: toda feature de backend nova ganha pelo menos um
+-+  teste antes do commit.
+-+- Fases (`Makefile`):
+-+  - `make unit` — unitários (mockado, roda em qualquer lugar)
+-+  - `make integration` — subset dos unitários cobrindo fluxos completos
+-+  - `make smoke` — E2E via Playwright, precisa de ambiente real (Supabase +
+-+    Railway) — não roda em sandbox
+-+- Rodar localmente/sandbox sem banco real exige env vars dummy:
+-+  ```
+-+  DATABASE_URL=x SUPABASE_URL=x SUPABASE_SERVICE_KEY=x ADMIN_SECRET=x IP_HASH_SALT=x \
+-+    python3 -m pytest tests/ -q --ignore=tests/smoke
+-+  ```
+-+  (as 8 falhas que aparecem são de testes que tentam conectar a um Postgres
+-+  real — esperado, não indicam regressão)
+-+
+-+---
+-+
+-+## 10. Backlog — pendências conhecidas
+-+
+-+Em ordem aproximada de prioridade discutida:
+-+
+-+- [ ] **Confirmar backup do Supabase** (pendente no dashboard).
+-+- [ ] **Aplicar identidade visual 2026**: novo logo + paleta de cores (ambos
+-+      já disponíveis no Google Drive — IDs de arquivo registrados na memória
+-+      de conversas anteriores). Envolve `frontend/temas.js`, `style.css`, e
+-+      possivelmente `logo_url`/`cor_primaria` na tabela `eventos`.
+-+- [ ] **`admin.html` unificado com seletor de evento** — hoje o admin modera
+-+      globalmente; precisa filtrar por evento conforme decisão #4 do §8.
+-+- [ ] **Sistema de login/registro de usuário** — pré-requisito para o ranking
+-+      geral cross-event (decisão #3 do §8).
+-+- [ ] **Ranking geral cross-event** — bloqueado até login/registro existir.
+-+- [ ] **Flag de override para telão pós-evento** — já existe `publico` em
+-+      `eventos`; falta expor isso claramente no fluxo/admin (parcialmente
+-+      coberto pela decisão #1 do §8, mas sem UI dedicada ainda).
+-+- [ ] **Fluxo de admin de evento propondo jogos ao catálogo global** —
+-+      decisão #2 do §8, ainda não implementado.
+-+
+-+---
+-+
+-+## 11. Convenções de trabalho
+-+
+-+- **Migrações**: sempre descrever o comportamento (o que muda, é reversível?,
+-+  afeta dados existentes?) antes de rodar qualquer SQL de migração — não
+-+  rodar direto.
+-+- **Testes antes do commit**: toda feature nova de backend leva teste. Bugs
+-+  corrigidos idealmente ganham teste de regressão (ver `test_ranking_desempate.py`
+-+  como padrão de referência).
+-+- **f-strings vs. `str_replace`**: substituição de string Python em conteúdo
+-+  HTML/JS tende a escapar crases (`` ` ``) incorretamente — preferir edição
+-+  direta de arquivo a montar HTML via f-string quando o conteúdo tiver
+-+  template literals JS.
+-+- **`asyncpg`**: placeholders posicionais (`$1, $2...`), não nomeados. Chaves
+-+  duplicadas em dict de parâmetros passam validação do Python silenciosamente
+-+  e quebram a query em runtime — checar com atenção.
+-+- **Módulos JS**: funções chamadas via `onclick` inline em HTML gerado
+-+  dinamicamente precisam ser expostas como `window.nomeDaFuncao` dentro de
+-+  `<script type="module">` (senão o escopo do módulo as esconde do HTML).
+-+- **Canvas + fonte pixelada**: `document.fonts.load()` precisa ser aguardado
+-+  antes de `canvas.measureText()` para métricas corretas com a fonte
+-+  "Press Start 2P" (usada no telão/certificados, se aplicável).
+-+
+-+---
+-+
+-+## 12. Como propor uma nova especificação
+-+
+-+Ao trazer uma ideia nova para o projeto:
+-+
+-+1. Descreva o problema/necessidade primeiro, não a solução técnica.
+-+2. Nós iteramos aqui neste documento: qual seção muda, o que entra em §7
+-+   (decisão de produto) vs. §10 (backlog) vs. mudança em §4/§5 (schema/fluxo).
+-+3. Só depois desse acordo entramos em migração, código e testes.
+-+
+-+Isso mantém o `SPEC.md` como fonte da verdade — se o código e este documento
+-+divergirem no futuro, é sinal de que uma mudança foi feita sem passar por
+-+aqui, e o documento deve ser atualizado para refletir a realidade antes de
+-+seguir adiante.
+--- 
+-2.43.0
+-
+diff --git a/docs/AUTH_SPEC.md b/docs/AUTH_SPEC.md
+new file mode 100644
+index 0000000..a188364
+--- /dev/null
++++ b/docs/AUTH_SPEC.md
+@@ -0,0 +1,322 @@
++# Autenticação e Identidade — Canal3 (Auth Service)
++
++> Status: **decisões fechadas, pronto para commit**. Adaptado a partir de
++> um template genérico de plataforma de identidade, cortado e ajustado à escala
++> real do Canal3 (eventos presenciais, múltiplos apps futuros).
++>
++> Complementa `docs/SPEC.md` do `retro-score-ranking` — este documento cobre a
++> camada de identidade compartilhada; o `SPEC.md` continua sendo a fonte da
++> verdade para o app de ranking em si.
++
++---
++
++## 1. Objetivo e problema motivador
++
++Hoje, no `retro-score-ranking`, o `nick` é texto livre por envio — qualquer
++pessoa pode enviar um score usando o nick de outra pessoa, sobrescrevendo a
++entrada anterior dela (comportamento de `services/nick.py:
++marcar_anterior_como_superado`, incondicional por `nick_norm`). Isso também
++impede contagem confiável de participantes únicos e qualquer histórico
++consistente por pessoa.
++
++**Além do ranking**, o Canal3 vai lançar outros sistemas (quiz, bonificação,
++e outros ainda não definidos) que também vão precisar saber "quem é essa
++pessoa" — por isso este não é mais um problema só do `retro-score-ranking`,
++e sim de uma identidade compartilhada entre apps Canal3.
++
++### Princípio arquitetural
++
++> O Auth Service é dono da identidade da pessoa. Google, Magic Link e
++> futuros provedores são só formas de provar essa identidade. Cada app
++> Canal3 (ranking, quiz, bonificação...) é um **consumidor** dessa identidade,
++> não o dono dela.
++
++---
++
++## 2. Decisões já fechadas
++
++| # | Tópico | Decisão |
++|---|---|---|
++| 1 | Formato do `User.id` | UUIDv4 |
++| 2 | Account Linking | Automático por e-mail, **somente se `email_verified=true`** no provedor |
++| 3 | Escopo | Plataforma compartilhada Canal3 (não só o `retro-score-ranking`) |
++| 4 | Modelo de sessão | Híbrido: cookie de sessão no domínio do Auth Service + JWT curto emitido por app consumidor |
++| 5 | Provedores no MVP | Google (OIDC) + Magic Link (e-mail) |
++| 6 | Login obrigatório? | **Não** — entrada anônima continua funcionando no ranking; login é opt-in |
++| 7 | Relação nick ↔ User | Modelo de **claim**: nick fica livre até alguém logar e usar; a partir daí fica reivindicado e protegido para aquela conta |
++| 8 | Topologia de domínio dos futuros apps | Ainda não definida — por isso o modelo de sessão (#4) foi escolhido para funcionar em qualquer cenário |
++| 9 | Escopo do nick reivindicado | **Plataforma Canal3 inteira** — uma vez reivindicado (em qualquer app), fica reservado em todos os apps consumidores, não só no `retro-score-ranking` |
++| 10 | Provedor de e-mail (Magic Link) | Resend (plano gratuito cobre o volume esperado; sem serviço de e-mail hoje no projeto) |
++| 11 | TTL de sessão | 30 dias, renovação por uso (sliding) |
++| 12 | Retenção do log de auditoria | 1 ano — ver justificativa e nota de LGPD no §5 |
++| 13 | CPF/telefone no perfil | **Fora do MVP** — só entra quando o sistema de bonificação for desenhado (evita campo sem uso e reduz dado pessoal coletado sem finalidade imediata, alinhado ao princípio de minimização da LGPD) |
++
++**Fora do MVP, por escolha deliberada** (avaliar depois, não é omissão):
++servidor OIDC/OAuth completo com JWKS público e client registry dinâmico,
++multi-tenant, barramento de eventos, RBAC/ABAC, Passkey, Apple/Facebook/
++Microsoft, SMS/OTP, MFA, SLA formal, multi-region. Ver §9.
++
++---
++
++## 3. Modelo de dados
++
++### `users` (nova tabela — vive no Auth Service)
++
++| Coluna | Tipo | Notas |
++|---|---|---|
++| `id` | uuid PK | gerado com `gen_random_uuid()`, é o `User.id` canônico |
++| `email` | text | não é PK; pode ser nulo só transitoriamente (nunca em produção, já que Google e Magic Link sempre trazem e-mail) |
++| `email_verified` | boolean | vem do provedor; condição para account linking automático (#2) |
++| `nome` | text nullable | nome vindo do provedor (Google) ou preenchido depois |
++| `foto_url` | text nullable | **avatar do perfil** (do provedor, ex. Google) — conceito totalmente separado da foto de evidência de cada score. Cada entrada em `entradas` mantém sua própria `foto_url` (a foto daquele placar específico), imutável, independente do avatar do perfil. |
++| `status` | text | `ativo` / `suspenso` — suficiente pro MVP, sem estado mais granular |
++| `criado_em` | timestamptz | |
++| `ultimo_login_em` | timestamptz | |
++
++### `identities` (nova tabela)
++
++| Coluna | Tipo | Notas |
++|---|---|---|
++| `id` | uuid PK | |
++| `user_id` | uuid FK → users | dono da identidade |
++| `provider` | text | `google` \| `magic_link` (mais no futuro) |
++| `provider_user_id` | text | `sub` do Google, ou o próprio e-mail normalizado no caso de magic link |
++| `email` | text | e-mail trazido por *este* provedor especificamente (pode diferir do `users.email` principal em teoria) |
++| `criado_em` | timestamptz | |
++
++`UNIQUE (provider, provider_user_id)` — mesma identidade de provedor nunca se
++liga a duas contas.
++
++### `nick_claims` (nova tabela — o coração da correção do bug original)
++
++| Coluna | Tipo | Notas |
++|---|---|---|
++| `id` | uuid PK | |
++| `nick_norm` | text | mesma normalização já usada em `entradas.nick_norm` (lowercase + trim + colapso de espaços) |
++| `user_id` | uuid FK → users | quem reivindicou |
++| `criado_em` | timestamptz | primeiro login com esse nick |
++
++`UNIQUE (nick_norm)` — um nick só pode ser reivindicado por uma conta.
++
++**Escopo: plataforma inteira.** Esta tabela vive no Auth Service, não em
++cada app — um nick reivindicado no `retro-score-ranking` fica reservado
++automaticamente também para quiz/bonificação/outros apps futuros que
++venham a usar nick como identificador público. Não existe uma tabela de
++claim por app.
++
++**Regra de claim:** na primeira vez que um `user_id` autenticado envia um
++score com um `nick`, se aquele `nick_norm` ainda não está em `nick_claims`,
++ele é reivindicado automaticamente para esse `user_id`. Se já está
++reivindicado por *outro* `user_id`, o envio é rejeitado com uma mensagem
++clara ("Esse nick já tem dono — faça login com a conta certa, ou escolha
++outro nick"). Se está reivindicado pelo *mesmo* `user_id`, segue normal.
++
++Envios **anônimos** (sem login) não verificam `nick_claims` para nicks ainda
++não reivindicados (comportamento atual, inalterado) — mas **são bloqueados**
++se tentarem usar um `nick_norm` que já foi reivindicado por alguém logado.
++Isso é o que resolve o problema original sem quebrar a entrada casual sem
++conta.
++
++### `sessions` (nova tabela — sessão no domínio do Auth Service)
++
++| Coluna | Tipo | Notas |
++|---|---|---|
++| `id` | uuid PK | valor do cookie de sessão (opaco) |
++| `user_id` | uuid FK → users | |
++| `criado_em` | timestamptz | |
++| `expira_em` | timestamptz | TTL proposto: 30 dias, renovado a cada uso (sliding) |
++| `revogada_em` | timestamptz nullable | logout / revogação manual |
++| `user_agent` / `ip_hash` | text nullable | contexto básico, para auditoria — não gestão de dispositivos no MVP (§9) |
++
++### `magic_link_tokens` (nova tabela — suporte ao login por e-mail)
++
++| Coluna | Tipo | Notas |
++|---|---|---|
++| `id` | uuid PK | |
++| `email` | text | |
++| `token_hash` | text | hash do token (nunca o token em texto puro, igual se faz com senha) |
++| `criado_em` | timestamptz | |
++| `expira_em` | timestamptz | TTL proposto: 15 minutos |
++| `usado_em` | timestamptz nullable | token é single-use — uma vez usado, não serve mais |
++
++### Mudança na tabela `entradas` (retro-score-ranking)
++
++| Coluna nova | Tipo | Notas |
++|---|---|---|
++| `user_id` | uuid nullable | preenchido se o envio veio de alguém logado; `NULL` = envio anônimo (comportamento atual) |
++
++Não é retroativo — entradas antigas continuam com `user_id = NULL` e
++`nick_claims` começa vazia. Ninguém perde nick que já usava; a proteção só
++passa a valer a partir do primeiro login real com aquele nick.
++
++---
++
++## 4. Fluxos
++
++### 4.1 Login com Google (OIDC)
++```
++Visitante toca "Continuar com Google"
++   → redirect pro Google (Authorization Code + PKCE)
++   → Google autentica, volta com code
++   → Auth Service troca code por ID Token, valida (iss, aud, exp, assinatura)
++   → busca/cria Identity(provider=google, provider_user_id=sub)
++   → busca/cria User (linking automático se email_verified=true bater com User existente)
++   → cria Session, seta cookie
++```
++
++### 4.2 Login com Magic Link
++```
++Visitante digita e-mail
++   → Auth Service gera token, salva hash em magic_link_tokens, envia e-mail
++   → Visitante clica no link (contém o token em claro, só o hash fica no banco)
++   → Auth Service valida: existe, não expirou, não foi usado
++   → marca usado_em, busca/cria User (email já é "verificado" pelo próprio ato de clicar no link)
++   → cria Session, seta cookie
++```
++
++### 4.3 Envio de score autenticado (mudança em `POST /api/upload`)
++```
++Se houver sessão válida (cookie do Auth Service):
++   1. Confere nick_claims para o nick_norm enviado
++      - livre → reivindica pro user_id atual
++      - já é do user_id atual → segue
++      - é de outro user_id → 409, mensagem clara
++   2. Segue o fluxo de upload já existente, gravando entradas.user_id
++Se não houver sessão:
++   1. Confere se o nick_norm já está em nick_claims
++      - sim → 409 ("esse nick tem dono, faça login")
++      - não → segue exatamente como hoje (anônimo)
++```
++
++### 4.4 Emissão de token para apps consumidores (multi-app)
++```
++App consumidor (ex: quiz.canal3.?) redireciona pro Auth Service
++   → pessoa já tem sessão? usa direto : loga (4.1 ou 4.2)
++   → Auth Service emite JWT curto (TTL: 15 min), assinado, contendo
++     {sub: user_id, email, nome, iat, exp, aud: <app>}
++   → redireciona de volta pro app consumidor com o JWT
++   → app consumidor valida a assinatura localmente (chave pública do Auth
++     Service) e mantém sua própria sessão local a partir daí
++```
++Isso só precisa existir quando o segundo app (quiz/bonificação) for
++construído de fato — no MVP do `retro-score-ranking`, só os fluxos 4.1–4.3
++são necessários. Mas o desenho de dados acima (`users`/`identities`
++separados de `sessions`) já fica pronto para isso sem retrabalho.
++
++---
++
++## 5. Segurança (mínimos do MVP)
++
++- Cookie de sessão: `HttpOnly`, `Secure`, `SameSite=Lax` (suficiente
++  enquanto for single-app; revisar para `None` se precisar funcionar
++  embutido/cross-site no futuro multi-app).
++- Token de magic link: aleatório criptograficamente seguro, **hash** no
++  banco (nunca texto puro), single-use, TTL de 15 min.
++- Validação completa do ID Token do Google: assinatura via JWKS do Google,
++  `iss`, `aud`, `exp`, `nonce`.
++- JWT emitido pro app consumidor: assinado (RS256 ou ES256 — chave
++  assimétrica, permite apps validarem sem segredo compartilhado), TTL curto
++  (15 min), sem refresh token no MVP (a pessoa só re-passa pelo Auth Service
++  quando expirar — aceitável na escala de um evento presencial).
++- Nunca logar: token de magic link em texto puro, ID Token completo do
++  Google, valor do cookie de sessão.
++- Rate limit no endpoint de magic link (por e-mail e por IP) — evita abuso
++  de envio de e-mail em massa.
++- Sessão: TTL de 30 dias, renovado a cada uso (sliding).
++- Log de auditoria leve (login, claim de nick, linking): retenção de
++  **1 ano**. Justificativa: eventos Canal3 podem ter meses de intervalo
++  entre si, e problemas (nick indevidamente reivindicado, linking
++  incorreto) tendem a só ser percebidos pela pessoa afetada num evento
++  seguinte. Como o log já usa `ip_hash` (nunca IP em texto puro) e serve a
++  uma finalidade legítima de segurança/antifraude, 1 ano é uma retenção
++  defensável perante a LGPD — mas precisa constar num texto de privacidade
++  do Canal3 (mesmo padrão do texto de consentimento já usado em
++  `evento_config.lgpd_texto` no ranking).
++
++---
++
++## 6. O que fica fora do MVP (e por quê)
++
++| Item | Motivo de adiar |
++|---|---|
++| Servidor OIDC/OAuth completo (JWKS público, `/.well-known`, client registry dinâmico) | Só compensa quando existir de fato mais de um app consumidor externo pedindo isso — construir antes é especular infraestrutura |
++| Apple / Facebook / Microsoft / SMS | Baixo ganho de conversão nesse contexto (evento presencial, Brasil) vs. custo de manutenção por provedor |
++| Passkey | Melhora fricção só em visitas recorrentes; complexidade de implementação (WebAuthn) não se paga ainda no MVP |
++| MFA / step-up auth | Não há operação sensível (dinheiro, dados críticos) no ranking hoje que justifique |
++| RBAC/ABAC | Autorização de admin já existe separada (`ADMIN_SECRET`); não precisa se fundir com identidade de visitante agora |
++| Gestão de múltiplos dispositivos/sessões (listar, revogar individualmente) | Sessão única por vez é suficiente na escala atual |
++| Barramento de eventos (`UserCreated`, etc.) | Sem consumidores reais ainda (CRM, antifraude) — adicionar quando existirem |
++| Deploy como serviço separado | Construir como módulo dentro do `retro-score-ranking` (FastAPI já existente) primeiro; extrair pra serviço próprio quando o segundo app consumidor for real. O desenho de dados já é feito para permitir essa extração sem redesenho. |
++
++---
++
++## 7. Onde isso vive tecnicamente (proposta)
++
++Construir dentro do backend do `retro-score-ranking` já existente, como um
++módulo separado (não misturado com `routers/upload.py` etc.):
++
++```
++backend/
++  auth/
++    router.py        # /api/auth/google/*, /api/auth/magic-link/*, /api/auth/session
++    service.py        # lógica de login, linking, emissão de JWT
++    repository.py       # users, identities, sessions, nick_claims, magic_link_tokens
++  routers/upload.py   # ganha um Depends(sessao_opcional) e a checagem de nick_claims
++```
++
++Justificativa: evita subir um serviço/deploy novo (Railway app extra,
++domínio extra) antes de precisar de fato — mas mantém a lógica isolada o
++suficiente pra virar um serviço próprio depois, quando o quiz/bonificação
++existirem, sem precisar reescrever o modelo de dados.
++
++---
++
++## 8. Migração e compatibilidade
++
++- Nenhuma entrada existente muda de comportamento até alguém logar
++  ativamente e usar aquele nick pela primeira vez.
++- `entradas.user_id` nasce nullable — sem backfill retroativo (não temos
++  como saber com segurança qual conta "deveria" ser dona de um nick
++  histórico sem pedir confirmação da pessoa, e isso está fora de escopo do
++  MVP).
++- Se dois nicks diferentes (por variação de digitação) forem na prática a
++  mesma pessoa, isso não é resolvido automaticamente — só entra em jogo daqui
++  pra frente, uma vez que ela loga com um nick específico.
++
++---
++
++## 9. Todas as perguntas de fechamento foram respondidas
++
++- Envio de Magic Link: **Resend** (plano gratuito cobre o volume esperado).
++- TTL de sessão: **30 dias, sliding**.
++- Retenção do log de auditoria: **1 ano** (ver justificativa no §5).
++- `foto_url` do perfil vs. foto por score: **conceitos separados** — perfil
++  tem seu próprio avatar; cada entrada no ranking mantém sua própria foto de
++  evidência, sempre (ver §3).
++- Escopo do nick reivindicado: **plataforma Canal3 inteira**, não só o
++  `retro-score-ranking` (ver §3 e tabela de decisões).
++- CPF/telefone no perfil: **fora do MVP**, entra junto com o desenho do
++  sistema de bonificação.
++
++### Ainda em aberto, mas explicitamente adiado (não é omissão)
++
++- [ ] Se/quando o `nome`/`foto_url` do perfil vão aparecer no ranking
++      público (hoje só o `nick` é público) — decidir quando a UI de perfil
++      for desenhada, não bloqueia o schema ou os fluxos de auth.
++- [ ] Campo de moderação (`suspenso_motivo` ou similar) em `users.status` —
++      só necessário quando houver um caso real de abuso a moderar; adicionar
++      via migração simples quando surgir a necessidade.
++
++---
++
++## 10. Próximos passos
++
++1. Fechar as perguntas abertas do §9 (pequenas, não estruturais).
++2. Migração SQL para `users`, `identities`, `nick_claims`, `sessions`,
++   `magic_link_tokens`, e `entradas.user_id`.
++3. Módulo `backend/auth/` com os fluxos do §4.
++4. Testes: login Google (mock do provedor), login magic link, claim de
++   nick (livre → reivindicado → bloqueio de terceiro → mesmo dono ok),
++   upload anônimo continua funcionando sem regressão.
++5. Frontend: tela de login opcional no `index.html` (upload), sem tornar o
++   fluxo anônimo mais lento para quem não quer logar.
+-- 
+2.43.0
+
