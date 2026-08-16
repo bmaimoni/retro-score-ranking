@@ -604,6 +604,13 @@ import { getTema, aplicarTema } from './temas.js';
 
 const API_URL = 'https://retro-score-ranking-production.up.railway.app';
 
+// Slug do evento — vem da URL (?evento=slug), com fallback para o evento
+// padrão em uso hoje. Permite múltiplos eventos simultâneos, cada um com
+// sua própria URL de envio (ex: index.html?evento=canal3expo-2027),
+// sem quebrar QR codes/links já publicados que não têm o parâmetro.
+// Ver docs/EVENTOS_SPEC.md.
+const EVENTO_SLUG = new URLSearchParams(location.search).get('evento') || 'canal3expo';
+
 // Estado por card (indexed by jogo.id)
 const estado = {};
 let cardExpandido = null;
@@ -618,8 +625,8 @@ async function carregarJogos() {
   try {
     // Jogos são obrigatórios. Líderes são opcionais — falha silenciosa.
     const [rJogos, rLideres] = await Promise.allSettled([
-      fetch(`${API_URL}/api/jogos`),
-      fetch(`${API_URL}/api/ranking/lideres`),
+      fetch(`${API_URL}/api/e/${EVENTO_SLUG}/jogos`),
+      fetch(`${API_URL}/api/e/${EVENTO_SLUG}/ranking/lideres`),
     ]);
 
     if (rJogos.status === 'rejected' || !rJogos.value.ok) throw new Error();
@@ -904,7 +911,7 @@ window.enviarScore = async function(id) {
     fd.append('jogo_id', id);
 
     setProgress(id, true, 60, e.fotoFile ? 'Enviando foto...' : 'Registrando...');
-    const resp = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: fd });
+    const resp = await fetch(`${API_URL}/api/e/${EVENTO_SLUG}/upload`, { method: 'POST', body: fd });
     setProgress(id, true, 95, 'Registrando...');
     const data = await resp.json();
     if (!resp.ok) {

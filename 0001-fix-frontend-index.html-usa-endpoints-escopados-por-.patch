@@ -1,0 +1,80 @@
+From 24f14746ed4e38fb632ea0c64a160db8b10ac906 Mon Sep 17 00:00:00 2001
+From: Bruno Maimoni <bmaimoni@gmail.com>
+Date: Sun, 16 Aug 2026 20:13:41 +0000
+Subject: [PATCH] =?UTF-8?q?fix(frontend):=20index.html=20usa=20endpoints?=
+ =?UTF-8?q?=20escopados=20por=20evento=20=E2=80=94=20URGENTE?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+O commit anterior (93604a5) removeu POST /api/upload do backend em
+favor de POST /api/e/{slug}/upload, mas o index.html (tela que os
+visitantes usam pra enviar score) ainda chamava o endpoint antigo —
+quebrando todo envio em produção desde que o backend foi deployado.
+
+Corrigido:
+  - POST /api/upload → POST /api/e/{EVENTO_SLUG}/upload
+  - GET  /api/jogos → GET  /api/e/{EVENTO_SLUG}/jogos
+  - GET  /api/ranking/lideres → GET /api/e/{EVENTO_SLUG}/ranking/lideres
+
+EVENTO_SLUG vem de ?evento=slug na URL, com fallback para 'canal3expo'
+(o evento em uso hoje) — QR codes/links já publicados sem o parâmetro
+continuam funcionando exatamente como antes. Isso também já deixa a
+página pronta para eventos simultâneos: cada evento pode ter sua
+própria URL de envio (index.html?evento=outro-evento).
+
+/api/jogos/config não foi tocado — é config de texto (evento_config),
+conceito diferente da identidade visual por evento, sem relação com
+esta mudança.
+
+Validado: sintaxe do <script type=module> extraída e checada com
+'node --check' (sem erros).
+
+Se o Railway auto-deploya o backend a partir do main, este frontend
+também precisa subir no Vercel o quanto antes para os dois lados
+ficarem consistentes.
+---
+ frontend/index.html | 13 ++++++++++---
+ 1 file changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/frontend/index.html b/frontend/index.html
+index bc95f3a..5bb36b5 100644
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -604,6 +604,13 @@ import { getTema, aplicarTema } from './temas.js';
+ 
+ const API_URL = 'https://retro-score-ranking-production.up.railway.app';
+ 
++// Slug do evento — vem da URL (?evento=slug), com fallback para o evento
++// padrão em uso hoje. Permite múltiplos eventos simultâneos, cada um com
++// sua própria URL de envio (ex: index.html?evento=canal3expo-2027),
++// sem quebrar QR codes/links já publicados que não têm o parâmetro.
++// Ver docs/EVENTOS_SPEC.md.
++const EVENTO_SLUG = new URLSearchParams(location.search).get('evento') || 'canal3expo';
++
+ // Estado por card (indexed by jogo.id)
+ const estado = {};
+ let cardExpandido = null;
+@@ -618,8 +625,8 @@ async function carregarJogos() {
+   try {
+     // Jogos são obrigatórios. Líderes são opcionais — falha silenciosa.
+     const [rJogos, rLideres] = await Promise.allSettled([
+-      fetch(`${API_URL}/api/jogos`),
+-      fetch(`${API_URL}/api/ranking/lideres`),
++      fetch(`${API_URL}/api/e/${EVENTO_SLUG}/jogos`),
++      fetch(`${API_URL}/api/e/${EVENTO_SLUG}/ranking/lideres`),
+     ]);
+ 
+     if (rJogos.status === 'rejected' || !rJogos.value.ok) throw new Error();
+@@ -904,7 +911,7 @@ window.enviarScore = async function(id) {
+     fd.append('jogo_id', id);
+ 
+     setProgress(id, true, 60, e.fotoFile ? 'Enviando foto...' : 'Registrando...');
+-    const resp = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: fd });
++    const resp = await fetch(`${API_URL}/api/e/${EVENTO_SLUG}/upload`, { method: 'POST', body: fd });
+     setProgress(id, true, 95, 'Registrando...');
+     const data = await resp.json();
+     if (!resp.ok) {
+-- 
+2.43.0
+
