@@ -236,8 +236,14 @@ ordem; `publico=false` retorna `403`, evento inexistente ou inativo retorna
 
 ## 6. Segurança
 
-- **RLS habilitado** nas 4 tabelas públicas (`entradas`, `jogos`, `eventos`,
-  `evento_config`) e em `evento_jogos`.
+- **RLS habilitado** em todas as tabelas públicas (`entradas`, `jogos`,
+  `eventos`, `evento_config`, `evento_jogos`, e desde a migration 011/014
+  também `placares`, `placar_eventos`, `teloes`, `telao_jogos`). O acesso do
+  `app_user` é liberado por uma policy `app_user_all` (`PERMISSIVE`,
+  `FOR ALL`, `USING true`, `WITH CHECK true`) em cada tabela — **não** por
+  `BYPASSRLS` no role. Toda tabela nova com RLS precisa dessa policy
+  explicitamente (ver armadilha em §8) — sem ela, o `app_user` não gera
+  erro nenhum, só enxerga zero linhas silenciosamente.
 - **`app_user`** dedicado no Postgres com permissões mínimas
   (SELECT/INSERT/UPDATE em geral + DELETE só em `entradas`), substituindo o
   usuário `postgres` (superuser) na `DATABASE_URL` do Railway.
@@ -308,6 +314,21 @@ rota `/{slug}/algo/{param}` e outra `/{slug}/algo/palavra-fixa`, a rota fixa
 a captura como se fosse o parâmetro. Já causou um bug real (`/lideres` em
 `evento_publico.py` ficou inacessível — corrigido no commit `7a3e77c`).
 Manter esse cuidado em qualquer rota nova desse padrão.
+
+**Armadilha de RLS em tabela nova**: `entradas`, `jogos`, `eventos`,
+`evento_config` e `evento_jogos` têm RLS habilitado **e uma policy**
+`app_user_all` (`PERMISSIVE`, `FOR ALL`, `USING true`, `WITH CHECK true`)
+criada manualmente no Supabase — nunca documentada em nenhuma migration
+até a `014`. `app_user` **não** tem `BYPASSRLS`. Toda tabela nova que
+habilita RLS (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`) precisa da
+mesma policy explicitamente, ou todo `SELECT`/`INSERT`/`UPDATE` do
+`app_user` falha **silenciosamente** (zero linhas, sem erro nenhum) — foi
+exatamente o que aconteceu com `placares`/`placar_eventos`/`teloes`/
+`telao_jogos` na migration 011, só corrigido na `014`. Checklist pra
+qualquer migration nova que crie tabela com RLS: sempre incluir
+`CREATE POLICY app_user_all ON <tabela> FOR ALL TO app_user USING (true)
+WITH CHECK (true);` (ou uma policy mais restrita, se fizer sentido pro
+caso).
 
 ---
 
