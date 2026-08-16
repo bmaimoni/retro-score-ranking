@@ -437,6 +437,66 @@
       letter-spacing: 0.06em;
     }
 
+    /* ── Busca ── */
+    .ranking-search-bar {
+      margin-bottom: var(--space-lg);
+    }
+    .ranking-search-input {
+      width: 100%;
+      background: var(--color-bg-surface);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-sm, 6px);
+      color: var(--color-text);
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      padding: var(--space-sm) var(--space-md);
+      transition: border-color var(--transition);
+    }
+    .ranking-search-input::placeholder { color: var(--color-text-muted); }
+    .ranking-search-input:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 2px var(--color-primary-glow, transparent);
+    }
+
+    /* ── Paginação ── */
+    .ranking-paginacao {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-md);
+      margin-top: var(--space-lg);
+      padding-top: var(--space-md);
+    }
+    .pag-btn {
+      background: var(--color-bg-surface);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-sm, 6px);
+      color: var(--color-text);
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      font-weight: var(--weight-bold);
+      padding: var(--space-sm) var(--space-md);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .pag-btn:hover:not(:disabled) {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+    .pag-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .pag-info {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      letter-spacing: 0.06em;
+      min-width: 120px;
+      text-align: center;
+    }
+
     /* ── Responsividade para telas menores ── */
     @media (max-width: 768px) {
       .ranking-page { padding: var(--space-md); }
@@ -476,6 +536,13 @@
     <div class="game-tabs" id="game-tabs" role="tablist">
       <span class="meta-label" style="align-self:center">Carregando...</span>
     </div>
+
+    <!-- Busca -->
+    <div class="ranking-search-bar">
+      <input type="search" id="busca-input" class="ranking-search-input"
+             placeholder="Buscar por nick, nome ou pontuação..." autocomplete="off"
+             aria-label="Buscar no ranking">
+    </div>
   </header>
 
   <!-- Lista do ranking -->
@@ -483,6 +550,14 @@
     <div class="ranking-grid" id="ranking-grid" role="list">
       <!-- Preenchido via JS -->
     </div>
+
+    <!-- Paginação -->
+    <div class="ranking-paginacao" id="ranking-paginacao" style="display:none">
+      <button id="pag-anterior" class="pag-btn" aria-label="Página anterior">‹ Anterior</button>
+      <span id="pag-info" class="pag-info"></span>
+      <button id="pag-proxima" class="pag-btn" aria-label="Próxima página">Próxima ›</button>
+    </div>
+
     <div class="ranking-footer-qr">
       <div class="ranking-footer-qr-label">PARTICIPE PELO CELULAR</div>
       <a id="ranking-qr-link" href="https://retro-score-ranking.vercel.app/index.html" target="_blank" style="display:inline-block">
@@ -517,15 +592,47 @@ const UPLOAD_URL   = window.location.origin + '/index.html'; // URL do formulár
 // Delay entre animações de entrada (ms)
 const STAGGER_DELAY = 60;
 
+// Paginação e busca (client-side — volume esperado é dezenas/centenas de
+// entradas por jogo, não justifica busca no backend ainda; ver EVENTOS_SPEC.md §5)
+const PAGE_SIZE = 20;
+let paginaAtual = 1;
+let buscaQuery  = '';
+
 // ── ESTADO ────────────────────────────────────────────────────────────────────
 let jogoAtual = null;   // { id, nome, slug }
-let entradas  = [];     // lista atual do ranking
+let entradas  = [];     // lista completa e não-filtrada do jogo atual
 let sseSource = null;   // EventSource ativo
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await carregarJogos();
+  conectarControlesBuscaEPaginacao();
 });
+
+function conectarControlesBuscaEPaginacao() {
+  let buscaTimeout;
+  document.getElementById('busca-input').addEventListener('input', (e) => {
+    clearTimeout(buscaTimeout);
+    buscaTimeout = setTimeout(() => {
+      buscaQuery  = e.target.value;
+      paginaAtual = 1;
+      atualizarView();
+    }, 200);
+  });
+
+  document.getElementById('pag-anterior').addEventListener('click', () => {
+    if (paginaAtual <= 1) return;
+    paginaAtual--;
+    atualizarView();
+    document.querySelector('.ranking-grid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  document.getElementById('pag-proxima').addEventListener('click', () => {
+    paginaAtual++;
+    atualizarView();
+    document.querySelector('.ranking-grid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
 
 // ── JOGOS ─────────────────────────────────────────────────────────────────────
 async function carregarJogos() {
@@ -565,6 +672,11 @@ function renderTabs(jogos) {
 async function selecionarJogo(jogo) {
   jogoAtual = jogo;
 
+  // Reseta busca e página ao trocar de jogo
+  buscaQuery = '';
+  paginaAtual = 1;
+  document.getElementById('busca-input').value = '';
+
   // Aplica tema do jogo
   aplicarTema(jogo.slug);
   // No ranking, usa contain em vez de auto 70vh para não esticar
@@ -595,7 +707,7 @@ async function carregarRanking(jogo) {
     if (!resp.ok) throw new Error();
     const data = await resp.json();
     entradas = data.entradas || [];
-    renderRanking(entradas);
+    atualizarView();
   } catch {
     renderErro();
   }
@@ -611,13 +723,15 @@ function conectarSSE(slug) {
     entradas = entradas.filter(en => en.nick.toLowerCase().trim() !== nova.nick.toLowerCase().trim());
     entradas.push(nova);
     entradas.sort((a, b) => b.pontuacao - a.pontuacao);
-    renderRanking(entradas, nova.id);
+    // Mantém a página em que a pessoa está — um score novo não deve
+    // "puxar" quem está navegando de volta pra página 1
+    atualizarView(nova.id);
   });
 
   sseSource.addEventListener('ocultar', e => {
     const { id } = JSON.parse(e.data);
     entradas = entradas.filter(en => en.id !== id);
-    renderRanking(entradas);
+    atualizarView();
   });
 
   sseSource.addEventListener('reativar', e => {
@@ -625,7 +739,7 @@ function conectarSSE(slug) {
     entradas = entradas.filter(en => en.id !== entrada.id);
     entradas.push(entrada);
     entradas.sort((a, b) => b.pontuacao - a.pontuacao);
-    renderRanking(entradas, entrada.id);
+    atualizarView(entrada.id);
   });
 
   sseSource.onopen = () => setConexao(true);
@@ -653,21 +767,66 @@ function setConexao(online) {
   label.textContent = online ? 'AO VIVO' : 'RECONECTANDO...';
 }
 
-// ── RENDER ────────────────────────────────────────────────────────────────────
-function renderRanking(lista, novaEntradaId = null) {
-  const grid = document.getElementById('ranking-grid');
-  const count = document.getElementById('footer-count');
+// ── FILTRO + PAGINAÇÃO ──────────────────────────────────────────────────────────
+function filtrarEntradas(lista, query) {
+  if (!query.trim()) return lista;
+  const q = query.toLowerCase().trim();
+  return lista.filter(e =>
+    e.nick.toLowerCase().includes(q) ||
+    (e.nome && e.nome.toLowerCase().includes(q)) ||
+    String(e.pontuacao).includes(q)
+  );
+}
 
-  if (lista.length === 0) {
+function atualizarView(novaEntradaId = null) {
+  if (entradas.length === 0) {
     renderVazio();
-    count.textContent = '';
+    document.getElementById('footer-count').textContent = '';
+    document.getElementById('ranking-paginacao').style.display = 'none';
     return;
   }
 
-  count.textContent = `${lista.length} participante${lista.length !== 1 ? 's' : ''}`;
+  const filtradas = filtrarEntradas(entradas, buscaQuery);
+
+  if (filtradas.length === 0) {
+    renderSemResultado();
+    document.getElementById('footer-count').textContent = '0 resultados para a busca';
+    document.getElementById('ranking-paginacao').style.display = 'none';
+    return;
+  }
+
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGE_SIZE));
+  if (paginaAtual > totalPaginas) paginaAtual = totalPaginas;
+  const offset = (paginaAtual - 1) * PAGE_SIZE;
+  const pagina = filtradas.slice(offset, offset + PAGE_SIZE);
+
+  renderRanking(pagina, novaEntradaId, offset);
+  renderPaginacao(totalPaginas, filtradas.length);
+
+  const count = document.getElementById('footer-count');
+  count.textContent = buscaQuery.trim()
+    ? `${filtradas.length} de ${entradas.length} participante${entradas.length !== 1 ? 's' : ''}`
+    : `${entradas.length} participante${entradas.length !== 1 ? 's' : ''}`;
+}
+
+function renderPaginacao(totalPaginas, totalFiltrado) {
+  const container = document.getElementById('ranking-paginacao');
+  if (totalFiltrado <= PAGE_SIZE) {
+    container.style.display = 'none';
+    return;
+  }
+  container.style.display = 'flex';
+  document.getElementById('pag-info').textContent = `Página ${paginaAtual} de ${totalPaginas}`;
+  document.getElementById('pag-anterior').disabled = paginaAtual <= 1;
+  document.getElementById('pag-proxima').disabled  = paginaAtual >= totalPaginas;
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function renderRanking(lista, novaEntradaId = null, offset = 0) {
+  const grid = document.getElementById('ranking-grid');
 
   grid.innerHTML = lista.map((entry, i) => {
-    const pos     = i + 1;
+    const pos     = offset + i + 1;
     const posClass = pos <= 3 ? `pos-${pos}` : '';
     const posLabel = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : pos;
     const isNew    = entry.id === novaEntradaId;
@@ -713,6 +872,16 @@ function renderVazio() {
       <div class="empty-icon">👾</div>
       <p class="empty-title">NENHUM SCORE<br>AINDA</p>
       <p class="meta-label">Seja o primeiro a jogar!</p>
+    </div>
+  `;
+}
+
+function renderSemResultado() {
+  document.getElementById('ranking-grid').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">🔍</div>
+      <p class="empty-title">NENHUM RESULTADO<br>PARA A BUSCA</p>
+      <p class="meta-label">Tente outro nick, nome ou pontuação</p>
     </div>
   `;
 }

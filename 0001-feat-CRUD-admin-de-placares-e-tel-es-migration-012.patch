@@ -1,8 +1,8 @@
-From ca5ce2bbd6901de72a7933f7189fe6548462ec50 Mon Sep 17 00:00:00 2001
+From ac0b88ee127f8b4f1b8a5bfc311693a4ca15d6d6 Mon Sep 17 00:00:00 2001
 From: Bruno Maimoni <bmaimoni@gmail.com>
 Date: Sun, 16 Aug 2026 20:02:26 +0000
-Subject: [PATCH] =?UTF-8?q?feat:=20CRUD=20admin=20de=20placares=20e=20tel?=
- =?UTF-8?q?=C3=B5es=20+=20migration=20012?=
+Subject: [PATCH 1/2] =?UTF-8?q?feat:=20CRUD=20admin=20de=20placares=20e=20?=
+ =?UTF-8?q?tel=C3=B5es=20+=20migration=20012?=
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -65,20 +65,18 @@ recorrer.
  ...backend-de-EVENTOS_SPEC.md-placares-.patch | 2086 -----------------
  ...UTH_SPEC.md-e-EVENTOS_SPEC.md-no-pon.patch |  211 --
  backend/main.py                               |    4 +-
- .../migrations/012_placar_eventos_ativo.sql   |   20 +
  backend/repositories/placar.py                |   92 +-
  backend/repositories/telao.py                 |  119 +
  backend/routers/placares_admin.py             |   96 +
  backend/routers/teloes_admin.py               |  132 ++
  backend/tests/test_placares_admin.py          |  173 ++
  backend/tests/test_teloes_admin.py            |  241 ++
- 14 files changed, 877 insertions(+), 3630 deletions(-)
+ 13 files changed, 857 insertions(+), 3630 deletions(-)
  delete mode 100644 0001-docs-adiciona-AUTH_SPEC.md-especifica-o-de-autentica.patch
  delete mode 100644 0001-docs-adiciona-EVENTOS_SPEC.md-eventos-simult-neos-pl.patch
  delete mode 100644 0001-feat-db-migration-011-placares-tel-es-janela-de-envi.patch
  delete mode 100644 0001-feat-implementa-backend-de-EVENTOS_SPEC.md-placares-.patch
  delete mode 100644 0002-docs-consolida-AUTH_SPEC.md-e-EVENTOS_SPEC.md-no-pon.patch
- create mode 100644 backend/migrations/012_placar_eventos_ativo.sql
  create mode 100644 backend/routers/placares_admin.py
  create mode 100644 backend/routers/teloes_admin.py
  create mode 100644 backend/tests/test_placares_admin.py
@@ -3776,32 +3774,6 @@ index dddbff8..395782c 100644
  
  
  # ── Health check ──────────────────────────────────────────────────────────────
-diff --git a/backend/migrations/012_placar_eventos_ativo.sql b/backend/migrations/012_placar_eventos_ativo.sql
-new file mode 100644
-index 0000000..3046763
---- /dev/null
-+++ b/backend/migrations/012_placar_eventos_ativo.sql
-@@ -0,0 +1,20 @@
-+-- ============================================================
-+-- Retro Score Ranking — migração 012
-+-- placar_eventos ganha campo ativo (soft-remove, sem DELETE)
-+--
-+-- app_user não tem permissão de DELETE em placar_eventos (mesmo
-+-- padrão de evento_jogos) — remover um evento de um placar
-+-- customizado precisa ser um toggle, não um DELETE físico.
-+-- ============================================================
-+
-+ALTER TABLE placar_eventos
-+  ADD COLUMN IF NOT EXISTS ativo boolean NOT NULL DEFAULT true;
-+
-+COMMENT ON COLUMN placar_eventos.ativo IS
-+  'false = evento removido do placar customizado, sem apagar a linha '
-+  '(app_user não tem DELETE nesta tabela — mesmo padrão de evento_jogos).';
-+
-+-- Índice para a query de ranking por placar customizado
-+-- (repositories/placar.py filtra por placar_id + ativo=true)
-+CREATE INDEX IF NOT EXISTS idx_placar_eventos_ativo
-+  ON placar_eventos(placar_id) WHERE ativo = true;
 diff --git a/backend/repositories/placar.py b/backend/repositories/placar.py
 index a8dbeb6..e030683 100644
 --- a/backend/repositories/placar.py

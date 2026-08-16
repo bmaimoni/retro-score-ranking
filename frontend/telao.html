@@ -312,9 +312,36 @@
   const API_URL    = 'https://retro-score-ranking-production.up.railway.app';
   const UPLOAD_URL = 'https://retro-score-ranking.vercel.app';
 
+  // Slug do telão — vem da URL (?telao=slug), default 'geral' (Hall da
+  // Fama Geral, seedado pela migration 011 com o comportamento que já
+  // existia antes: todos os jogos ativos, top 10, ranking sem filtro de
+  // evento). Ver docs/EVENTOS_SPEC.md §3-5.
+  const TELAO_SLUG = new URLSearchParams(location.search).get('telao') || 'geral';
+
   let jogoAtual = null;
   let sseSource = null;
   let rankingAtual = [];
+
+  // Preenchidos por carregarConfigTelao() — um telão aponta pra
+  // exatamente um evento OU um placar, nunca os dois.
+  let topN        = 10;
+  let eventoSlug  = null;
+  let placarSlug  = null;
+
+  function buildRankingUrl(jogoSlug) {
+    return eventoSlug
+      ? `${API_URL}/api/e/${eventoSlug}/ranking/${jogoSlug}`
+      : `${API_URL}/api/p/${placarSlug}/ranking/${jogoSlug}`;
+  }
+
+  // QR aponta pro evento certo quando o telão é de um evento específico —
+  // um telão de placar (Hall da Fama, várias edições) não tem um único
+  // evento "ativo agora" pra apontar, então cai no envio padrão.
+  function urlUpload() {
+    return eventoSlug
+      ? `${UPLOAD_URL}/index.html?evento=${eventoSlug}`
+      : `${UPLOAD_URL}/index.html`;
+  }
 
   // ── QR Code ──────────────────────────────────────────────────
   function gerarQR(url) {
@@ -368,20 +395,37 @@
   };
   document.body.appendChild(btnPausar);
 
-  // ── Carrega jogos e monta tabs ────────────────────────────────
-  async function carregarJogos() {
-    const resp = await fetch(`${API_URL}/api/jogos`);
-    const jogos = await resp.json();
-    const tabs  = document.getElementById('tv-tabs');
+  // ── Carrega config do telão (top_n, evento/placar, jogos ordenados) ──
+  async function carregarConfigTelao() {
+    try {
+      const resp = await fetch(`${API_URL}/api/teloes/${TELAO_SLUG}/config`);
+      if (!resp.ok) throw new Error('Telão não encontrado');
+      const config = await resp.json();
+
+      topN       = config.top_n;
+      eventoSlug = config.evento_slug;
+      placarSlug = config.placar_slug;
+      document.title = `${config.nome} — Canal3 Telão`;
+
+      montarTabs(config.jogos);
+    } catch (err) {
+      document.getElementById('tv-tabs').innerHTML =
+        '<span style="color:#f66;font-size:0.6rem;padding:8px">Erro ao carregar configuração do telão</span>';
+      document.getElementById('tv-ranking').innerHTML =
+        '<div style="color:#f66;font-size:0.7rem;text-align:center;margin-top:40px">Telão não encontrado ou indisponível</div>';
+    }
+  }
+
+  function montarTabs(jogos) {
+    const tabs = document.getElementById('tv-tabs');
     tabs.innerHTML = '';
-    const ativos = jogos.filter(j => j.ativo !== false);
-    jogosLista = ativos;
-    ativos.forEach((j, i) => {
+    jogosLista = jogos;   // já vêm ordenados e filtrados (ativo=true) pelo backend
+    jogos.forEach((j, i) => {
       const btn = document.createElement('button');
       btn.className = 'tv-tab';
       btn.textContent = j.nome.toUpperCase();
       btn.onclick = () => {
-        jogoIndex = ativos.indexOf(j);
+        jogoIndex = jogos.indexOf(j);
         carrosselPausado = true;
         btnPausar.textContent = '▶ RETOMAR';
         mudarJogo(j);
@@ -389,7 +433,7 @@
       tabs.appendChild(btn);
       if (i === 0) mudarJogo(j);
     });
-    if (modo === 'carrossel' && ativos.length > 1) {
+    if (modo === 'carrossel' && jogos.length > 1) {
       btnPausar.style.display = 'block';
       iniciarCarrossel();
     }
@@ -397,12 +441,13 @@
 
   function mudarJogo(jogo) {
     jogoAtual = jogo;
+    clearTimeout(destaqueTimer); // evita destaque do jogo anterior vazar pro novo
     document.getElementById('tv-jogo-nome').textContent = jogo.nome.toUpperCase();
     document.querySelectorAll('.tv-tab').forEach(t =>
       t.classList.toggle('ativo', t.textContent === jogo.nome.toUpperCase())
     );
     aplicarTema(jogo.slug);
-    gerarQR(`${UPLOAD_URL}/index.html`);
+    gerarQR(urlUpload());
     carregarRanking(jogo.slug);
     conectarSSE(jogo.slug);
     // Pré-carrega próximo jogo para troca instantânea
@@ -421,7 +466,7 @@
       return;
     }
     try {
-      const resp = await fetch(`${API_URL}/api/ranking/${slug}`);
+      const resp = await fetch(buildRankingUrl(slug));
       const data = await resp.json();
       const entradas = data.entradas || [];
       _rankingCache[slug] = { entradas, ts: Date.now() };
@@ -438,9 +483,8 @@
 
   function renderRanking(entradas, novoNick = null) {
     const el = document.getElementById('tv-ranking');
-    const max = 10;
     el.innerHTML = '';
-    entradas.slice(0, max).forEach((e, i) => {
+    entradas.slice(0, topN).forEach((e, i) => {
       const pos = i + 1;
       const posClass = pos === 1 ? 'p1' : pos === 2 ? 'p2' : pos === 3 ? 'p3' : 'pn';
       const posTexto = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
@@ -465,6 +509,8 @@
   }
 
   // ── SSE ───────────────────────────────────────────────────────
+  let destaqueTimer = null;
+
   function conectarSSE(slug) {
     if (sseSource) { sseSource.close(); sseSource = null; }
     sseSource = new EventSource(`${API_URL}/api/events/ranking/${slug}`);
@@ -472,25 +518,55 @@
     sseSource.addEventListener('novo_registro', e => {
       try {
         const dados = JSON.parse(e.data);
-        // Invalida cache do jogo atual para forçar reload
-        if (_rankingCache[slug]) _rankingCache[slug].ts = 0;
-        carregarRanking(slug).then(() => {
-          renderRanking(rankingAtual, dados.nick);
+        if (_rankingCache[slug]) _rankingCache[slug].ts = 0; // invalida cache
+
+        // Destaque imediato: substitui a última posição visível pela
+        // entrada nova, sem esperar saber se ela realmente entrou no
+        // top N — some sozinho em 5s (ver docs/EVENTOS_SPEC.md §4.3).
+        mostrarDestaqueTemporario(dados);
+
+        // Busca o ranking real em paralelo — não afeta a tela ainda.
+        carregarRanking(slug, { silent: true }).then(() => {
           const top = rankingAtual[0];
           if (top && top.nick.toLowerCase() === dados.nick.toLowerCase()) {
             mostrarNovoRecorde(dados.nick, dados.pontuacao);
           }
+          clearTimeout(destaqueTimer);
+          destaqueTimer = setTimeout(() => {
+            renderRanking(rankingAtual);
+          }, 5000);
         });
       } catch {}
     });
 
-    sseSource.addEventListener('ocultar',   () => carregarRanking(slug));
-    sseSource.addEventListener('reativar',  () => carregarRanking(slug));
+    sseSource.addEventListener('ocultar', () => {
+      clearTimeout(destaqueTimer);
+      carregarRanking(slug);
+    });
+    sseSource.addEventListener('reativar', () => {
+      clearTimeout(destaqueTimer);
+      carregarRanking(slug);
+    });
     sseSource.onopen  = () => setLive(true);
     sseSource.onerror = () => {
       setLive(false);
       setTimeout(() => conectarSSE(slug), 5000);
     };
+  }
+
+  // Mostra a entrada nova destacada na última posição visível (top_n),
+  // por cima do que já estava sendo exibido — não é o ranking real
+  // ainda, é só a transição visual imediata.
+  function mostrarDestaqueTemporario(dados) {
+    const baseline = rankingAtual.slice(0, Math.max(0, topN - 1));
+    const comDestaque = baseline.concat([{
+      nick: dados.nick,
+      pontuacao: dados.pontuacao,
+      foto_url: dados.foto_url,
+      criado_em: dados.criado_em,
+      nome: null,
+    }]);
+    renderRanking(comDestaque, dados.nick);
   }
 
   function setLive(on) {
@@ -561,7 +637,7 @@
   agendarFogosTV();
 
   // ── Init ──────────────────────────────────────────────────────
-  carregarJogos();
+  carregarConfigTelao();
   setInterval(() => { if (jogoAtual) renderRanking(rankingAtual); }, 30000);
 </script>
 </body>
