@@ -174,7 +174,18 @@ Visitante digita e-mail
    → cria Session, seta cookie
 ```
 
-### 4.3 Envio de score autenticado (mudança em `POST /api/upload`)
+### 4.3 Envio de score autenticado (mudança em `POST /api/e/{slug}/upload`)
+
+> ⚠️ **Nota de integração (adicionada após `EVENTOS_SPEC.md`):** o endpoint
+> de upload deixou de ser `POST /api/upload` — o `EVENTOS_SPEC.md` o
+> substituiu por `POST /api/e/{slug}/upload`, escopado por evento. As
+> checagens abaixo (sessão/nick_claims) se somam, na ordem, às checagens de
+> evento já descritas em `EVENTOS_SPEC.md` §4.1. Ordem final combinada:
+>
+> 1. Evento existe / está `publico` / dentro da janela de envio (`EVENTOS_SPEC.md` §4.1, passos 1-3)
+> 2. Sessão de auth presente? → checagem de `nick_claims` (abaixo)
+> 3. Segue o fluxo de upload (score, rate limit, foto, transação de superação)
+
 ```
 Se houver sessão válida (cookie do Auth Service):
    1. Confere nick_claims para o nick_norm enviado
@@ -182,10 +193,11 @@ Se houver sessão válida (cookie do Auth Service):
       - já é do user_id atual → segue
       - é de outro user_id → 409, mensagem clara
    2. Segue o fluxo de upload já existente, gravando entradas.user_id
+      e entradas.evento_id (evento_id já é obrigatório, ver EVENTOS_SPEC.md §3)
 Se não houver sessão:
    1. Confere se o nick_norm já está em nick_claims
       - sim → 409 ("esse nick tem dono, faça login")
-      - não → segue exatamente como hoje (anônimo)
+      - não → segue exatamente como hoje (anônimo), gravando entradas.evento_id
 ```
 
 ### 4.4 Emissão de token para apps consumidores (multi-app)
@@ -202,6 +214,7 @@ Isso só precisa existir quando o segundo app (quiz/bonificação) for
 construído de fato — no MVP do `retro-score-ranking`, só os fluxos 4.1–4.3
 são necessários. Mas o desenho de dados acima (`users`/`identities`
 separados de `sessions`) já fica pronto para isso sem retrabalho.
+
 
 ---
 
@@ -261,7 +274,12 @@ backend/
     router.py        # /api/auth/google/*, /api/auth/magic-link/*, /api/auth/session
     service.py        # lógica de login, linking, emissão de JWT
     repository.py       # users, identities, sessions, nick_claims, magic_link_tokens
-  routers/upload.py   # ganha um Depends(sessao_opcional) e a checagem de nick_claims
+  routers/<upload evento-scoped>   # ganha Depends(sessao_opcional) + checagem de
+                                     # nick_claims no handler de POST /api/e/{slug}/upload
+                                     # (rota definida em EVENTOS_SPEC.md; qual arquivo
+                                     # exatamente hospeda esse handler — upload.py
+                                     # renomeado/movido, ou evento_publico.py ganhando
+                                     # POST — é decisão de implementação, não de spec)
 ```
 
 Justificativa: evita subir um serviço/deploy novo (Railway app extra,

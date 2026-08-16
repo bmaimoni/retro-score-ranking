@@ -279,6 +279,12 @@ Registradas aqui para não serem re-discutidas/revertidas sem querer:
 
 ## 8. Estado atual do multi-evento
 
+> ⚠️ **Este desenho está sendo substituído.** `docs/EVENTOS_SPEC.md` revisa
+> tudo abaixo — eventos simultâneos, janela de envio separada de
+> visibilidade, `placares` (geral + customizados) e `teloes` como entidade
+> própria. Esta seção continua descrevendo o que **já está em produção**
+> (Migration 010); consulte `EVENTOS_SPEC.md` para o que vem a seguir.
+
 Migration 010 (aplicada) trouxe: `evento_jogos` (N:N), campos visuais em
 `eventos` (`logo_url`, `cor_primaria`, `publico`), e migração de scores
 órfãos.
@@ -332,6 +338,19 @@ Manter esse cuidado em qualquer rota nova desse padrão.
 
 ## 10. Backlog — pendências conhecidas
 
+> Duas frentes grandes já saíram do estágio de ideia e viraram
+> especificação fechada, ainda sem código: `docs/AUTH_SPEC.md`
+> (autenticação/identidade) e `docs/EVENTOS_SPEC.md` (eventos simultâneos,
+> placares, telões, paginação/busca). Os dois se cruzam no endpoint de
+> upload (ver nota de integração em ambos, §4).
+>
+> **Ordem de implementação recomendada:** `EVENTOS_SPEC.md` primeiro. É a
+> mudança mais estrutural no schema de `entradas` (`evento_id NOT NULL`,
+> endpoint de upload movido pra `/api/e/{slug}/upload`) e não depende de
+> autenticação existir. `AUTH_SPEC.md` entra depois, camada em cima do
+> endpoint já estabilizado — adiciona `Depends(sessao_opcional)` e a
+> checagem de `nick_claims` sem precisar mexer de novo na parte de eventos.
+
 Em ordem aproximada de prioridade discutida:
 
 - [ ] **Confirmar backup do Supabase** (pendente no dashboard).
@@ -339,16 +358,30 @@ Em ordem aproximada de prioridade discutida:
       já disponíveis no Google Drive — IDs de arquivo registrados na memória
       de conversas anteriores). Envolve `frontend/temas.js`, `style.css`, e
       possivelmente `logo_url`/`cor_primaria` na tabela `eventos`.
-- [ ] **`admin.html` unificado com seletor de evento** — hoje o admin modera
-      globalmente; precisa filtrar por evento conforme decisão #4 do §8.
-- [ ] **Sistema de login/registro de usuário** — pré-requisito para o ranking
-      geral cross-event (decisão #3 do §8).
-- [ ] **Ranking geral cross-event** — bloqueado até login/registro existir.
-- [ ] **Flag de override para telão pós-evento** — já existe `publico` em
-      `eventos`; falta expor isso claramente no fluxo/admin (parcialmente
-      coberto pela decisão #1 do §8, mas sem UI dedicada ainda).
-- [ ] **Fluxo de admin de evento propondo jogos ao catálogo global** —
-      decisão #2 do §8, ainda não implementado.
+- [ ] **Implementar `EVENTOS_SPEC.md`** — eventos simultâneos, janela de
+      envio, `placares`, `teloes`, paginação/busca no ranking. Ver §7 do
+      próprio documento para a lista detalhada de passos.
+- [ ] **Implementar `AUTH_SPEC.md`** — login opcional (Google + Magic Link),
+      nick por claim, base para futuros apps Canal3. Depende do item
+      anterior estar concluído no endpoint de upload (ver nota de
+      integração em `AUTH_SPEC.md` §4.3). Ver §10 do próprio documento para
+      a lista detalhada de passos.
+- [ ] **Fluxo de admin de evento propondo jogos ao catálogo global** — ideia
+      original do §8 desta seção, ainda não redesenhada à luz do
+      `EVENTOS_SPEC.md` (hoje jogos são globais + vínculo por evento via
+      `evento_jogos`; "propor" um jogo novo pro catálogo é fluxo de admin
+      que ainda não foi especificado em detalhe).
+
+**Superadas pelos documentos novos** (mantidas aqui só como histórico —
+não são mais itens de backlog independentes):
+- ~~`admin.html` unificado com seletor de evento~~ → `EVENTOS_SPEC.md` já
+  prevê CRUD de placares/telões no admin; o desenho específico do seletor
+  fica para a implementação.
+- ~~Sistema de login/registro de usuário~~ → `AUTH_SPEC.md`.
+- ~~Ranking geral cross-event~~ → `placares` (`escopo='global'`) em
+  `EVENTOS_SPEC.md`.
+- ~~Flag de override para telão pós-evento~~ → janela `data_inicio`/
+  `data_fim` independente de `publico`, em `EVENTOS_SPEC.md` §3.
 
 ---
 
