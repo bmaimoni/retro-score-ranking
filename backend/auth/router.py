@@ -39,8 +39,14 @@ def _set_session_cookie(response: Response, session_id: str) -> None:
         session_id,
         max_age=settings.session_ttl_days * 86400,
         httponly=True,
-        secure=settings.is_production,
-        samesite="lax",
+        # SameSite=None + Secure=True são obrigatórios aqui, não Lax:
+        # o frontend (vercel.app) chama o backend (railway.app) via
+        # fetch() cross-origin (GET /api/auth/session, POST /upload
+        # com sessão) — Lax só cobre navegação de página inteira (ex.:
+        # o redirect do Google), não chamadas JS. SameSite=None exige
+        # Secure=True incondicionalmente, mesmo fora de produção.
+        secure=True,
+        samesite="none",
     )
 
 

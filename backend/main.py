@@ -43,10 +43,15 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
+# allow_credentials=True é obrigatório para o cookie de sessão de auth
+# (frontend em vercel.app, backend em railway.app — domínios diferentes,
+# então toda chamada fetch() é cross-origin). allow_origins NUNCA pode
+# ser "*" com credentials=True (o navegador bloqueia essa combinação) —
+# settings.allowed_origins precisa listar domínios exatos.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins_list,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["Authorization", "Content-Type"],
 )
