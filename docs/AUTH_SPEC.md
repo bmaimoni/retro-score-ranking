@@ -324,6 +324,16 @@ existirem, sem precisar reescrever o modelo de dados.
 - [ ] Campo de moderação (`suspenso_motivo` ou similar) em `users.status` —
       só necessário quando houver um caso real de abuso a moderar; adicionar
       via migração simples quando surgir a necessidade.
+- [ ] **Domínio próprio pro backend** — hoje em `*.up.railway.app`. Sem um
+      domínio que o Canal3 possua e verifique no Google Search Console, a
+      tela de login do Google sempre mostra o domínio técnico do Railway em
+      vez de um nome de app amigável (ex.: "Canal3") — é comportamento de
+      segurança do próprio Google, não um problema de configuração
+      corrigível no código ou no Console. Requer: domínio próprio (ex.:
+      `auth.canal3.com.br`) apontado pro Railway, `GOOGLE_REDIRECT_URI`
+      atualizado, e o domínio adicionado como "Authorized domain" na tela
+      de consentimento OAuth. Adiado — não bloqueia o login funcionar, só a
+      apresentação visual da tela do Google.
 
 ---
 
