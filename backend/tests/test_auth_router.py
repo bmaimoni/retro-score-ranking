@@ -34,6 +34,7 @@ def clear_overrides():
 async def test_providers_reflete_configuracao(client, monkeypatch):
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "abc")
     monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "xyz")
+    monkeypatch.setenv("GOOGLE_REDIRECT_URI", "https://api.example.com/api/auth/google/callback")
     monkeypatch.setenv("RESEND_API_KEY", "")
     get_settings.cache_clear()
 
@@ -43,6 +44,24 @@ async def test_providers_reflete_configuracao(client, monkeypatch):
     data = resp.json()
     assert data["google"] is True
     assert data["magic_link"] is False
+
+
+@pytest.mark.asyncio
+async def test_providers_google_falso_sem_redirect_uri(client, monkeypatch):
+    """
+    Regressão: client_id e client_secret certos mas sem
+    GOOGLE_REDIRECT_URI faz o Google rejeitar com 'Missing required
+    parameter: redirect_uri' — providers precisa reportar False nesse
+    caso, não True (senão o frontend mostra um botão que quebra).
+    """
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "abc")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "xyz")
+    monkeypatch.setenv("GOOGLE_REDIRECT_URI", "")
+    get_settings.cache_clear()
+
+    resp = await client.get("/api/auth/providers")
+
+    assert resp.json()["google"] is False
 
 
 # ── Google OAuth ────────────────────────────────────────────────────────────

@@ -48,7 +48,9 @@ class Settings(BaseSettings):
     def auth_configurado(self) -> dict[str, bool]:
         """Quais provedores de login estão configurados (env vars presentes)."""
         return {
-            "google": bool(self.google_client_id and self.google_client_secret),
+            "google": bool(
+                self.google_client_id and self.google_client_secret and self.google_redirect_uri
+            ),
             "magic_link": bool(self.resend_api_key),
         }
 
