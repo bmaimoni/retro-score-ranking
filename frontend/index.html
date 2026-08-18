@@ -39,6 +39,103 @@
     }
     .page-subtitle { font-size: var(--text-sm); color: var(--color-text-muted); }
 
+    /* ── Conta / login ── */
+    .conta-bar {
+      width: 100%;
+      max-width: 520px;
+      margin-bottom: var(--space-md);
+    }
+    .conta-status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-sm);
+      min-height: 32px;
+    }
+    .conta-carregando {
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      letter-spacing: 0.1em;
+    }
+    .conta-info {
+      font-size: var(--text-sm);
+      color: rgba(255,255,255,0.75);
+    }
+    .conta-info strong { color: var(--color-primary); }
+    .conta-sair {
+      background: transparent;
+      border: none;
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      text-decoration: underline;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+    .conta-entrar-btn {
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: var(--radius-md);
+      color: rgba(255,255,255,0.8);
+      font-size: var(--text-xs);
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: border-color var(--transition);
+      width: 100%;
+    }
+    .conta-entrar-btn:hover { border-color: var(--color-primary); }
+
+    .login-painel {
+      margin-top: var(--space-sm);
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+    }
+    .login-painel-texto {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      text-align: center;
+      margin-bottom: var(--space-md);
+      line-height: 1.5;
+    }
+    .login-btn {
+      width: 100%;
+      border-radius: var(--radius-sm, 6px);
+      padding: 10px 16px;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-bold);
+      cursor: pointer;
+      transition: filter var(--transition);
+    }
+    .login-btn:hover { filter: brightness(1.1); }
+    .login-btn-google {
+      background: #ffffff;
+      color: #1f1f1f;
+      border: 1px solid rgba(0,0,0,0.1);
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    .login-divisor {
+      display: flex; align-items: center; gap: var(--space-sm);
+      margin: var(--space-md) 0;
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+    }
+    .login-divisor::before, .login-divisor::after {
+      content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.15);
+    }
+    .login-email-form { display: flex; flex-direction: column; gap: var(--space-sm); }
+    .login-btn-email {
+      background: var(--color-primary);
+      color: var(--color-bg, #0b1331);
+    }
+    .login-email-status {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      text-align: center;
+      margin-top: var(--space-sm);
+      min-height: 1em;
+    }
+
     /* ── Regras ── */
     .regras-card {
       width: 100%;
@@ -536,6 +633,13 @@
     <p class="page-subtitle" id="page-subtitle">Selecione o jogo e envie seu placar</p>
   </div>
 
+  <!-- Conta / login — opcional, protege o nick e guarda histórico -->
+  <div class="conta-bar animate-slide-up" id="conta-bar">
+    <div class="conta-status" id="conta-status">
+      <span class="conta-carregando">···</span>
+    </div>
+  </div>
+
   <div class="regras-card animate-slide-up">
     <div class="regras-titulo">📋 COMO PARTICIPAR</div>
     <ul class="regras-lista">
@@ -617,8 +721,131 @@ let cardExpandido = null;
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  await Promise.all([carregarJogos(), carregarConfig()]);
+  await Promise.all([carregarJogos(), carregarConfig(), carregarSessao()]);
 });
+
+// ── CONTA / LOGIN (opcional — AUTH_SPEC.md §4) ─────────────────
+// Login nunca bloqueia o envio anônimo. Só protege o nick de outra
+// pessoa usar, e guarda histórico ligado à conta.
+
+let usuarioAtual = null;
+let providersCache = null;
+
+async function carregarSessao() {
+  try {
+    const resp = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
+    if (resp.ok) {
+      usuarioAtual = await resp.json();
+      renderContaLogado(usuarioAtual);
+    } else {
+      usuarioAtual = null;
+      renderContaDeslogado();
+    }
+  } catch {
+    usuarioAtual = null;
+    renderContaDeslogado();
+  }
+}
+
+function renderContaLogado(usuario) {
+  const el = document.getElementById('conta-status');
+  const nomeExibicao = usuario.nome || usuario.email || 'sua conta';
+  el.innerHTML = `
+    <span class="conta-info">✓ Logado como <strong>${escaparHtml(nomeExibicao)}</strong></span>
+    <button class="conta-sair" onclick="fazerLogout()">Sair</button>
+  `;
+}
+
+function renderContaDeslogado() {
+  const el = document.getElementById('conta-status');
+  el.innerHTML = `
+    <button class="conta-entrar-btn" onclick="toggleLoginPainel()">
+      👤 Entrar para proteger seu nick
+    </button>
+    <div class="login-painel" id="login-painel" style="display:none">
+      <p class="login-painel-texto">
+        Login é opcional — protege seu nick pra ninguém mais usar, e guarda
+        seu histórico de pontuações.
+      </p>
+      <button class="login-btn login-btn-google" id="btn-login-google" onclick="loginGoogle()" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+        Continuar com Google
+      </button>
+      <div class="login-divisor" id="login-divisor" style="display:none"><span>ou</span></div>
+      <div class="login-email-form" id="login-email-form" style="display:none">
+        <input type="email" class="card-input" id="login-email-input"
+               placeholder="seu@email.com" autocomplete="email">
+        <button class="login-btn login-btn-email" onclick="loginMagicLink()">Enviar link de acesso</button>
+      </div>
+      <p class="login-email-status" id="login-email-status"></p>
+    </div>
+  `;
+}
+
+async function carregarProviders() {
+  if (providersCache) return providersCache;
+  try {
+    const resp = await fetch(`${API_URL}/api/auth/providers`);
+    providersCache = await resp.json();
+  } catch {
+    providersCache = { google: false, magic_link: false };
+  }
+  return providersCache;
+}
+
+window.toggleLoginPainel = async function() {
+  const painel = document.getElementById('login-painel');
+  const visivel = painel.style.display !== 'none';
+  painel.style.display = visivel ? 'none' : 'block';
+  if (!visivel) {
+    const providers = await carregarProviders();
+    document.getElementById('btn-login-google').style.display = providers.google ? 'flex' : 'none';
+    document.getElementById('login-divisor').style.display =
+      (providers.google && providers.magic_link) ? 'flex' : 'none';
+    document.getElementById('login-email-form').style.display = providers.magic_link ? 'flex' : 'none';
+  }
+};
+
+window.loginGoogle = function() {
+  // Navegação de página inteira (não fetch) — é assim que o fluxo
+  // OAuth funciona, precisa sair do domínio pro Google e voltar.
+  window.location.href = `${API_URL}/api/auth/google/start`;
+};
+
+window.loginMagicLink = async function() {
+  const input  = document.getElementById('login-email-input');
+  const status = document.getElementById('login-email-status');
+  const email  = input.value.trim();
+  if (!email) return;
+
+  status.textContent = 'Enviando...';
+  try {
+    const resp = await fetch(`${API_URL}/api/auth/magic-link/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await resp.json();
+    status.textContent = data.mensagem || 'Se esse e-mail existir, enviamos um link de acesso.';
+    input.value = '';
+  } catch {
+    status.textContent = 'Não foi possível enviar agora. Tente de novo em instantes.';
+  }
+};
+
+window.fazerLogout = async function() {
+  try {
+    await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+  } catch {}
+  usuarioAtual = null;
+  renderContaDeslogado();
+};
+
+function escaparHtml(texto) {
+  const div = document.createElement('div');
+  div.textContent = texto;
+  return div.innerHTML;
+}
 
 // ── JOGOS + LÍDERES ───────────────────────────────────────────
 async function carregarJogos() {
@@ -911,7 +1138,9 @@ window.enviarScore = async function(id) {
     fd.append('jogo_id', id);
 
     setProgress(id, true, 60, e.fotoFile ? 'Enviando foto...' : 'Registrando...');
-    const resp = await fetch(`${API_URL}/api/e/${EVENTO_SLUG}/upload`, { method: 'POST', body: fd });
+    const resp = await fetch(`${API_URL}/api/e/${EVENTO_SLUG}/upload`, {
+      method: 'POST', body: fd, credentials: 'include',
+    });
     setProgress(id, true, 95, 'Registrando...');
     const data = await resp.json();
     if (!resp.ok) {
