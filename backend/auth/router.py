@@ -1,0 +1,193 @@
+"""
+Router de autenticação — HTTP.
+Prefixo: /api/auth
+
+Endpoints:
+  GET  /api/auth/providers            → quais métodos de login estão configurados
+  GET  /api/auth/google/start         → redireciona pro Google (OAuth)
+  GET  /api/auth/google/callback      → recebe volta do Google, cria sessão
+  POST /api/auth/magic-link/request   → envia e-mail com link de acesso
+  POST /api/auth/magic-link/verify    → valida o token do link, cria sessão
+  GET  /api/auth/session              → usuário da sessão atual (ou 401)
+  POST /api/auth/logout               → revoga a sessão
+
+Ver docs/AUTH_SPEC.md §4 para os fluxos completos.
+"""
+import secrets
+import structlog
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, EmailStr
+
+from config import get_settings
+from utils.db import get_pool
+from utils.ip import get_client_ip, hash_ip
+import auth.service as auth_svc
+import auth.repository as auth_repo
+
+log = structlog.get_logger()
+
+router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+STATE_COOKIE = "oauth_state"
+
+
+def _set_session_cookie(response: Response, session_id: str) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        settings.session_cookie_name,
+        session_id,
+        max_age=settings.session_ttl_days * 86400,
+        httponly=True,
+        secure=settings.is_production,
+        samesite="lax",
+    )
+
+
+def _usuario_publico(usuario: dict) -> dict:
+    """Formato de usuário exposto pro frontend — nunca campos internos."""
+    return {
+        "id": usuario["id"],
+        "nome": usuario["nome"],
+        "email": usuario["email"],
+        "foto_url": usuario["foto_url"],
+    }
+
+
+# ── Descoberta de providers ────────────────────────────────────
+
+@router.get("/providers")
+async def listar_providers():
+    """Quais métodos de login estão configurados — o frontend usa isso
+    pra decidir quais botões mostrar (evita mostrar 'Continuar com
+    Google' se GOOGLE_CLIENT_ID não estiver setado, por exemplo)."""
+    return get_settings().auth_configurado
+
+
+# ── Google OAuth ────────────────────────────────────────────────
+
+@router.get("/google/start")
+async def google_start():
+    settings = get_settings()
+    if not settings.auth_configurado["google"]:
+        raise HTTPException(status_code=503, detail="Login com Google não está configurado")
+
+    state = secrets.token_urlsafe(24)
+    url = auth_svc.gerar_url_autorizacao_google(state)
+
+    redirect = RedirectResponse(url)
+    redirect.set_cookie(
+        STATE_COOKIE, state, max_age=600,
+        httponly=True, secure=settings.is_production, samesite="lax",
+    )
+    return redirect
+
+
+@router.get("/google/callback")
+async def google_callback(
+    request: Request,
+    code: str | None = None,
+    state: str | None = None,
+    pool=Depends(get_pool),
+):
+    settings = get_settings()
+    cookie_state = request.cookies.get(STATE_COOKIE)
+
+    if not code or not state or not cookie_state or state != cookie_state:
+        raise HTTPException(status_code=400, detail="Requisição de login inválida (state não confere)")
+
+    try:
+        perfil = await auth_svc.trocar_code_por_perfil_google(code)
+    except Exception:
+        log.warning("google_callback_erro", exc_info=True)
+        raise HTTPException(status_code=400, detail="Não foi possível completar o login com Google")
+
+    usuario = await auth_svc.login_ou_criar_usuario(
+        pool,
+        provider="google",
+        provider_user_id=perfil["sub"],
+        email=perfil.get("email", ""),
+        email_verified=perfil.get("email_verified", False),
+        nome=perfil.get("name"),
+        foto_url=perfil.get("picture"),
+    )
+
+    ip_hash = hash_ip(get_client_ip(request))
+    sessao = await auth_svc.criar_sessao_para_usuario(
+        pool, usuario["id"],
+        user_agent=request.headers.get("user-agent"),
+        ip_hash=ip_hash,
+    )
+
+    redirect = RedirectResponse(settings.frontend_base_url)
+    redirect.delete_cookie(STATE_COOKIE)
+    _set_session_cookie(redirect, sessao["id"])
+    return redirect
+
+
+# ── Magic Link ──────────────────────────────────────────────────
+
+class MagicLinkRequest(BaseModel):
+    email: EmailStr
+
+
+class MagicLinkVerify(BaseModel):
+    token: str
+
+
+@router.post("/magic-link/request")
+async def magic_link_request(dados: MagicLinkRequest, pool=Depends(get_pool)):
+    settings = get_settings()
+    if not settings.auth_configurado["magic_link"]:
+        raise HTTPException(status_code=503, detail="Login por e-mail não está configurado")
+
+    try:
+        await auth_svc.solicitar_magic_link(pool, dados.email)
+    except Exception:
+        # Nunca vaza detalhe de erro técnico pro cliente — só loga.
+        # A resposta é sempre a mesma, exista o e-mail ou não, envio
+        # tenha funcionado ou não (evita enumeration de e-mails).
+        log.error("magic_link_request_erro", exc_info=True)
+
+    return {"mensagem": "Se esse e-mail existir, enviamos um link de acesso."}
+
+
+@router.post("/magic-link/verify")
+async def magic_link_verify(
+    dados: MagicLinkVerify,
+    request: Request,
+    response: Response,
+    pool=Depends(get_pool),
+):
+    try:
+        usuario = await auth_svc.verificar_magic_link(pool, dados.token)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    ip_hash = hash_ip(get_client_ip(request))
+    sessao = await auth_svc.criar_sessao_para_usuario(
+        pool, usuario["id"],
+        user_agent=request.headers.get("user-agent"),
+        ip_hash=ip_hash,
+    )
+    _set_session_cookie(response, sessao["id"])
+    return _usuario_publico(usuario)
+
+
+# ── Sessão ──────────────────────────────────────────────────────
+
+@router.get("/session")
+async def obter_sessao(usuario: dict | None = Depends(auth_svc.sessao_opcional)):
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Não autenticado")
+    return _usuario_publico(usuario)
+
+
+@router.post("/logout")
+async def logout(request: Request, response: Response, pool=Depends(get_pool)):
+    settings = get_settings()
+    session_id = request.cookies.get(settings.session_cookie_name)
+    if session_id:
+        await auth_repo.revogar_sessao(pool, session_id)
+    response.delete_cookie(settings.session_cookie_name)
+    return {"ok": True}

@@ -25,6 +25,7 @@ import repositories.evento      as evento_repo
 import repositories.evento_jogo as evento_jogo_repo
 import repositories.jogo        as jogo_repo
 import repositories.entrada     as entrada_repo
+import auth.service as auth_svc
 
 log = structlog.get_logger()
 
@@ -168,6 +169,7 @@ async def upload_evento(
     pontuacao: int = Form(..., gt=0, lt=100_000_000),
     jogo_id: UUID4 = Form(...),
     pool=Depends(get_pool),
+    usuario: dict | None = Depends(auth_svc.sessao_opcional),
 ):
     """
     Endpoint principal de participação, escopado por evento.
@@ -178,14 +180,14 @@ async def upload_evento(
     3. Valida score contra o jogo
     4. Calcula hash do IP e verifica rate limit
     5. Faz upload da foto para o Storage (imutável)
-    6. Dentro de uma transação:
+    6. Checa nick_claims (AUTH_SPEC.md §4.3) — nick livre reivindica
+       pro usuário logado; sem sessão, só bloqueia se o nick já tiver
+       dono; nick de outro usuário é rejeitado
+    7. Dentro de uma transação:
        a. Marca entrada anterior do nick como superada
        b. Insere nova entrada (pendente se rate limit atingido), sempre
-          com evento_id preenchido
-    7. Notifica clientes SSE se a entrada for visível imediatamente
-
-    Nota de integração (docs/AUTH_SPEC.md §4.3): quando a autenticação
-    existir, a checagem de sessão/nick_claims entra entre os passos 1 e 2.
+          com evento_id preenchido e user_id quando houver sessão
+    8. Notifica clientes SSE se a entrada for visível imediatamente
     """
     evento = await _get_evento_aceitando_envios(slug, pool)
 
@@ -224,9 +226,16 @@ async def upload_evento(
     if foto is None:
         pendente = True
 
-    # ── 6. Transação: marcar anterior como superado + inserir nova entrada ────
+    # ── 6. Reivindicação de nick (AUTH_SPEC.md §3, §4.3) ──────────────────────
     nick_normalizado = nick_svc.normalizar_nick(nick)
+    try:
+        await auth_svc.verificar_e_reivindicar_nick(
+            pool, nick_normalizado, usuario["id"] if usuario else None
+        )
+    except auth_svc.NickJaReivindicadoError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
+    # ── 7. Transação: marcar anterior como superado + inserir nova entrada ────
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
@@ -245,6 +254,7 @@ async def upload_evento(
                     "pendente":  pendente,
                     "ip_hash":   ip_hash,
                     "evento_id": str(evento["id"]),
+                    "user_id":   usuario["id"] if usuario else None,
                 })
 
     except Exception as exc:

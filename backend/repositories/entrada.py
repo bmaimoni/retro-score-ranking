@@ -7,10 +7,10 @@ async def inserir(conn, dados: dict) -> dict:
         """
         INSERT INTO entradas
             (jogo_id, nick, nick_norm, nome, pontuacao, foto_url,
-             no_ranking, superado, pendente, ip_hash, evento_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, $10)
+             no_ranking, superado, pendente, ip_hash, evento_id, user_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9, $10, $11)
         RETURNING id, jogo_id, nick, nome, pontuacao, foto_url,
-                  no_ranking, pendente, criado_em, evento_id
+                  no_ranking, pendente, criado_em, evento_id, user_id
         """,
         dados["jogo_id"],
         dados["nick"],
@@ -22,6 +22,7 @@ async def inserir(conn, dados: dict) -> dict:
         dados["pendente"],
         dados["ip_hash"],
         dados.get("evento_id"),
+        dados.get("user_id"),
     )
     return dict(row)
 
