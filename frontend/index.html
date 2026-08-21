@@ -136,6 +136,62 @@
       min-height: 1em;
     }
 
+    /* ── Busca de jogos ── */
+    .jogos-busca-bar {
+      width: 100%;
+      max-width: 520px;
+      margin-bottom: var(--space-md);
+    }
+    .jogos-busca-input {
+      width: 100%;
+      background: var(--color-bg-surface);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-sm, 6px);
+      color: var(--color-text);
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      padding: var(--space-sm) var(--space-md);
+      transition: border-color var(--transition);
+    }
+    .jogos-busca-input::placeholder { color: var(--color-text-muted); }
+    .jogos-busca-input:focus {
+      outline: none;
+      border-color: var(--color-primary);
+    }
+    .jogos-busca-vazio {
+      text-align: center;
+      color: var(--color-text-muted);
+      font-size: var(--text-sm);
+      padding: var(--space-lg) 0;
+    }
+
+    /* ── Link direto por jogo (?jogo=) ── */
+    .voltar-todos-jogos {
+      display: inline-block;
+      margin-bottom: var(--space-md);
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    /* ── Link "ver ranking" no card fechado ── */
+    .jogo-ranking-link {
+      flex-shrink: 0;
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      text-decoration: none;
+      padding: 6px 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: var(--radius-sm, 6px);
+      white-space: nowrap;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    .jogo-ranking-link:hover {
+      border-color: var(--card-primary, var(--color-primary));
+      color: var(--card-primary, var(--color-primary));
+    }
+
     /* ── Regras ── */
     .regras-card {
       width: 100%;
@@ -666,6 +722,17 @@
     </button>
   </div>
 
+  <!-- Busca de jogos -->
+  <div class="jogos-busca-bar animate-slide-up">
+    <input type="search" id="jogos-busca-input" class="jogos-busca-input"
+           placeholder="Buscar jogo..." autocomplete="off" aria-label="Buscar jogo">
+  </div>
+
+  <!-- Aparece só quando ?jogo= está na URL (link direto por cabine) -->
+  <a href="#" class="voltar-todos-jogos" id="voltar-todos-jogos" style="display:none" onclick="mostrarTodosJogos(); return false;">
+    ← Ver todos os jogos
+  </a>
+
   <div class="jogos-lista" id="jogos-lista">
     <!-- Skeleton — substituto visual enquanto a API responde -->
     <div class="jogo-card" style="pointer-events:none;opacity:0.4">
@@ -715,13 +782,20 @@ const API_URL = 'https://retro-score-ranking-production.up.railway.app';
 // Ver docs/EVENTOS_SPEC.md.
 const EVENTO_SLUG = new URLSearchParams(location.search).get('evento') || 'canal3expo';
 
+// Link direto por jogo (QR na própria cabine) — ver docs/MARCAS_SPEC.md §4.3
+const JOGO_SLUG_DIRETO = new URLSearchParams(location.search).get('jogo');
+
+let jogosCache   = [];
+let lideresCache = {};
+let buscaJogosQuery = '';
+
 // Estado por card (indexed by jogo.id)
 const estado = {};
 let cardExpandido = null;
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  await Promise.all([carregarJogos(), carregarConfig(), carregarSessao()]);
+  await Promise.all([carregarJogos(), carregarConfig(), carregarSessao(), carregarIdentidadeVisual()]);
 });
 
 // ── CONTA / LOGIN (opcional — AUTH_SPEC.md §4) ─────────────────
@@ -858,17 +932,71 @@ async function carregarJogos() {
 
     if (rJogos.status === 'rejected' || !rJogos.value.ok) throw new Error();
 
-    const jogos   = await rJogos.value.json();
-    const lideres = (rLideres.status === 'fulfilled' && rLideres.value.ok)
+    jogosCache   = await rJogos.value.json();
+    lideresCache = (rLideres.status === 'fulfilled' && rLideres.value.ok)
       ? await rLideres.value.json()
       : {};
 
-    renderJogos(jogos, lideres);
+    conectarBuscaJogos();
+    atualizarListaJogos();
   } catch {
     document.getElementById('jogos-lista').innerHTML =
       `<div class="loading-jogos"><span style="color:var(--color-error)">Erro ao carregar jogos</span></div>`;
   }
 }
+
+function conectarBuscaJogos() {
+  const input = document.getElementById('jogos-busca-input');
+  if (input._conectado) return;
+  input._conectado = true;
+
+  // Link direto por jogo esconde a busca (não faz sentido buscar
+  // quando já se sabe exatamente qual jogo é, ver MARCAS_SPEC.md §4.3)
+  if (JOGO_SLUG_DIRETO) {
+    input.closest('.jogos-busca-bar').style.display = 'none';
+    return;
+  }
+
+  let buscaTimeout;
+  input.addEventListener('input', (e) => {
+    clearTimeout(buscaTimeout);
+    buscaTimeout = setTimeout(() => {
+      buscaJogosQuery = e.target.value;
+      atualizarListaJogos();
+    }, 150);
+  });
+}
+
+function atualizarListaJogos() {
+  let jogosParaExibir = jogosCache;
+
+  if (JOGO_SLUG_DIRETO) {
+    jogosParaExibir = jogosCache.filter(j => j.slug === JOGO_SLUG_DIRETO);
+    document.getElementById('voltar-todos-jogos').style.display = 'inline-block';
+  } else if (buscaJogosQuery.trim()) {
+    const q = buscaJogosQuery.toLowerCase().trim();
+    jogosParaExibir = jogosCache.filter(j => j.nome.toLowerCase().includes(q));
+  }
+
+  if (jogosParaExibir.length === 0) {
+    document.getElementById('jogos-lista').innerHTML =
+      `<div class="jogos-busca-vazio">Nenhum jogo encontrado para "${escapar(buscaJogosQuery)}"</div>`;
+    return;
+  }
+
+  renderJogos(jogosParaExibir, lideresCache);
+
+  // Link direto: card já nasce expandido, sem precisar clicar
+  if (JOGO_SLUG_DIRETO && jogosParaExibir.length === 1) {
+    const j = jogosParaExibir[0];
+    toggleCard(j.id, j.slug, j.nome);
+  }
+}
+
+window.mostrarTodosJogos = function() {
+  history.replaceState(null, '', location.pathname + `?evento=${EVENTO_SLUG}`);
+  location.reload();
+};
 
 function renderJogos(jogos, lideres) {
   const lista = document.getElementById('jogos-lista');
@@ -905,6 +1033,8 @@ function renderJogos(jogos, lideres) {
           <div class="jogo-nome">${escapar(j.nome)}</div>
           <div class="jogo-lider">${liderHtml}</div>
         </div>
+        <a href="ranking.html?evento=${EVENTO_SLUG}&jogo=${j.slug}" class="jogo-ranking-link"
+           onclick="event.stopPropagation()">Ranking</a>
         <span class="jogo-chevron">›</span>
       </div>
       <div class="jogo-body" id="body-${j.id}">
@@ -987,7 +1117,7 @@ function renderFormulario(j) {
     <p class="sucesso-motivacao" id="sucesso-motivacao-${j.id}" style="display:none"></p>
     <p class="sucesso-msg" id="sucesso-msg-${j.id}"></p>
     <div class="sucesso-actions" style="flex-direction:row;gap:var(--space-sm)">
-      <a href="ranking.html?jogo=${j.slug}" class="card-btn" style="text-decoration:none;text-align:center;flex:1">VER RANKING →</a>
+      <a href="ranking.html?evento=${EVENTO_SLUG}&jogo=${j.slug}" class="card-btn" style="text-decoration:none;text-align:center;flex:1">VER RANKING →</a>
       <button class="card-btn" onclick="resetCard('${j.id}')" style="flex:1;background:transparent;border:var(--border-width) solid var(--card-primary,var(--color-primary));color:var(--card-primary,var(--color-primary))">↺ NOVAMENTE</button>
     </div>
 
@@ -1279,6 +1409,34 @@ async function carregarConfig() {
     if (cfg.upload_titulo) document.getElementById('page-title').textContent = cfg.upload_titulo;
     if (cfg.upload_subtitulo) document.getElementById('page-subtitle').textContent = cfg.upload_subtitulo;
   } catch {}
+}
+
+// ── IDENTIDADE VISUAL (marca/evento) — docs/MARCAS_SPEC.md §5 ──
+const TIPOGRAFIAS = {
+  arcade:    "'Press Start 2P', 'Pixel Operator', monospace",
+  futurista: "'Orbitron', sans-serif",
+  terminal:  "'Share Tech Mono', monospace",
+};
+
+async function carregarIdentidadeVisual() {
+  try {
+    const resp = await fetch(`${API_URL}/api/e/${EVENTO_SLUG}/config`);
+    if (!resp.ok) return; // sem config resolvida, fica no default da plataforma
+    aplicarIdentidadeVisual(await resp.json());
+  } catch {}
+}
+
+function aplicarIdentidadeVisual(config) {
+  if (config.cor_primaria) {
+    document.documentElement.style.setProperty('--color-primary', config.cor_primaria);
+  }
+  if (config.tipografia && TIPOGRAFIAS[config.tipografia]) {
+    document.documentElement.style.setProperty('--font-display', TIPOGRAFIAS[config.tipografia]);
+  }
+  if (config.logo_url) {
+    const logo = document.querySelector('.page-logo');
+    if (logo) logo.src = config.logo_url;
+  }
 }
 
 // ── HELPERS ──────────────────────────────────────────────────

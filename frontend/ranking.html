@@ -515,7 +515,7 @@
 
   <!-- Header -->
   <header>
-    <a href="index.html" class="btn-back">◂ VOLTAR</a>
+    <a href="index.html" class="btn-back" id="link-voltar">◂ VOLTAR</a>
     <div class="ranking-header">
       <div class="ranking-meta">
         <span class="meta-label">Jogo atual</span>
@@ -572,7 +572,7 @@
   <!-- Footer -->
   <footer class="ranking-footer">
     <div class="footer-qr-hint">
-      <a href="index.html" style="color:var(--color-text-muted);text-decoration:none;font-size:var(--text-xs)">
+      <a href="index.html" id="link-participar" style="color:var(--color-text-muted);text-decoration:none;font-size:var(--text-xs)">
         ▶ Participar
       </a>
     </div>
@@ -587,7 +587,23 @@ import { aplicarTema } from './temas.js';
 
 // ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
 const API_URL      = 'https://retro-score-ranking-production.up.railway.app';
-const UPLOAD_URL   = window.location.origin + '/index.html'; // URL do formulário de upload
+
+// Evento — opcional, SEM fallback (diferente de index.html). Ausente =
+// comportamento de sempre (placar geral, sem filtro de evento) — nenhum
+// QR/link já publicado quebra. Ver docs/MARCAS_SPEC.md §4.5.
+const EVENTO_SLUG = new URLSearchParams(location.search).get('evento');
+
+function buildRankingUrl(jogoSlug) {
+  return EVENTO_SLUG
+    ? `${API_URL}/api/e/${EVENTO_SLUG}/ranking/${jogoSlug}`
+    : `${API_URL}/api/ranking/${jogoSlug}`;
+}
+
+function buildJogosUrl() {
+  return EVENTO_SLUG
+    ? `${API_URL}/api/e/${EVENTO_SLUG}/jogos`
+    : `${API_URL}/api/jogos`;
+}
 
 // Delay entre animações de entrada (ms)
 const STAGGER_DELAY = 60;
@@ -605,6 +621,12 @@ let sseSource = null;   // EventSource ativo
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  // Preserva o contexto de evento ao navegar de volta pro index.html
+  if (EVENTO_SLUG) {
+    const hrefComEvento = `index.html?evento=${EVENTO_SLUG}`;
+    document.getElementById('link-voltar').href = hrefComEvento;
+    document.getElementById('link-participar').href = hrefComEvento;
+  }
   await carregarJogos();
   conectarControlesBuscaEPaginacao();
 });
@@ -637,7 +659,7 @@ function conectarControlesBuscaEPaginacao() {
 // ── JOGOS ─────────────────────────────────────────────────────────────────────
 async function carregarJogos() {
   try {
-    const resp = await fetch(`${API_URL}/api/jogos`);
+    const resp = await fetch(buildJogosUrl());
     if (!resp.ok) throw new Error();
     const jogos = await resp.json();
     renderTabs(jogos);
@@ -703,7 +725,7 @@ async function selecionarJogo(jogo) {
 async function carregarRanking(jogo) {
   renderLoading();
   try {
-    const resp = await fetch(`${API_URL}/api/ranking/${jogo.slug}`);
+    const resp = await fetch(buildRankingUrl(jogo.slug));
     if (!resp.ok) throw new Error();
     const data = await resp.json();
     entradas = data.entradas || [];
@@ -719,6 +741,17 @@ function conectarSSE(slug) {
 
   sseSource.addEventListener('novo_registro', e => {
     const nova = JSON.parse(e.data);
+
+    // O SSE é por jogo, não por evento (o backend não sabe filtrar por
+    // evento nesse canal) — se a página está escopada por evento, mesclar
+    // a entrada direto no cliente poderia mostrar um score de OUTRO
+    // evento. Mais seguro: revalida buscando do servidor, que já filtra
+    // certo. Sem ?evento=, mantém o merge otimista de sempre.
+    if (EVENTO_SLUG) {
+      carregarRanking(jogoAtual);
+      return;
+    }
+
     // Remove entrada anterior do mesmo nick se existir
     entradas = entradas.filter(en => en.nick.toLowerCase().trim() !== nova.nick.toLowerCase().trim());
     entradas.push(nova);
@@ -729,12 +762,14 @@ function conectarSSE(slug) {
   });
 
   sseSource.addEventListener('ocultar', e => {
+    if (EVENTO_SLUG) { carregarRanking(jogoAtual); return; }
     const { id } = JSON.parse(e.data);
     entradas = entradas.filter(en => en.id !== id);
     atualizarView();
   });
 
   sseSource.addEventListener('reativar', e => {
+    if (EVENTO_SLUG) { carregarRanking(jogoAtual); return; }
     const { entrada } = JSON.parse(e.data);
     entradas = entradas.filter(en => en.id !== entrada.id);
     entradas.push(entrada);
