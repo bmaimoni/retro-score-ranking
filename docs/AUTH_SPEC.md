@@ -256,7 +256,7 @@ separados de `sessions`) já fica pronto para isso sem retrabalho.
 | Apple / Facebook / Microsoft / SMS | Baixo ganho de conversão nesse contexto (evento presencial, Brasil) vs. custo de manutenção por provedor |
 | Passkey | Melhora fricção só em visitas recorrentes; complexidade de implementação (WebAuthn) não se paga ainda no MVP |
 | MFA / step-up auth | Não há operação sensível (dinheiro, dados críticos) no ranking hoje que justifique |
-| RBAC/ABAC | Autorização de admin já existe separada (`ADMIN_SECRET`); não precisa se fundir com identidade de visitante agora |
+| ~~RBAC/ABAC~~ | ~~Autorização de admin já existe separada (`ADMIN_SECRET`); não precisa se fundir com identidade de visitante agora~~ — **reaberto em `docs/MARCAS_SPEC.md` §6**: admin escopado por evento/marca/super-admin passa a reaproveitar `users`/sessões deste documento |
 | Gestão de múltiplos dispositivos/sessões (listar, revogar individualmente) | Sessão única por vez é suficiente na escala atual |
 | Barramento de eventos (`UserCreated`, etc.) | Sem consumidores reais ainda (CRM, antifraude) — adicionar quando existirem |
 | Deploy como serviço separado | Construir como módulo dentro do `retro-score-ranking` (FastAPI já existente) primeiro; extrair pra serviço próprio quando o segundo app consumidor for real. O desenho de dados já é feito para permitir essa extração sem redesenho. |
