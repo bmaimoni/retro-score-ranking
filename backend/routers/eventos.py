@@ -13,6 +13,15 @@ import repositories.evento_jogo as evento_jogo_repo
 router = APIRouter(prefix="/api/admin/eventos", tags=["admin-eventos"])
 
 
+TIPOGRAFIAS_VALIDAS = {"arcade", "futurista", "terminal"}
+
+
+def _validar_tipografia(v):
+    if v is not None and v not in TIPOGRAFIAS_VALIDAS:
+        raise ValueError(f"tipografia deve ser uma de {sorted(TIPOGRAFIAS_VALIDAS)}")
+    return v
+
+
 class EventoCreate(BaseModel):
     nome:         str
     slug:         str
@@ -20,8 +29,12 @@ class EventoCreate(BaseModel):
     publico:      bool = True
     logo_url:     str | None = None
     cor_primaria: str | None = None
+    tipografia:   str | None = None
+    marca_id:     str | None = None
     data_inicio:  datetime
     data_fim:     datetime
+
+    _valida_tipografia = field_validator("tipografia")(_validar_tipografia)
 
     @field_validator("data_fim")
     @classmethod
@@ -38,8 +51,12 @@ class EventoUpdate(BaseModel):
     publico:      bool | None = None
     logo_url:     str | None = None
     cor_primaria: str | None = None
+    tipografia:   str | None = None
+    marca_id:     str | None = None
     data_inicio:  datetime | None = None
     data_fim:     datetime | None = None
+
+    _valida_tipografia = field_validator("tipografia")(_validar_tipografia)
 
 
 class EventoJogoUpdate(BaseModel):

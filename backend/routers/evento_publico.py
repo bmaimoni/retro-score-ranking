@@ -25,6 +25,7 @@ import repositories.evento      as evento_repo
 import repositories.evento_jogo as evento_jogo_repo
 import repositories.jogo        as jogo_repo
 import repositories.entrada     as entrada_repo
+import repositories.marca       as marca_repo
 import auth.service as auth_svc
 
 log = structlog.get_logger()
@@ -69,16 +70,18 @@ async def _get_evento_aceitando_envios(slug: str, pool) -> dict:
 @router.get("/{slug}/config")
 async def get_config_evento(slug: str, pool=Depends(get_pool)):
     """
-    Retorna configuração pública do evento:
-    nome, logo_url, cor_primaria.
-    Usado pelo frontend para aplicar identidade visual.
+    Retorna configuração pública do evento: nome, logo_url, cor_primaria,
+    tipografia — já resolvidos pela cadeia de herança evento → marca →
+    (null, frontend usa seu próprio default). Ver docs/MARCAS_SPEC.md §3-4.
     """
-    evento = await _get_evento_publico(slug, pool)
+    await _get_evento_publico(slug, pool)  # 404/403 se não existir/não público
+    identidade = await marca_repo.resolver_identidade_visual(pool, slug)
     return {
-        "slug":         evento["slug"],
-        "nome":         evento["nome"],
-        "logo_url":     evento.get("logo_url"),
-        "cor_primaria": evento.get("cor_primaria"),
+        "slug":         identidade["slug"],
+        "nome":         identidade["nome"],
+        "logo_url":     identidade["logo_url"],
+        "cor_primaria": identidade["cor_primaria"],
+        "tipografia":   identidade["tipografia"],
     }
 
 

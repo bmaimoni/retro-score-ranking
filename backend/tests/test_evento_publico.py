@@ -43,8 +43,10 @@ def clear_overrides():
 async def test_config_evento_retorna_dados_publicos(client):
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
+    identidade = {**_evento(), "tipografia": None}
 
-    with patch("repositories.evento.buscar_por_slug", AsyncMock(return_value=_evento())):
+    with patch("repositories.evento.buscar_por_slug", AsyncMock(return_value=_evento())), \
+         patch("repositories.marca.resolver_identidade_visual", AsyncMock(return_value=identidade)):
         resp = await client.get("/api/e/canal3expo/config")
 
     assert resp.status_code == 200
@@ -53,6 +55,7 @@ async def test_config_evento_retorna_dados_publicos(client):
     assert "nome" in data
     assert "logo_url" in data
     assert "cor_primaria" in data
+    assert "tipografia" in data
 
 
 @pytest.mark.asyncio
