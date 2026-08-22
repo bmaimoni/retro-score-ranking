@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, UUID4
-from middleware.auth import require_admin
+from middleware.auth import require_admin, AdminContext
 from utils.db import get_pool
 from services.sse import broker
 import repositories.entrada as entrada_repo
 import repositories.jogo as jogo_repo
+import repositories.admin_vinculo as admin_vinculo_repo
 import structlog
 
 log = structlog.get_logger()
@@ -30,6 +31,35 @@ class AtualizarJogo(BaseModel):
     score_max: int | None = None
 
 
+async def _resolver_evento_ids_admin(
+    pool, admin: AdminContext, evento_id: str | None,
+) -> list[str] | None:
+    """
+    Resolve a lista de evento_ids pra filtrar feed/pendentes, conforme o
+    escopo do admin (docs/MARCAS_SPEC.md §6, "efeito colateral necessário"):
+      - super-admin: evento_id é opcional. Informado → filtra só nele;
+        ausente → vê tudo (comportamento de sempre, sem quebra pra quem
+        já usa o token ADMIN_SECRET hoje).
+      - admin escopado (marca/evento, via sessão): evento_id é
+        OBRIGATÓRIO (400 se ausente) e precisa estar dentro do escopo
+        dele (403 se não estiver — nunca vaza dado de fora do escopo).
+    """
+    if admin.super:
+        return [evento_id] if evento_id else None
+
+    if not evento_id:
+        raise HTTPException(
+            status_code=400,
+            detail="evento_id é obrigatório para administradores não-super",
+        )
+
+    tem_acesso = await admin_vinculo_repo.tem_acesso_evento(pool, admin.user_id, evento_id)
+    if not tem_acesso:
+        raise HTTPException(status_code=403, detail="Sem acesso a este evento")
+
+    return [evento_id]
+
+
 # ── FEED ──────────────────────────────────────────────────────────────────────
 
 @router.get("/feed")
@@ -37,17 +67,23 @@ async def feed_entradas(
     response: Response,
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
+    evento_id: str | None = Query(default=None),
     pool=Depends(get_pool),
-    _: str = Depends(require_admin),
+    admin: AdminContext = Depends(require_admin),
 ):
     """
     Feed de todas as entradas recentes, incluindo ocultas e pendentes.
     Total de registros disponível no header X-Total-Count, para o
     frontend montar controles de paginação real (ver docs/EVENTOS_SPEC.md §5).
+
+    evento_id: opcional para super-admin (ausente = vê tudo, como
+    sempre); obrigatório para admin escopado por marca/evento — ver
+    docs/MARCAS_SPEC.md §6.
     """
-    total = await entrada_repo.contar_feed_admin(pool)
+    evento_ids = await _resolver_evento_ids_admin(pool, admin, evento_id)
+    total = await entrada_repo.contar_feed_admin(pool, evento_ids=evento_ids)
     response.headers["X-Total-Count"] = str(total)
-    return await entrada_repo.listar_feed_admin(pool, limit=limit, offset=offset)
+    return await entrada_repo.listar_feed_admin(pool, limit=limit, offset=offset, evento_ids=evento_ids)
 
 
 @router.get("/pendentes")
@@ -55,16 +91,21 @@ async def listar_pendentes(
     response: Response,
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
+    evento_id: str | None = Query(default=None),
     pool=Depends(get_pool),
-    _: str = Depends(require_admin),
+    admin: AdminContext = Depends(require_admin),
 ):
     """
     Entradas aguardando decisão do moderador (vieram pelo rate limit).
     Total de registros disponível no header X-Total-Count.
+
+    evento_id: mesma regra de /feed (opcional pra super-admin,
+    obrigatório e checado por escopo pra admin restrito).
     """
-    total = await entrada_repo.contar_pendentes(pool)
+    evento_ids = await _resolver_evento_ids_admin(pool, admin, evento_id)
+    total = await entrada_repo.contar_pendentes(pool, evento_ids=evento_ids)
     response.headers["X-Total-Count"] = str(total)
-    return await entrada_repo.listar_pendentes(pool, limit=limit, offset=offset)
+    return await entrada_repo.listar_pendentes(pool, limit=limit, offset=offset, evento_ids=evento_ids)
 
 
 # ── MODERAÇÃO DE ENTRADAS ─────────────────────────────────────────────────────
@@ -74,7 +115,7 @@ async def moderar_entrada(
     entrada_id: UUID4,
     body: AtualizarVisibilidade,
     pool=Depends(get_pool),
-    moderador: str = Depends(require_admin),
+    moderador: AdminContext = Depends(require_admin),
 ):
     """
     Oculta (no_ranking=false) ou reativa (no_ranking=true) uma entrada.
@@ -82,7 +123,7 @@ async def moderar_entrada(
     Emite evento SSE para os clientes do ranking.
     """
     entrada = await entrada_repo.atualizar_visibilidade(
-        pool, str(entrada_id), body.no_ranking, moderador
+        pool, str(entrada_id), body.no_ranking, moderador.identificador
     )
     if not entrada:
         raise HTTPException(status_code=404, detail="Entrada não encontrada")
@@ -108,7 +149,7 @@ async def moderar_entrada(
         "moderacao",
         entrada_id=str(entrada_id),
         no_ranking=body.no_ranking,
-        moderador=moderador,
+        moderador=moderador.identificador,
     )
 
     return entrada
@@ -119,7 +160,7 @@ async def resolver_pendente(
     entrada_id: UUID4,
     body: ResolverPendente,
     pool=Depends(get_pool),
-    moderador: str = Depends(require_admin),
+    moderador: AdminContext = Depends(require_admin),
 ):
     """
     Resolve uma entrada pendente:
@@ -127,7 +168,7 @@ async def resolver_pendente(
     - aprovar=false → pendente=false, no_ranking=false (fica oculta)
     """
     entrada = await entrada_repo.resolver_pendente(
-        pool, str(entrada_id), body.aprovar, moderador
+        pool, str(entrada_id), body.aprovar, moderador.identificador
     )
     if not entrada:
         raise HTTPException(status_code=404, detail="Entrada não encontrada")
@@ -147,7 +188,7 @@ async def resolver_pendente(
         "pendente_resolvido",
         entrada_id=str(entrada_id),
         aprovado=body.aprovar,
-        moderador=moderador,
+        moderador=moderador.identificador,
     )
 
     return entrada
@@ -234,7 +275,7 @@ class LimparRankingBody(BaseModel):
 async def limpar_ranking(
     body: LimparRankingBody,
     pool=Depends(get_pool),
-    moderador: str = Depends(require_admin),
+    moderador: AdminContext = Depends(require_admin),
 ):
     """
     Limpa entradas de um jogo ou de todos os jogos.
@@ -254,7 +295,7 @@ async def limpar_ranking(
         else:
             count = await pool.fetchval("SELECT COUNT(*) FROM entradas")
             await pool.execute("DELETE FROM entradas")
-        log.warning("ranking_limpo_permanente", jogo_id=body.jogo_id, total=count, moderador=moderador)
+        log.warning("ranking_limpo_permanente", jogo_id=body.jogo_id, total=count, moderador=moderador.identificador)
     else:
         if body.jogo_id:
             count = await pool.fetchval(
@@ -264,7 +305,7 @@ async def limpar_ranking(
             await pool.execute(
                 """UPDATE entradas SET arquivado = true, arquivado_em = now(), arquivado_por = $1
                    WHERE jogo_id = $2 AND arquivado = false""",
-                moderador, body.jogo_id
+                moderador.identificador, body.jogo_id
             )
         else:
             count = await pool.fetchval(
@@ -273,9 +314,9 @@ async def limpar_ranking(
             await pool.execute(
                 """UPDATE entradas SET arquivado = true, arquivado_em = now(), arquivado_por = $1
                    WHERE arquivado = false""",
-                moderador
+                moderador.identificador
             )
-        log.warning("ranking_arquivado", jogo_id=body.jogo_id, total=count, moderador=moderador)
+        log.warning("ranking_arquivado", jogo_id=body.jogo_id, total=count, moderador=moderador.identificador)
 
     return {"ok": True, "total_afetadas": count, "permanente": body.permanente}
 
@@ -284,7 +325,7 @@ async def limpar_ranking(
 async def restaurar_ranking(
     body: LimparRankingBody,
     pool=Depends(get_pool),
-    moderador: str = Depends(require_admin),
+    moderador: AdminContext = Depends(require_admin),
 ):
     """Restaura entradas arquivadas de um jogo ou de todos."""
     if body.confirmar != "CONFIRMAR":
@@ -305,5 +346,5 @@ async def restaurar_ranking(
             "UPDATE entradas SET arquivado = false, arquivado_em = null, arquivado_por = null WHERE arquivado = true"
         )
 
-    log.info("ranking_restaurado", jogo_id=body.jogo_id, total=count, moderador=moderador)
+    log.info("ranking_restaurado", jogo_id=body.jogo_id, total=count, moderador=moderador.identificador)
     return {"ok": True, "total_restauradas": count}

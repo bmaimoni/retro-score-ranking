@@ -60,8 +60,16 @@ async def listar_feed_admin(
     pool: Pool,
     limit: int = 50,
     offset: int = 0,
+    evento_ids: list[str] | None = None,
 ) -> list[dict]:
-    """Feed do admin: todas as entradas, mais recentes primeiro."""
+    """
+    Feed do admin: todas as entradas, mais recentes primeiro.
+
+    evento_ids: se informado, restringe às entradas desses eventos —
+    usado quando o admin não é super-admin (ver docs/MARCAS_SPEC.md §6,
+    "efeito colateral necessário: feed e pendentes precisam saber o evento").
+    None = sem filtro (comportamento de sempre, usado por super-admin).
+    """
     rows = await pool.fetch(
         """
         SELECT e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.evento_id, e.no_ranking,
@@ -69,20 +77,33 @@ async def listar_feed_admin(
                e.moderado_por, j.nome AS jogo_nome, j.slug AS jogo_slug
         FROM entradas e
         JOIN jogos j ON j.id = e.jogo_id
+        WHERE ($3::uuid[] IS NULL OR e.evento_id = ANY($3::uuid[]))
         ORDER BY e.criado_em DESC
         LIMIT $1 OFFSET $2
         """,
-        limit, offset,
+        limit, offset, evento_ids,
     )
     return [dict(r) for r in rows]
 
 
-async def contar_feed_admin(pool: Pool) -> int:
+async def contar_feed_admin(pool: Pool, evento_ids: list[str] | None = None) -> int:
     """Total de entradas no feed do admin — para paginação."""
-    return await pool.fetchval("SELECT COUNT(*) FROM entradas")
+    return await pool.fetchval(
+        """
+        SELECT COUNT(*) FROM entradas e
+        WHERE ($1::uuid[] IS NULL OR e.evento_id = ANY($1::uuid[]))
+        """,
+        evento_ids,
+    )
 
 
-async def listar_pendentes(pool: Pool, limit: int = 50, offset: int = 0) -> list[dict]:
+async def listar_pendentes(
+    pool: Pool,
+    limit: int = 50,
+    offset: int = 0,
+    evento_ids: list[str] | None = None,
+) -> list[dict]:
+    """evento_ids: mesmo filtro opcional de listar_feed_admin."""
     rows = await pool.fetch(
         """
         SELECT
@@ -123,18 +144,25 @@ async def listar_pendentes(pool: Pool, limit: int = 50, offset: int = 0) -> list
         JOIN jogos j ON j.id = e.jogo_id
         WHERE e.pendente = true
           AND e.arquivado = false
+          AND ($3::uuid[] IS NULL OR e.evento_id = ANY($3::uuid[]))
         ORDER BY e.criado_em ASC
         LIMIT $1 OFFSET $2
         """,
-        limit, offset,
+        limit, offset, evento_ids,
     )
     return [dict(r) for r in rows]
 
 
-async def contar_pendentes(pool: Pool) -> int:
+async def contar_pendentes(pool: Pool, evento_ids: list[str] | None = None) -> int:
     """Total de entradas pendentes — para paginação."""
     return await pool.fetchval(
-        "SELECT COUNT(*) FROM entradas WHERE pendente = true AND arquivado = false"
+        """
+        SELECT COUNT(*) FROM entradas e
+        WHERE e.pendente = true
+          AND e.arquivado = false
+          AND ($1::uuid[] IS NULL OR e.evento_id = ANY($1::uuid[]))
+        """,
+        evento_ids,
     )
 
 
