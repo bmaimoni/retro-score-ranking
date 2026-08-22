@@ -368,12 +368,11 @@ caso).
 Em ordem aproximada de prioridade:
 
 - [ ] **Confirmar backup do Supabase** (pendente no dashboard).
-- [ ] **Aplicar identidade visual 2026**: novo logo + paleta de cores (ambos
-      já disponíveis no Google Drive). Agora que `marcas` existe
-      (`MARCAS_SPEC.md`), isso vira: criar a marca "Canal3" no admin com
-      `cor_primaria`/`logo_url`/`tipografia` corretos, e vincular os
-      eventos existentes a ela — sem precisar de código novo, só uso do
-      que já foi construído.
+- [x] **Aplicar identidade visual 2026** — código pronto (CRUD de marcas
+      no admin, `aplicarIdentidadeVisual()` no frontend). Só falta a
+      execução manual: subir o arquivo do logo em `frontend/`, criar a
+      marca "Canal3" pelo admin com a paleta certa, e vincular os
+      eventos existentes a ela.
 - [ ] **Fluxo de admin de evento propondo jogos ao catálogo global** — ideia
       original do §8 desta seção, ainda não redesenhada à luz do
       `EVENTOS_SPEC.md` (hoje jogos são globais + vínculo por evento via

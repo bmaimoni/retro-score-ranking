@@ -27,9 +27,10 @@ def make_entrada(nick="PLAYER1", pontuacao=50000, jogo_id=None,
     }
 
 
-def make_jogo():
+def make_jogo(pendente_aprovacao=False):
     return {"id": make_uuid(), "slug": "pac-man", "nome": "Pac-Man",
-            "score_max": 999990, "ativo": True}
+            "score_max": 999990, "ativo": True, "pendente_aprovacao": pendente_aprovacao,
+            "criado_por": None, "criado_em": "2026-01-01"}
 
 
 def _pool_com_slug(slug="pac-man"):
@@ -489,3 +490,177 @@ async def test_me_admin_escopado_lista_eventos_acessiveis(client):
     assert data["super"] is False
     assert data["identificador"] == "pessoa@x.com"
     assert data["eventos"] == eventos
+
+# ── Fluxo de aprovação de jogos (migration 018) ─────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_criar_jogo_admin_escopado_fica_pendente_e_auto_vinculado(client):
+    """Admin não-super: jogo nasce pendente_aprovacao=True e é
+    auto-vinculado a todos os eventos que ele tem acesso — utilizável
+    de imediato, mas fora do catálogo geral até aprovação."""
+    escopado = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
+    app.dependency_overrides[require_admin] = lambda: escopado
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    criar_mock = AsyncMock(return_value=make_jogo(pendente_aprovacao=True))
+    adicionar_mock = AsyncMock()
+
+    with patch("repositories.jogo.criar", criar_mock), \
+         patch("repositories.admin_vinculo.listar_eventos_acessiveis", AsyncMock(return_value=["ev1", "ev2"])), \
+         patch("repositories.evento_jogo.adicionar", adicionar_mock):
+        resp = await client.post("/api/admin/jogos",
+            json={"nome": "Frogger", "slug": "frogger"})
+
+    assert resp.status_code == 201
+    criar_mock.assert_called_once_with(
+        pool, "Frogger", "frogger", None,
+        pendente_aprovacao=True, criado_por="pessoa@x.com",
+    )
+    assert adicionar_mock.call_count == 2  # um por evento acessível
+
+
+@pytest.mark.asyncio
+async def test_criar_jogo_super_admin_nasce_aprovado(client):
+    """Super-admin: comportamento de sempre — jogo já nasce aprovado,
+    sem auto-vínculo (super não tem 'seus' eventos)."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    criar_mock = AsyncMock(return_value=make_jogo())
+    with patch("repositories.jogo.criar", criar_mock), \
+         patch("repositories.evento_jogo.adicionar") as adicionar_mock:
+        resp = await client.post("/api/admin/jogos",
+            json={"nome": "Pac-Man", "slug": "pac-man"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 201
+    criar_mock.assert_called_once_with(
+        pool, "Pac-Man", "pac-man", None,
+        pendente_aprovacao=False, criado_por="admin",
+    )
+    adicionar_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_listar_pendentes_admin_escopado_retorna_403(client):
+    escopado = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
+    app.dependency_overrides[require_admin] = lambda: escopado
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.get("/api/admin/jogos/pendentes")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_listar_pendentes_super_admin_funciona(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    pendentes = [{"id": make_uuid(), "nome": "Frogger", "slug": "frogger",
+                  "score_max": None, "criado_por": "pessoa@x.com",
+                  "criado_em": "2026-01-01", "eventos_em_uso": ["Canal3 Expo"]}]
+
+    with patch("repositories.jogo.listar_pendentes_aprovacao", AsyncMock(return_value=pendentes)):
+        resp = await client.get("/api/admin/jogos/pendentes", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_aprovar_jogo_admin_escopado_retorna_403(client):
+    escopado = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
+    app.dependency_overrides[require_admin] = lambda: escopado
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.patch(f"/api/admin/jogos/{make_uuid()}/aprovar")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_aprovar_jogo_super_admin_funciona(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    jogo_id = make_uuid()
+
+    with patch("repositories.jogo.aprovar", AsyncMock(return_value=make_jogo(pendente_aprovacao=False))):
+        resp = await client.patch(f"/api/admin/jogos/{jogo_id}/aprovar", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json()["pendente_aprovacao"] is False
+
+
+@pytest.mark.asyncio
+async def test_aprovar_jogo_inexistente_retorna_404(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.jogo.aprovar", AsyncMock(return_value=None)):
+        resp = await client.patch(f"/api/admin/jogos/{make_uuid()}/aprovar", headers=AUTH_HEADER)
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_mesclar_jogo_admin_escopado_retorna_403(client):
+    escopado = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
+    app.dependency_overrides[require_admin] = lambda: escopado
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post(f"/api/admin/jogos/{make_uuid()}/mesclar",
+        json={"jogo_destino_id": make_uuid()})
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_mesclar_jogo_mesmo_id_origem_destino_retorna_422(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    jogo_id = make_uuid()
+
+    resp = await client.post(f"/api/admin/jogos/{jogo_id}/mesclar",
+        json={"jogo_destino_id": jogo_id}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_mesclar_jogo_origem_inexistente_retorna_404(client):
+    pool = MagicMock()
+    pool.fetchval = AsyncMock(return_value=None)  # nem origem nem destino existem
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    resp = await client.post(f"/api/admin/jogos/{make_uuid()}/mesclar",
+        json={"jogo_destino_id": make_uuid()}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_mesclar_jogo_sucesso(client):
+    origem_id = make_uuid()
+    destino_id = make_uuid()
+
+    class _FakeTxn:
+        async def __aenter__(self): return self
+        async def __aexit__(self, *_): pass
+
+    class _FakeConn:
+        def __init__(self):
+            self.transaction = MagicMock(return_value=_FakeTxn())
+        async def __aenter__(self): return self
+        async def __aexit__(self, *_): pass
+
+    pool = MagicMock()
+    pool.fetchval = AsyncMock(return_value=1)  # origem e destino existem
+    pool.acquire = MagicMock(return_value=_FakeConn())
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    resultado_esperado = {"id": origem_id, "nome": "Pacman Dup", "slug": "pacman-dup",
+                           "ativo": False, "mesclado_em_jogo_id": destino_id}
+    with patch("repositories.jogo.mesclar", AsyncMock(return_value=resultado_esperado)) as mesclar_mock:
+        resp = await client.post(f"/api/admin/jogos/{origem_id}/mesclar",
+            json={"jogo_destino_id": destino_id}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json()["ativo"] is False
+    mesclar_mock.assert_called_once()

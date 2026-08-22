@@ -6,6 +6,7 @@ from services.sse import broker
 import repositories.entrada as entrada_repo
 import repositories.jogo as jogo_repo
 import repositories.admin_vinculo as admin_vinculo_repo
+import repositories.evento_jogo as evento_jogo_repo
 import structlog
 
 log = structlog.get_logger()
@@ -217,15 +218,32 @@ async def resolver_pendente(
 async def criar_jogo(
     body: CriarJogo,
     pool=Depends(get_pool),
-    _: str = Depends(require_admin),
+    admin: AdminContext = Depends(require_admin),
 ):
-    """Cria um novo jogo para o evento."""
+    """
+    Cria um novo jogo. Admin não-super: nasce pendente_aprovacao=true
+    (fora do catálogo/placar geral até um super-admin aprovar), mas já
+    é auto-vinculado aos eventos que esse admin tem acesso — utilizável
+    imediatamente ali. Super-admin: comportamento de sempre, aprovado
+    direto. Ver docs/SPEC.md §10 / migration 018.
+    """
     try:
-        return await jogo_repo.criar(pool, body.nome, body.slug, body.score_max)
+        jogo = await jogo_repo.criar(
+            pool, body.nome, body.slug, body.score_max,
+            pendente_aprovacao=not admin.super,
+            criado_por=admin.identificador,
+        )
     except Exception as exc:
         if "unique" in str(exc).lower():
             raise HTTPException(status_code=409, detail=f"Slug '{body.slug}' já existe")
         raise HTTPException(status_code=500, detail="Erro ao criar jogo")
+
+    if not admin.super and admin.user_id:
+        eventos_ids = await admin_vinculo_repo.listar_eventos_acessiveis(pool, admin.user_id)
+        for evento_id in eventos_ids:
+            await evento_jogo_repo.adicionar(pool, evento_id, str(jogo["id"]))
+
+    return jogo
 
 
 @router.patch("/jogos/{jogo_id}")
@@ -248,6 +266,75 @@ async def listar_jogos_todos(
 ):
     """Lista todos os jogos incluindo inativos — para o painel admin."""
     return await jogo_repo.listar_todos(pool)
+
+
+def _exigir_super_jogos(admin: AdminContext):
+    if not admin.super:
+        raise HTTPException(
+            status_code=403,
+            detail="Só super-admin pode revisar jogos pendentes de aprovação",
+        )
+
+
+@router.get("/jogos/pendentes")
+async def listar_jogos_pendentes(
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """Jogos criados por admin não-super, aguardando aprovação pro
+    catálogo geral — só super-admin revisa (ver migration 018)."""
+    _exigir_super_jogos(admin)
+    return await jogo_repo.listar_pendentes_aprovacao(pool)
+
+
+@router.patch("/jogos/{jogo_id}/aprovar")
+async def aprovar_jogo(
+    jogo_id: UUID4,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """Aprova um jogo pendente pro catálogo geral — as entradas já
+    enviadas entram retroativamente, sem precisar tocar nelas."""
+    _exigir_super_jogos(admin)
+    jogo = await jogo_repo.aprovar(pool, str(jogo_id))
+    if not jogo:
+        raise HTTPException(status_code=404, detail="Jogo não encontrado ou já não está pendente")
+    return jogo
+
+
+class MesclarJogo(BaseModel):
+    jogo_destino_id: UUID4
+
+
+@router.post("/jogos/{jogo_id}/mesclar")
+async def mesclar_jogo(
+    jogo_id: UUID4,
+    body: MesclarJogo,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """
+    Mescla jogo_id (origem, geralmente um pendente identificado como
+    duplicata) em jogo_destino_id (o jogo já existente de verdade).
+    Migra entradas e vínculos de evento, arquiva a origem mantendo o
+    rastro — nunca apaga nada.
+    """
+    _exigir_super_jogos(admin)
+
+    if str(jogo_id) == str(body.jogo_destino_id):
+        raise HTTPException(status_code=422, detail="jogo_destino_id não pode ser igual ao jogo de origem")
+
+    origem_existe = await pool.fetchval("SELECT 1 FROM jogos WHERE id = $1", str(jogo_id))
+    destino_existe = await pool.fetchval("SELECT 1 FROM jogos WHERE id = $1", str(body.jogo_destino_id))
+    if not origem_existe or not destino_existe:
+        raise HTTPException(status_code=404, detail="Jogo de origem ou destino não encontrado")
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            resultado = await jogo_repo.mesclar(conn, str(jogo_id), str(body.jogo_destino_id))
+
+    log.info("jogo_mesclado", origem=str(jogo_id), destino=str(body.jogo_destino_id), admin=admin.identificador)
+    return resultado
 
 
 # ── CONFIGURAÇÃO DO EVENTO ────────────────────────────────────────────────────

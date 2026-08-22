@@ -102,14 +102,16 @@ async def listar_ranking(pool: Pool, jogo_id: str, placar: dict) -> list[dict]:
     if placar["escopo"] == "global":
         rows = await pool.fetch(
             """
-            SELECT id, nick, nome, pontuacao, foto_url, evento_id, criado_em
-            FROM entradas
-            WHERE jogo_id    = $1
-              AND no_ranking = true
-              AND superado   = false
-              AND pendente   = false
-              AND arquivado  = false
-            ORDER BY pontuacao DESC, criado_em ASC, id ASC
+            SELECT e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.evento_id, e.criado_em
+            FROM entradas e
+            JOIN jogos j ON j.id = e.jogo_id
+            WHERE e.jogo_id    = $1
+              AND e.no_ranking = true
+              AND e.superado   = false
+              AND e.pendente   = false
+              AND e.arquivado  = false
+              AND j.pendente_aprovacao = false
+            ORDER BY e.pontuacao DESC, e.criado_em ASC, e.id ASC
             """,
             jogo_id,
         )
@@ -148,6 +150,7 @@ async def listar_lideres(pool: Pool, placar: dict) -> dict:
               AND e.pendente   = false
               AND e.arquivado  = false
               AND j.ativo      = true
+              AND j.pendente_aprovacao = false
             ORDER BY e.jogo_id, e.pontuacao DESC, e.criado_em ASC, e.id ASC
             """
         )
