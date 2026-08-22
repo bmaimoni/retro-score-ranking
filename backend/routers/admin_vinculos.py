@@ -7,10 +7,11 @@ administração de outra pessoa. Um admin escopado (marca/evento) não
 pode conceder acesso a mais ninguém.
 """
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, EmailStr, field_validator
 from middleware.auth import require_admin, AdminContext
 from utils.db import get_pool
 import repositories.admin_vinculo as admin_vinculo_repo
+import auth.repository as auth_repo
 
 router = APIRouter(prefix="/api/admin/vinculos", tags=["admin-vinculos"])
 
@@ -18,7 +19,7 @@ ESCOPOS_VALIDOS = {"super", "marca", "evento"}
 
 
 class VinculoCreate(BaseModel):
-    user_id:   str
+    email:     EmailStr  # a pessoa precisa já ter logado alguma vez com este e-mail
     escopo:    str
     marca_id:  str | None = None
     evento_id: str | None = None
@@ -64,13 +65,21 @@ async def criar_vinculo(
     if dados.escopo == "super" and (dados.marca_id or dados.evento_id):
         raise HTTPException(status_code=422, detail="escopo='super' não aceita marca_id nem evento_id")
 
+    usuario = await auth_repo.buscar_usuario_por_email(pool, dados.email.lower().strip())
+    if not usuario:
+        raise HTTPException(
+            status_code=404,
+            detail="Essa pessoa ainda não tem conta — ela precisa logar pelo menos uma vez "
+                   "(Google ou Magic Link) com esse e-mail antes de virar administradora.",
+        )
+
     try:
         return await admin_vinculo_repo.criar(
-            pool, dados.user_id, dados.escopo, dados.marca_id, dados.evento_id,
+            pool, usuario["id"], dados.escopo, dados.marca_id, dados.evento_id,
         )
     except Exception as exc:
         if "foreign key" in str(exc).lower():
-            raise HTTPException(status_code=404, detail="Usuário, marca ou evento não encontrado")
+            raise HTTPException(status_code=404, detail="Marca ou evento não encontrado")
         raise
 
 
