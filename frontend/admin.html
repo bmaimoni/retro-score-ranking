@@ -722,27 +722,41 @@
   <!-- ── ABA: CONFIG ── -->
   <div class="tab-content" id="tab-config">
     <div class="section-header">
-      <span class="section-title">Configurações do evento</span>
+      <span class="section-title">Eventos</span>
     </div>
 
     <!-- Eventos -->
     <div class="manut-card">
-      <h3 class="manut-titulo">Evento ativo</h3>
-      <p class="manut-desc">O evento ativo é associado a todos os scores enviados. Entradas sem evento ativo ficam sem associação.</p>
-      <div id="evento-ativo-display" style="margin-bottom:var(--space-sm);font-size:var(--text-sm);color:var(--color-text-muted)">
-        Carregando...
-      </div>
+      <h3 class="manut-titulo">Todos os eventos</h3>
+      <p class="manut-desc">
+        Eventos podem rodar simultaneamente. <strong>Ativo</strong> = existe
+        (não arquivado). <strong>Público</strong> = ranking/telão acessíveis.
+        <strong>Janela</strong> = período em que aceita novas pontuações —
+        um evento pode continuar público/consultável mesmo fora da janela.
+      </p>
       <div id="eventos-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:var(--space-md)"></div>
-      <button class="btn-action btn-rejeitar" style="width:100%;margin-bottom:var(--space-sm)" onclick="desativarEvento()">
-        ✕ Desassociar evento ativo
-      </button>
 
       <details style="margin-top:var(--space-md)">
         <summary style="cursor:pointer;font-size:var(--text-xs);color:var(--color-text-muted);letter-spacing:0.08em">CRIAR NOVO EVENTO</summary>
         <div style="margin-top:var(--space-sm);display:flex;flex-direction:column;gap:var(--space-sm)">
-          <input class="field-input" id="novo-evento-nome" placeholder="Nome do evento (ex: Canal3 Expo 2025)" maxlength="80">
-          <input class="field-input" id="novo-evento-slug" placeholder="Slug (ex: canal3-expo-2025)" maxlength="40">
-          <input class="field-input" id="novo-evento-desc" placeholder="Descrição (opcional)" maxlength="200">
+          <input class="field-input" id="novo-evento-nome" placeholder="Nome do evento (ex: Canal3 Expo 2026)" maxlength="80">
+          <input class="field-input" id="novo-evento-slug" placeholder="Slug (ex: canal3-expo-2026)" maxlength="40">
+          <div class="field">
+            <label class="field-label" for="novo-evento-marca">Marca (opcional — herda cor/tipografia/logo)</label>
+            <select class="field-input" id="novo-evento-marca">
+              <option value="">Nenhuma</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:var(--space-sm)">
+            <div class="field" style="flex:1">
+              <label class="field-label" for="novo-evento-inicio">Início dos envios</label>
+              <input class="field-input" type="datetime-local" id="novo-evento-inicio">
+            </div>
+            <div class="field" style="flex:1">
+              <label class="field-label" for="novo-evento-fim">Fim dos envios</label>
+              <input class="field-input" type="datetime-local" id="novo-evento-fim">
+            </div>
+          </div>
           <button class="btn-action btn-reativar" onclick="criarEvento()">+ Criar evento</button>
         </div>
       </details>
@@ -1683,74 +1697,93 @@ document.addEventListener('keydown', function(e) {
 });
 
 // ── EVENTOS ──────────────────────────────────────────────────
+// Não existe mais "o evento ativo" (conceito antigo, pré-EVENTOS_SPEC.md)
+// — vários eventos podem rodar simultaneamente. 'ativo' e 'publico' são
+// dimensões independentes (ver docs/EVENTOS_SPEC.md §3).
+let marcasCacheEventos = [];
+
 async function carregarEventos() {
   try {
-    const resp = await apiFetch('/api/admin/eventos');
-    if (!resp.ok) return;
-    const eventos = await resp.json();
+    const [rEventos, rMarcas] = await Promise.all([
+      apiFetch('/api/admin/eventos'),
+      apiFetch('/api/admin/marcas'),
+    ]);
+    if (!rEventos.ok) return;
+    const eventos = await rEventos.json();
+    marcasCacheEventos = rMarcas.ok ? await rMarcas.json() : [];
 
-    const ativos = eventos.filter(e => e.ativo);
-    const display = document.getElementById('evento-ativo-display');
-    if (ativos.length > 0) {
-      display.innerHTML = ativos.map(e =>
-        `<div style="color:var(--color-primary)">✓ ${escapar(e.nome)} <span style="opacity:0.5">(${escapar(e.slug)})</span></div>`
-      ).join('');
-    } else {
-      display.textContent = 'Nenhum evento ativo';
-      display.style.color = 'var(--color-text-muted)';
-    }
+    // Popula o <select> de marca no formulário de criação
+    const selectMarca = document.getElementById('novo-evento-marca');
+    selectMarca.innerHTML = '<option value="">Nenhuma</option>' +
+      marcasCacheEventos.map(m => `<option value="${m.id}">${escapar(m.nome)}</option>`).join('');
 
     const lista = document.getElementById('eventos-lista');
-    lista.innerHTML = eventos.map(e => `
-      <div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--color-bg-surface2);border-radius:6px;border:1px solid ${e.ativo ? 'var(--color-primary)' : 'transparent'}">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:var(--text-sm);font-weight:600">${escapar(e.nome)}</div>
-          <div style="font-size:var(--text-xs);color:var(--color-text-muted)">${escapar(e.slug)}</div>
+    if (eventos.length === 0) {
+      lista.innerHTML = `<div style="color:var(--color-text-muted);font-size:var(--text-sm)">Nenhum evento cadastrado ainda</div>`;
+      return;
+    }
+
+    lista.innerHTML = eventos.map(e => {
+      const marca = marcasCacheEventos.find(m => m.id === e.marca_id);
+      const inicio = e.data_inicio ? new Date(e.data_inicio).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+      const fim    = e.data_fim    ? new Date(e.data_fim).toLocaleString('pt-BR',    {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+      return `
+        <div style="padding:10px;background:var(--color-bg-surface2);border-radius:6px;border:1px solid ${e.publico ? 'var(--color-primary)' : 'var(--color-border)'}">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:var(--text-sm);font-weight:600">
+                ${escapar(e.nome)}
+                ${marca ? `<span style="font-size:10px;color:var(--color-text-muted)">· ${escapar(marca.nome)}</span>` : ''}
+              </div>
+              <div style="font-size:var(--text-xs);color:var(--color-text-muted)">${escapar(e.slug)} · envios: ${inicio} → ${fim}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <span style="font-size:10px;color:var(--color-text-muted);padding:4px 10px">
+              ${e.ativo ? '● Ativo' : '○ Arquivado'}
+            </span>
+            <button class="btn-action ${e.publico ? 'btn-reativar' : 'btn-rejeitar'}" style="padding:4px 10px;font-size:10px"
+                    onclick="togglePublicoEvento('${e.id}', ${!e.publico})">
+              ${e.publico ? '👁 Público' : '🚫 Inacessível'} — clique pra ${e.publico ? 'ocultar' : 'tornar público'}
+            </button>
+          </div>
         </div>
-        ${e.ativo
-          ? `<button class="btn-action btn-rejeitar" style="padding:4px 10px;font-size:10px" onclick="toggleEvento('${e.id}', false)">Desativar</button>`
-          : `<button class="btn-action btn-reativar" style="padding:4px 10px;font-size:10px" onclick="toggleEvento('${e.id}', true)">Ativar</button>`
-        }
-      </div>
-    `).join('');
+      `;
+    }).join('');
   } catch {}
 }
 
-async function toggleEvento(id, ativo) {
-  const resp = await apiFetch(`/api/admin/eventos/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ativo }),
-  });
-  if (resp.ok) { showToast(ativo ? 'Evento ativado!' : 'Evento desativado', 'success'); carregarEventos(); }
+async function togglePublicoEvento(id, publico) {
+  const resp = await apiFetch(`/api/admin/eventos/${id}`, 'PATCH', { publico });
+  if (resp.ok) { showToast(publico ? 'Evento tornado público' : 'Evento ocultado', 'success'); carregarEventos(); }
   else showToast('Erro ao atualizar evento', 'error');
 }
 
-async function desativarEvento() {
-  // Desativa todos os eventos ativos
-  const resp = await apiFetch('/api/admin/eventos');
-  if (!resp.ok) return;
-  const eventos = await resp.json();
-  const ativos = eventos.filter(e => e.ativo);
-  await Promise.all(ativos.map(e => toggleEvento(e.id, false)));
-  showToast('Todos os eventos desativados', 'success');
-}
-
 async function criarEvento() {
-  const nome = document.getElementById('novo-evento-nome').value.trim();
-  const slug = document.getElementById('novo-evento-slug').value.trim();
-  const desc = document.getElementById('novo-evento-desc').value.trim();
+  const nome     = document.getElementById('novo-evento-nome').value.trim();
+  const slug     = document.getElementById('novo-evento-slug').value.trim();
+  const marcaId  = document.getElementById('novo-evento-marca').value || null;
+  const inicioEl = document.getElementById('novo-evento-inicio').value;
+  const fimEl    = document.getElementById('novo-evento-fim').value;
+
   if (!nome || !slug) { showToast('Nome e slug são obrigatórios', 'error'); return; }
-  const resp = await apiFetch('/api/admin/eventos', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nome, slug, descricao: desc || null }),
-  });
+  if (!inicioEl || !fimEl) { showToast('Início e fim da janela de envio são obrigatórios', 'error'); return; }
+
+  const dados = {
+    nome, slug,
+    marca_id: marcaId,
+    data_inicio: new Date(inicioEl).toISOString(),
+    data_fim:    new Date(fimEl).toISOString(),
+  };
+
+  const resp = await apiFetch('/api/admin/eventos', 'POST', dados);
   if (resp.ok) {
     showToast('Evento criado!', 'success');
     document.getElementById('novo-evento-nome').value = '';
     document.getElementById('novo-evento-slug').value = '';
-    document.getElementById('novo-evento-desc').value = '';
+    document.getElementById('novo-evento-marca').value = '';
+    document.getElementById('novo-evento-inicio').value = '';
+    document.getElementById('novo-evento-fim').value = '';
     carregarEventos();
   } else {
     const d = await resp.json();

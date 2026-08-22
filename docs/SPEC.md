@@ -359,34 +359,21 @@ caso).
 
 ## 10. Backlog — pendências conhecidas
 
-> Duas frentes grandes já saíram do estágio de ideia e viraram
-> especificação fechada, ainda sem código: `docs/AUTH_SPEC.md`
-> (autenticação/identidade) e `docs/EVENTOS_SPEC.md` (eventos simultâneos,
-> placares, telões, paginação/busca). Os dois se cruzam no endpoint de
-> upload (ver nota de integração em ambos, §4).
->
-> **Ordem de implementação recomendada:** `EVENTOS_SPEC.md` primeiro. É a
-> mudança mais estrutural no schema de `entradas` (`evento_id NOT NULL`,
-> endpoint de upload movido pra `/api/e/{slug}/upload`) e não depende de
-> autenticação existir. `AUTH_SPEC.md` entra depois, camada em cima do
-> endpoint já estabilizado — adiciona `Depends(sessao_opcional)` e a
-> checagem de `nick_claims` sem precisar mexer de novo na parte de eventos.
+> **Status das especificações** (atualizado): `docs/EVENTOS_SPEC.md`,
+> `docs/AUTH_SPEC.md` e `docs/MARCAS_SPEC.md` (Fases 1 e 2) já estão
+> **implementados** — backend e frontend, em produção. Os três documentos
+> continuam sendo a referência de design/decisões tomadas, mas não são mais
+> "specs pendentes de código".
 
-Em ordem aproximada de prioridade discutida:
+Em ordem aproximada de prioridade:
 
 - [ ] **Confirmar backup do Supabase** (pendente no dashboard).
 - [ ] **Aplicar identidade visual 2026**: novo logo + paleta de cores (ambos
-      já disponíveis no Google Drive — IDs de arquivo registrados na memória
-      de conversas anteriores). Envolve `frontend/temas.js`, `style.css`, e
-      possivelmente `logo_url`/`cor_primaria` na tabela `eventos`.
-- [ ] **Implementar `EVENTOS_SPEC.md`** — eventos simultâneos, janela de
-      envio, `placares`, `teloes`, paginação/busca no ranking. Ver §7 do
-      próprio documento para a lista detalhada de passos.
-- [ ] **Implementar `AUTH_SPEC.md`** — login opcional (Google + Magic Link),
-      nick por claim, base para futuros apps Canal3. Depende do item
-      anterior estar concluído no endpoint de upload (ver nota de
-      integração em `AUTH_SPEC.md` §4.3). Ver §10 do próprio documento para
-      a lista detalhada de passos.
+      já disponíveis no Google Drive). Agora que `marcas` existe
+      (`MARCAS_SPEC.md`), isso vira: criar a marca "Canal3" no admin com
+      `cor_primaria`/`logo_url`/`tipografia` corretos, e vincular os
+      eventos existentes a ela — sem precisar de código novo, só uso do
+      que já foi construído.
 - [ ] **Fluxo de admin de evento propondo jogos ao catálogo global** — ideia
       original do §8 desta seção, ainda não redesenhada à luz do
       `EVENTOS_SPEC.md` (hoje jogos são globais + vínculo por evento via
@@ -395,14 +382,14 @@ Em ordem aproximada de prioridade discutida:
 
 **Superadas pelos documentos novos** (mantidas aqui só como histórico —
 não são mais itens de backlog independentes):
-- ~~`admin.html` unificado com seletor de evento~~ → `EVENTOS_SPEC.md` já
-  prevê CRUD de placares/telões no admin; o desenho específico do seletor
-  fica para a implementação.
-- ~~Sistema de login/registro de usuário~~ → `AUTH_SPEC.md`.
-- ~~Ranking geral cross-event~~ → `placares` (`escopo='global'`) em
-  `EVENTOS_SPEC.md`.
-- ~~Flag de override para telão pós-evento~~ → janela `data_inicio`/
-  `data_fim` independente de `publico`, em `EVENTOS_SPEC.md` §3.
+- ~~`admin.html` unificado com seletor de evento~~ → implementado
+  (`EVENTOS_SPEC.md` + `MARCAS_SPEC.md` Fase 2 — seletor de evento pra
+  admin escopado, CRUD de placares/telões/marcas/vínculos).
+- ~~Sistema de login/registro de usuário~~ → implementado (`AUTH_SPEC.md`).
+- ~~Ranking geral cross-event~~ → implementado (`placares`,
+  `escopo='global'`, `EVENTOS_SPEC.md`).
+- ~~Flag de override para telão pós-evento~~ → implementado (janela
+  `data_inicio`/`data_fim` independente de `publico`, `EVENTOS_SPEC.md` §3).
 
 ---
 

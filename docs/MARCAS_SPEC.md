@@ -1,8 +1,8 @@
 # Marcas, Identidade Visual e Navegação — Retro Score Ranking
 
-> Status: **decisões fechadas, pronto para commit**. Complementa
-> `EVENTOS_SPEC.md` — introduz um nível novo (`marcas`) acima de `eventos`,
-> e revisita a navegação de `index.html`/`ranking.html`.
+> Status: **implementado (Fases 1 e 2)** — backend e frontend em produção.
+> Complementa `EVENTOS_SPEC.md` — introduz um nível novo (`marcas`) acima de
+> `eventos`, e revisita a navegação de `index.html`/`ranking.html`.
 
 ---
 
@@ -274,31 +274,38 @@ codada, não bloqueia o desenho acima.
 
 ## 8. Próximos passos
 
-1. Migração SQL: `marcas`, `eventos.marca_id`, `eventos.tipografia`,
-   `admin_vinculos` — com RLS + policy desde o início.
-2. Backend (identidade visual): `repositories/marca.py` +
-   `routers/marcas_admin.py` (CRUD, mesmo padrão de
-   `placares_admin.py`/`teloes_admin.py`); resolução de herança em
-   `GET /api/e/{slug}/config`; `ranking.html`'s contraparte —
-   `routers/evento_publico.py` já tem o endpoint de ranking por evento,
-   só falta o frontend usar.
-3. Backend (admin escopado): evoluir `middleware/auth.py:require_admin`
-   pra aceitar sessão+vínculo além do Bearer token; filtro de `evento_id`
-   obrigatório em feed/pendentes pra quem não for super-admin; endpoints de
-   CRUD de `admin_vinculos` (só super-admin cria/remove vínculo de outra
-   pessoa).
-4. Frontend: busca em `index.html`; parâmetro `?jogo=` (link direto);
-   `aplicarIdentidadeVisual()`; link "ver ranking" por card; `ranking.html`
-   ganha `?evento=`.
-5. Admin: CRUD de marcas, campo de vínculo marca↔evento no formulário de
-   evento existente; UI pra super-admin gerenciar vínculos de outros
-   administradores; `admin.html` migra de "só token" pra "login + vínculo"
-   (login continua aceitando o token como atalho de super-admin).
-6. Testes: resolução de herança (evento > marca > default, nas 3
-   combinações, com logo sempre não-herdado), `?jogo=` mostrando card
-   único, `ranking.html` com/sem `?evento=`, as 4 combinações de
-   autorização escopada (super/marca/evento/nenhum) pra uma ação sobre um
-   evento-alvo.
+> **Status: Fases 1 e 2 implementadas** (backend + frontend, em produção).
+> Lista abaixo mantida como histórico do que foi feito, mais um item
+> encontrado e corrigido durante a implementação.
 
-`AUTH_SPEC.md` §6 já foi atualizado nesta mesma sessão, marcando RBAC/ABAC
-como reaberto aqui — não é mais um passo pendente.
+1. ~~Migração SQL~~ ✅ — `marcas`, `eventos.marca_id`, `eventos.tipografia`,
+   `admin_vinculos`, com RLS + policy desde o início.
+2. ~~Backend (identidade visual)~~ ✅ — `repositories/marca.py`,
+   `routers/marcas_admin.py`, resolução de herança em
+   `GET /api/e/{slug}/config`.
+3. ~~Backend (admin escopado)~~ ✅ — `middleware/auth.py:require_admin`
+   aceita sessão+vínculo além do Bearer token; `evento_id` obrigatório em
+   feed/pendentes pra quem não é super-admin; CRUD de `admin_vinculos`
+   (por e-mail, não `user_id` — decisão tomada durante a implementação,
+   ver commit correspondente).
+4. ~~Frontend~~ ✅ — busca em `index.html`, `?jogo=` (link direto),
+   `aplicarIdentidadeVisual()`, link "ver ranking" por card,
+   `ranking.html?evento=`.
+5. ~~Admin~~ ✅ — CRUD de marcas, `admin.html` com login Google/Magic Link
+   além do token, seletor de evento pra admin escopado, aba de gestão de
+   vínculos.
+   - **Bug encontrado e corrigido nesta mesma leva**: a aba "Evento" do
+     admin ainda refletia o modelo antigo de "um evento ativo só"
+     (pré-`EVENTOS_SPEC.md`) — o formulário de criação nem enviava
+     `data_inicio`/`data_fim` (obrigatórios) nem tinha campo de marca, e
+     duas chamadas (`criarEvento`, `toggleEvento`) usavam a assinatura
+     errada de `apiFetch` (passavam um objeto de opções em vez de
+     `method`/`body` posicionais) — provavelmente quebrado desde que
+     `EVENTOS_SPEC.md` tornou a janela obrigatória. Reconstruída: lista
+     todos os eventos (não só "o ativo"), mostra marca/janela/`publico`,
+     toggle de `publico` por evento, formulário de criação completo.
+6. ~~Testes~~ ✅ — resolução de herança, `?jogo=`, `ranking.html`
+   com/sem `?evento=`, as 4 combinações de autorização escopada.
+
+`AUTH_SPEC.md` §6 já foi atualizado, marcando RBAC/ABAC como implementado
+aqui (era um item adiado, não é mais).
