@@ -722,6 +722,48 @@
   <!-- ── ABA: CONFIG ── -->
   <div class="tab-content" id="tab-config">
     <div class="section-header">
+      <span class="section-title">Marcas</span>
+    </div>
+
+    <!-- Marcas -->
+    <div class="manut-card">
+      <h3 class="manut-titulo">Identidade visual por marca</h3>
+      <p class="manut-desc">
+        Cor, tipografia e logo definidos aqui são herdados por qualquer evento
+        vinculado a esta marca — a menos que o evento defina os seus próprios
+        (evento &gt; marca &gt; default). Ver <code>docs/MARCAS_SPEC.md</code>.
+      </p>
+      <div id="marcas-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:var(--space-md)">Carregando...</div>
+
+      <details id="marca-form-details" style="margin-top:var(--space-md)">
+        <summary style="cursor:pointer;font-size:var(--text-xs);color:var(--color-text-muted);letter-spacing:0.08em">CRIAR NOVA MARCA</summary>
+        <div style="margin-top:var(--space-sm);display:flex;flex-direction:column;gap:var(--space-sm)">
+          <input type="hidden" id="marca-id-editando" value="">
+          <input class="field-input" id="marca-nome" placeholder="Nome da marca (ex: Canal3)" maxlength="80">
+          <input class="field-input" id="marca-slug" placeholder="Slug (ex: canal3)" maxlength="40">
+          <div style="display:flex;gap:var(--space-sm);align-items:center">
+            <input class="field-input" type="color" id="marca-cor" value="#5fbb50" style="flex:0 0 60px;padding:2px;height:38px">
+            <input class="field-input" id="marca-cor-hex" placeholder="#5fbb50 (cor primária)" style="flex:1" maxlength="7">
+          </div>
+          <div class="field">
+            <label class="field-label" for="marca-tipografia">Tipografia</label>
+            <select class="field-input" id="marca-tipografia">
+              <option value="">Padrão da plataforma</option>
+              <option value="arcade">Arcade (Press Start 2P)</option>
+              <option value="futurista">Futurista (Orbitron)</option>
+              <option value="terminal">Terminal (Share Tech Mono)</option>
+            </select>
+          </div>
+          <input class="field-input" id="marca-logo" placeholder="Logo (ex: logo-canal3-2026.png ou URL completa)" maxlength="300">
+          <div style="display:flex;gap:var(--space-sm)">
+            <button class="btn-action btn-reativar" style="flex:1" onclick="salvarMarca()" id="marca-salvar-btn">+ Criar marca</button>
+            <button class="btn-action btn-rejeitar" style="flex:0 0 auto;display:none" id="marca-cancelar-btn" onclick="cancelarEdicaoMarca()">Cancelar</button>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="section-header" style="margin-top:var(--space-lg)">
       <span class="section-title">Eventos</span>
     </div>
 
@@ -1161,6 +1203,7 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     tab.classList.add('active');
     document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
     if (tab.dataset.tab === 'administradores') carregarVinculos();
+    if (tab.dataset.tab === 'config') { carregarMarcas(); carregarEventos(); }
   });
 });
 
@@ -1695,6 +1738,118 @@ window.fecharLightbox = function(e) {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') window.fecharLightbox();
 });
+
+// ── MARCAS ───────────────────────────────────────────────────
+// Cor/tipografia/logo aqui são herdados por eventos vinculados —
+// ver docs/MARCAS_SPEC.md §3. marcasCacheEventos (definida abaixo, em
+// EVENTOS) é reaproveitada pelo <select> de marca do form de evento.
+
+async function carregarMarcas() {
+  const lista = document.getElementById('marcas-lista');
+  try {
+    const resp = await apiFetch('/api/admin/marcas');
+    if (!resp.ok) { lista.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar marcas</div>`; return; }
+    const marcas = await resp.json();
+
+    if (marcas.length === 0) {
+      lista.innerHTML = `<div style="color:var(--color-text-muted);font-size:var(--text-sm)">Nenhuma marca cadastrada ainda</div>`;
+      return;
+    }
+
+    lista.innerHTML = marcas.map(m => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--color-bg-surface2);border-radius:6px;border:1px solid var(--color-border)">
+        <div style="width:24px;height:24px;border-radius:50%;flex-shrink:0;background:${m.cor_primaria || 'transparent'};border:1px solid var(--color-border)"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:var(--text-sm);font-weight:600">${escapar(m.nome)}</div>
+          <div style="font-size:var(--text-xs);color:var(--color-text-muted)">
+            ${escapar(m.slug)}
+            ${m.tipografia ? ` · ${escapar(m.tipografia)}` : ''}
+            ${m.logo_url ? ` · logo definido` : ' · sem logo'}
+          </div>
+        </div>
+        <button class="btn-action btn-reativar" style="padding:4px 10px;font-size:10px"
+                onclick='editarMarca(${JSON.stringify(m).replace(/'/g, "&apos;")})'>
+          Editar
+        </button>
+      </div>
+    `).join('');
+  } catch {
+    lista.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar marcas</div>`;
+  }
+}
+
+// Sincroniza o color picker com o campo de texto hex, nos dois sentidos
+document.getElementById('marca-cor').addEventListener('input', (e) => {
+  document.getElementById('marca-cor-hex').value = e.target.value;
+});
+document.getElementById('marca-cor-hex').addEventListener('input', (e) => {
+  if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
+    document.getElementById('marca-cor').value = e.target.value;
+  }
+});
+
+window.editarMarca = function(marca) {
+  document.getElementById('marca-id-editando').value = marca.id;
+  document.getElementById('marca-nome').value = marca.nome;
+  document.getElementById('marca-slug').value = marca.slug;
+  document.getElementById('marca-slug').disabled = true; // slug não muda após criado
+  const cor = marca.cor_primaria || '#5fbb50';
+  document.getElementById('marca-cor').value = cor;
+  document.getElementById('marca-cor-hex').value = marca.cor_primaria || '';
+  document.getElementById('marca-tipografia').value = marca.tipografia || '';
+  document.getElementById('marca-logo').value = marca.logo_url || '';
+  document.getElementById('marca-salvar-btn').textContent = '✓ Salvar alterações';
+  document.getElementById('marca-cancelar-btn').style.display = 'block';
+  document.getElementById('marca-form-details').open = true;
+  document.getElementById('marca-form-details').scrollIntoView({ behavior: 'smooth' });
+};
+
+window.cancelarEdicaoMarca = function() {
+  document.getElementById('marca-id-editando').value = '';
+  document.getElementById('marca-nome').value = '';
+  document.getElementById('marca-slug').value = '';
+  document.getElementById('marca-slug').disabled = false;
+  document.getElementById('marca-cor').value = '#5fbb50';
+  document.getElementById('marca-cor-hex').value = '';
+  document.getElementById('marca-tipografia').value = '';
+  document.getElementById('marca-logo').value = '';
+  document.getElementById('marca-salvar-btn').textContent = '+ Criar marca';
+  document.getElementById('marca-cancelar-btn').style.display = 'none';
+};
+
+window.salvarMarca = async function() {
+  const id       = document.getElementById('marca-id-editando').value;
+  const nome     = document.getElementById('marca-nome').value.trim();
+  const slug     = document.getElementById('marca-slug').value.trim();
+  const cor      = document.getElementById('marca-cor-hex').value.trim();
+  const tipo     = document.getElementById('marca-tipografia').value;
+  const logo     = document.getElementById('marca-logo').value.trim();
+
+  if (!nome || (!id && !slug)) { showToast('Nome (e slug, se nova) são obrigatórios', 'error'); return; }
+  if (cor && !/^#[0-9a-fA-F]{6}$/.test(cor)) { showToast('Cor precisa ser um hex válido (#rrggbb)', 'error'); return; }
+
+  const dados = { nome };
+  if (cor)  dados.cor_primaria = cor;
+  if (tipo) dados.tipografia   = tipo;
+  if (logo) dados.logo_url     = logo;
+
+  let resp;
+  if (id) {
+    resp = await apiFetch(`/api/admin/marcas/${id}`, 'PATCH', dados);
+  } else {
+    dados.slug = slug;
+    resp = await apiFetch('/api/admin/marcas', 'POST', dados);
+  }
+
+  if (resp.ok) {
+    showToast(id ? 'Marca atualizada!' : 'Marca criada!', 'success');
+    cancelarEdicaoMarca();
+    carregarMarcas();
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao salvar marca', 'error');
+  }
+};
 
 // ── EVENTOS ──────────────────────────────────────────────────
 // Não existe mais "o evento ativo" (conceito antigo, pré-EVENTOS_SPEC.md)
