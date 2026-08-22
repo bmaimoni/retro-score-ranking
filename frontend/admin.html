@@ -437,6 +437,48 @@
     }
     .jogo-card.inativo { opacity: 0.5; }
     .jogo-nome { font-size: var(--text-md); font-weight: var(--weight-bold); }
+    .badge-pendente-jogo {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: var(--weight-bold);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: var(--color-warning, #e6a23c);
+      color: #1a1a1a;
+      padding: 2px 8px;
+      border-radius: var(--radius-full, 999px);
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .jogo-pendente-card {
+      padding: var(--space-md);
+      background: var(--color-bg-surface2);
+      border: 1px solid var(--color-warning, #e6a23c);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-sm);
+    }
+    .jogo-pendente-meta {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      margin: 4px 0 10px;
+    }
+    .jogo-pendente-acoes {
+      display: flex;
+      gap: var(--space-sm);
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .jogo-pendente-mesclar-select {
+      font-family: var(--font-body);
+      font-size: var(--text-xs);
+      background: var(--color-bg);
+      color: var(--color-text);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: 4px 8px;
+      flex: 1;
+      min-width: 140px;
+    }
     .jogo-meta { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; }
     .jogo-actions { display: flex; gap: var(--space-xs); align-items: center; }
 
@@ -694,6 +736,18 @@
 
   <!-- ── ABA: JOGOS ── -->
   <div class="tab-content" id="tab-jogos">
+    <div id="jogos-pendentes-secao" style="display:none;margin-bottom:var(--space-lg)">
+      <div class="section-header">
+        <span class="section-title">Jogos aguardando aprovação</span>
+      </div>
+      <p class="manut-desc" style="margin-bottom:var(--space-md)">
+        Criados por admins de evento/marca — já utilizáveis nos eventos deles,
+        mas fora do catálogo/placar geral até você aprovar ou mesclar com um
+        jogo já existente (caso seja duplicata).
+      </p>
+      <div id="jogos-pendentes-lista"></div>
+    </div>
+
     <div class="section-header">
       <span class="section-title">Jogos cadastrados</span>
     </div>
@@ -956,6 +1010,7 @@ const API_URL = 'https://retro-score-ranking-production.up.railway.app';
 const POLL_INTERVAL = 300000; // 5 minutos
 let tempoRestante = 300;
 let jogosCarregados = false;
+let jogosCache = [];  // usado pelo select de "mesclar com" em jogos pendentes
 let configCarregada = false;
 
 // ── ESTADO ────────────────────────────────────────────────────────────────────
@@ -1204,6 +1259,7 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
     if (tab.dataset.tab === 'administradores') carregarVinculos();
     if (tab.dataset.tab === 'config') { carregarMarcas(); carregarEventos(); }
+    if (tab.dataset.tab === 'jogos' && meInfo && meInfo.super) carregarJogosPendentes();
   });
 });
 
@@ -1281,6 +1337,7 @@ async function carregarJogos() {
 }
 
 function renderJogos(jogos) {
+  jogosCache = jogos;
   const container = document.getElementById('jogos-list');
   if (jogos.length === 0) {
     container.innerHTML = emptyState('Nenhum jogo cadastrado');
@@ -1289,7 +1346,10 @@ function renderJogos(jogos) {
   container.innerHTML = jogos.map(j => `
     <div class="jogo-card ${j.ativo === false ? 'inativo' : ''}" data-id="${j.id}">
       <div>
-        <div class="jogo-nome">${escapar(j.nome)}</div>
+        <div class="jogo-nome">
+          ${escapar(j.nome)}
+          ${j.pendente_aprovacao ? '<span class="badge-pendente-jogo">Aguardando aprovação</span>' : ''}
+        </div>
         <div class="jogo-meta">
           slug: ${j.slug}
           ${j.score_max ? ` · máx: ${j.score_max.toLocaleString('pt-BR')}` : ' · sem limite de score'}
@@ -1346,6 +1406,94 @@ function renderJogos(jogos) {
     ).join('');
   }
 }
+
+// ── JOGOS PENDENTES DE APROVAÇÃO (só super-admin — migration 018) ─────────────
+
+async function carregarJogosPendentes() {
+  const secao = document.getElementById('jogos-pendentes-secao');
+  const lista = document.getElementById('jogos-pendentes-lista');
+  try {
+    const resp = await apiFetch('/api/admin/jogos/pendentes');
+    if (!resp.ok) { secao.style.display = 'none'; return; }
+    const pendentes = await resp.json();
+
+    if (pendentes.length === 0) { secao.style.display = 'none'; return; }
+    secao.style.display = 'block';
+
+    // Opções pro select de "mesclar com" — jogos já aprovados (exclui os próprios pendentes)
+    const idsPendentes = new Set(pendentes.map(p => p.id));
+    const opcoesExistentes = (jogosCache || [])
+      .filter(j => !idsPendentes.has(j.id) && !j.pendente_aprovacao)
+      .map(j => `<option value="${j.id}">${escapar(j.nome)}</option>`)
+      .join('');
+
+    lista.innerHTML = pendentes.map(p => `
+      <div class="jogo-pendente-card">
+        <div class="jogo-nome">${escapar(p.nome)}</div>
+        <div class="jogo-pendente-meta">
+          slug: ${escapar(p.slug)}
+          · criado por ${escapar(p.criado_por || 'desconhecido')}
+          ${p.eventos_em_uso && p.eventos_em_uso.length
+            ? ` · já em uso em: ${p.eventos_em_uso.map(escapar).join(', ')}`
+            : ' · ainda não vinculado a nenhum evento'}
+        </div>
+        <div class="jogo-pendente-acoes">
+          <button class="btn-action btn-reativar" style="padding:4px 10px;font-size:10px"
+                  onclick="aprovarJogoPendente('${p.id}')">
+            ✓ Aprovar como jogo novo
+          </button>
+          <select class="jogo-pendente-mesclar-select" id="mesclar-select-${p.id}">
+            <option value="">Mesclar com jogo existente...</option>
+            ${opcoesExistentes}
+          </select>
+          <button class="btn-action btn-rejeitar" style="padding:4px 10px;font-size:10px"
+                  onclick="mesclarJogoPendente('${p.id}')">
+            Mesclar
+          </button>
+        </div>
+      </div>
+    `).join('');
+  } catch {
+    secao.style.display = 'none';
+  }
+}
+
+window.aprovarJogoPendente = async function(jogoId) {
+  try {
+    const resp = await apiFetch(`/api/admin/jogos/${jogoId}/aprovar`, 'PATCH');
+    if (resp.ok) {
+      showToast('Jogo aprovado — já faz parte do catálogo geral', 'success');
+      await carregarJogos();
+      await carregarJogosPendentes();
+    } else {
+      const d = await resp.json();
+      showToast(d.detail || 'Erro ao aprovar jogo', 'error');
+    }
+  } catch { showToast('Erro ao aprovar jogo', 'error'); }
+};
+
+window.mesclarJogoPendente = async function(jogoOrigemId) {
+  const select = document.getElementById(`mesclar-select-${jogoOrigemId}`);
+  const destinoId = select.value;
+  if (!destinoId) { showToast('Escolha o jogo existente pra mesclar', 'error'); return; }
+
+  const nomeDestino = select.options[select.selectedIndex].textContent;
+  if (!confirm(`Mesclar este jogo em "${nomeDestino}"? Todas as pontuações e vínculos de evento migram — o jogo duplicado fica arquivado.`)) return;
+
+  try {
+    const resp = await apiFetch(`/api/admin/jogos/${jogoOrigemId}/mesclar`, 'POST', {
+      jogo_destino_id: destinoId,
+    });
+    if (resp.ok) {
+      showToast('Jogos mesclados!', 'success');
+      await carregarJogos();
+      await carregarJogosPendentes();
+    } else {
+      const d = await resp.json();
+      showToast(d.detail || 'Erro ao mesclar jogos', 'error');
+    }
+  } catch { showToast('Erro ao mesclar jogos', 'error'); }
+};
 
 // Slug automático ao digitar nome
 document.getElementById('jogo-nome').addEventListener('input', e => {

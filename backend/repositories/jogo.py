@@ -75,7 +75,7 @@ async def atualizar(
 async def listar_todos(pool: Pool) -> list[dict]:
     """Lista todos os jogos (ativos e inativos) para o painel admin."""
     rows = await pool.fetch(
-        "SELECT id, nome, slug, ativo, score_max, criado_em FROM jogos ORDER BY nome"
+        "SELECT id, nome, slug, ativo, score_max, pendente_aprovacao, criado_em FROM jogos ORDER BY nome"
     )
     return [dict(r) for r in rows]
 
