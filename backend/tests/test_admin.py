@@ -3,10 +3,11 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from main import app
 from utils.db import get_pool
-from middleware.auth import require_admin
+from middleware.auth import require_admin, AdminContext
 
 ADMIN_SECRET = "test-secret-123"
 AUTH_HEADER  = {"Authorization": f"Bearer {ADMIN_SECRET}"}
+ADMIN_CTX    = AdminContext(identificador="admin", user_id=None, super=True)
 
 
 def make_uuid():
@@ -42,7 +43,7 @@ def _pool_com_slug(slug="pac-man"):
 @pytest.fixture(autouse=True)
 def override_auth():
     """Substitui autenticação via dependency_overrides."""
-    app.dependency_overrides[require_admin] = lambda: ADMIN_SECRET
+    app.dependency_overrides[require_admin] = lambda: ADMIN_CTX
     yield
     app.dependency_overrides.pop(require_admin, None)
 
@@ -63,7 +64,7 @@ async def test_sem_token_retorna_401(client):
     resp = await client.get("/api/admin/feed")
     assert resp.status_code == 401
     # Restaura para os outros testes
-    app.dependency_overrides[require_admin] = lambda: ADMIN_SECRET
+    app.dependency_overrides[require_admin] = lambda: ADMIN_CTX
 
 
 @pytest.mark.asyncio
@@ -72,7 +73,7 @@ async def test_token_errado_retorna_401(client):
     resp = await client.get("/api/admin/feed",
                             headers={"Authorization": "Bearer errado"})
     assert resp.status_code == 401
-    app.dependency_overrides[require_admin] = lambda: ADMIN_SECRET
+    app.dependency_overrides[require_admin] = lambda: ADMIN_CTX
 
 
 @pytest.mark.asyncio
@@ -340,7 +341,7 @@ async def test_feed_repassa_limit_e_offset_ao_repository(client):
          patch("repositories.entrada.contar_feed_admin",  AsyncMock(return_value=0)):
         await client.get("/api/admin/feed?limit=20&offset=40", headers=AUTH_HEADER)
 
-    listar_mock.assert_called_once_with(pool, limit=20, offset=40)
+    listar_mock.assert_called_once_with(pool, limit=20, offset=40, evento_ids=None)
 
 
 @pytest.mark.asyncio
@@ -367,7 +368,7 @@ async def test_pendentes_repassa_limit_e_offset_ao_repository(client):
          patch("repositories.entrada.contar_pendentes",  AsyncMock(return_value=0)):
         await client.get("/api/admin/pendentes?limit=10&offset=20", headers=AUTH_HEADER)
 
-    listar_mock.assert_called_once_with(pool, limit=10, offset=20)
+    listar_mock.assert_called_once_with(pool, limit=10, offset=20, evento_ids=None)
 
 
 @pytest.mark.asyncio
@@ -376,3 +377,115 @@ async def test_pendentes_limit_acima_de_200_retorna_422(client):
     app.dependency_overrides[get_pool] = lambda: MagicMock()
     resp = await client.get("/api/admin/pendentes?limit=500", headers=AUTH_HEADER)
     assert resp.status_code == 422
+
+
+# ── Escopo de admin em feed/pendentes (MARCAS_SPEC.md §6) ──────────────────────
+
+@pytest.mark.asyncio
+async def test_admin_escopado_sem_evento_id_retorna_400(client):
+    """Admin não-super PRECISA informar evento_id — sem isso, 400 (não
+    500, não lista vazia silenciosa)."""
+    escopado = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
+    app.dependency_overrides[require_admin] = lambda: escopado
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.get("/api/admin/feed")
+
+    assert resp.status_code == 400
+    assert "evento_id" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_admin_escopado_evento_fora_do_escopo_retorna_403(client):
+    """Admin restrito tentando ver um evento que não é dele — nunca
+    vaza dado de fora do escopo."""
+    escopado = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
+    app.dependency_overrides[require_admin] = lambda: escopado
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.admin_vinculo.tem_acesso_evento", AsyncMock(return_value=False)):
+        resp = await client.get("/api/admin/feed?evento_id=ev-de-outro")
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_escopado_evento_dentro_do_escopo_funciona(client):
+    escopado = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
+    app.dependency_overrides[require_admin] = lambda: escopado
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.admin_vinculo.tem_acesso_evento", AsyncMock(return_value=True)), \
+         patch("repositories.entrada.listar_feed_admin", AsyncMock(return_value=[])), \
+         patch("repositories.entrada.contar_feed_admin",  AsyncMock(return_value=0)) as contar_mock:
+        resp = await client.get("/api/admin/feed?evento_id=ev-meu")
+
+    assert resp.status_code == 200
+    contar_mock.assert_called_once_with(pool, evento_ids=["ev-meu"])
+
+
+@pytest.mark.asyncio
+async def test_super_admin_pode_filtrar_por_evento_id_tambem(client):
+    """Super-admin PODE opcionalmente passar evento_id (não é obrigado,
+    mas se passar, filtra normalmente — sem checagem de vínculo, já que
+    é super)."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    tem_acesso_mock = AsyncMock()
+
+    with patch("repositories.admin_vinculo.tem_acesso_evento", tem_acesso_mock), \
+         patch("repositories.entrada.listar_feed_admin", AsyncMock(return_value=[])), \
+         patch("repositories.entrada.contar_feed_admin",  AsyncMock(return_value=0)) as contar_mock:
+        resp = await client.get("/api/admin/feed?evento_id=algum-evento", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    # Super-admin não passa pela checagem de vínculo — não precisa
+    tem_acesso_mock.assert_not_called()
+    contar_mock.assert_called_once_with(pool, evento_ids=["algum-evento"])
+
+
+@pytest.mark.asyncio
+async def test_pendentes_tambem_exige_evento_id_pra_admin_escopado(client):
+    """Mesma regra de /feed aplicada em /pendentes."""
+    escopado = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
+    app.dependency_overrides[require_admin] = lambda: escopado
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.get("/api/admin/pendentes")
+
+    assert resp.status_code == 400
+
+
+# ── GET /api/admin/me ────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_me_super_admin(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.get("/api/admin/me", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["super"] is True
+    assert data["identificador"] == "admin"
+    assert data["eventos"] == []
+
+
+@pytest.mark.asyncio
+async def test_me_admin_escopado_lista_eventos_acessiveis(client):
+    escopado = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
+    app.dependency_overrides[require_admin] = lambda: escopado
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    eventos = [{"id": "ev1", "nome": "Canal3 Expo", "slug": "canal3expo"}]
+    with patch("repositories.admin_vinculo.listar_eventos_acessiveis_detalhado",
+               AsyncMock(return_value=eventos)):
+        resp = await client.get("/api/admin/me")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["super"] is False
+    assert data["identificador"] == "pessoa@x.com"
+    assert data["eventos"] == eventos

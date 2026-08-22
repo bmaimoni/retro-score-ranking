@@ -108,6 +108,23 @@ async def listar_pendentes(
     return await entrada_repo.listar_pendentes(pool, limit=limit, offset=offset, evento_ids=evento_ids)
 
 
+# ── IDENTIDADE DO ADMIN LOGADO ─────────────────────────────────────────────────
+
+@router.get("/me")
+async def quem_sou_eu(pool=Depends(get_pool), admin: AdminContext = Depends(require_admin)):
+    """
+    Identidade e escopo do admin autenticado nesta requisição — usado
+    pelo frontend logo após o login pra saber se é super-admin (vê
+    tudo, sem seletor de evento) ou admin escopado (precisa escolher
+    entre os eventos que ele tem acesso). Ver docs/MARCAS_SPEC.md §6.
+    """
+    if admin.super:
+        return {"identificador": admin.identificador, "super": True, "eventos": []}
+
+    eventos = await admin_vinculo_repo.listar_eventos_acessiveis_detalhado(pool, admin.user_id)
+    return {"identificador": admin.identificador, "super": False, "eventos": eventos}
+
+
 # ── MODERAÇÃO DE ENTRADAS ─────────────────────────────────────────────────────
 
 @router.patch("/entradas/{entrada_id}")

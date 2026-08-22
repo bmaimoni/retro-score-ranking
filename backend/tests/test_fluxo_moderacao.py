@@ -6,10 +6,11 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from main import app
 from utils.db import get_pool
-from middleware.auth import require_admin
+from middleware.auth import require_admin, AdminContext
 
 ADMIN_SECRET = "test-secret-mod"
 AUTH = {"Authorization": f"Bearer {ADMIN_SECRET}"}
+ADMIN_CTX = AdminContext(identificador="admin", user_id=None, super=True)
 
 
 def make_uuid():
@@ -37,7 +38,7 @@ def _pool_com_slug(slug="pac-man"):
 
 @pytest.fixture(autouse=True)
 def override_auth():
-    app.dependency_overrides[require_admin] = lambda: ADMIN_SECRET
+    app.dependency_overrides[require_admin] = lambda: ADMIN_CTX
     yield
     app.dependency_overrides.pop(require_admin, None)
 
