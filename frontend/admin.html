@@ -47,6 +47,120 @@
     }
     .login-error.visible { display: block; }
 
+    /* ── Login alternativo (Google/Magic Link) ── */
+    .login-divisor {
+      display: flex; align-items: center; gap: var(--space-sm);
+      margin: var(--space-lg) 0;
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+    }
+    .login-divisor::before, .login-divisor::after {
+      content: ''; flex: 1; height: 1px; background: var(--color-border);
+    }
+    .login-btn-alt {
+      width: 100%;
+      border-radius: var(--radius-sm, 6px);
+      padding: 10px 16px;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-bold);
+      cursor: pointer;
+      transition: filter var(--transition);
+      font-family: var(--font-body);
+      margin-bottom: var(--space-sm);
+    }
+    .login-btn-alt:hover { filter: brightness(1.1); }
+    .login-btn-google {
+      background: #ffffff; color: #1f1f1f;
+      border: 1px solid rgba(0,0,0,0.1);
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    .login-email-form { display: flex; flex-direction: column; gap: var(--space-sm); }
+    .login-btn-email {
+      background: var(--color-primary);
+      color: var(--color-bg, #0b1331);
+      border: none;
+    }
+    .login-email-status {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      text-align: center;
+      margin-top: var(--space-sm);
+      min-height: 1em;
+    }
+
+    /* ── Identidade do admin + seletor de evento (topbar) ── */
+    .admin-identidade {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      display: flex; align-items: center; gap: var(--space-sm);
+    }
+    .admin-identidade strong { color: var(--color-text); }
+    .badge-super {
+      font-size: 10px;
+      background: var(--color-primary);
+      color: var(--color-bg, #0b1331);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm, 4px);
+      font-weight: var(--weight-bold);
+      letter-spacing: 0.04em;
+    }
+    .evento-selector {
+      font-family: var(--font-body);
+      font-size: var(--text-xs);
+      background: var(--color-bg);
+      color: var(--color-text);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: 4px 8px;
+    }
+
+    /* ── Aba Administradores ── */
+    .vinculo-form {
+      display: flex; flex-wrap: wrap; gap: var(--space-sm);
+      align-items: flex-end;
+      margin-bottom: var(--space-lg);
+      padding: var(--space-md);
+      background: var(--color-bg-surface);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-md);
+    }
+    .vinculo-form .field { flex: 1; min-width: 160px; }
+    .vinculo-tabela {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--text-sm);
+    }
+    .vinculo-tabela th, .vinculo-tabela td {
+      text-align: left;
+      padding: var(--space-sm) var(--space-md);
+      border-bottom: var(--border-width) solid var(--color-border);
+    }
+    .vinculo-tabela th {
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .vinculo-tabela tr.inativo { opacity: 0.4; }
+    .vinculo-escopo-tag {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: var(--radius-full, 999px);
+      font-weight: var(--weight-bold);
+      text-transform: uppercase;
+    }
+    .vinculo-escopo-tag.super  { background: var(--color-primary); color: var(--color-bg, #0b1331); }
+    .vinculo-escopo-tag.marca  { background: var(--color-accent, #2a9d8f); color: #fff; }
+    .vinculo-escopo-tag.evento { background: var(--color-border); color: var(--color-text); }
+    .vinculo-toggle-btn {
+      font-size: var(--text-xs);
+      background: none; border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm); padding: 4px 10px;
+      cursor: pointer; color: var(--color-text-muted);
+      font-family: var(--font-body);
+    }
+    .vinculo-toggle-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
     /* ── Top bar ── */
     .admin-topbar {
       display: flex;
@@ -517,6 +631,18 @@
              placeholder="••••••••" autocomplete="current-password">
     </div>
     <button class="btn-primary" id="login-btn">ENTRAR</button>
+
+    <div class="login-divisor" id="login-divisor" style="display:none"><span>ou</span></div>
+    <button class="login-btn-alt login-btn-google" id="btn-login-google" onclick="loginGoogleAdmin()" style="display:none">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+      Continuar com Google
+    </button>
+    <div class="login-email-form" id="login-email-form" style="display:none">
+      <input class="field-input" type="email" id="login-email-input"
+             placeholder="seu@email.com" autocomplete="email">
+      <button class="login-btn-alt login-btn-email" onclick="loginMagicLinkAdmin()">Enviar link de acesso</button>
+    </div>
+    <p class="login-email-status" id="login-email-status"></p>
   </div>
 </div>
 
@@ -527,6 +653,8 @@
   <div class="admin-topbar">
     <span class="topbar-title">ADMIN PANEL</span>
     <div class="topbar-right">
+      <div class="admin-identidade" id="admin-identidade" style="display:none"></div>
+      <select class="evento-selector" id="evento-selector" style="display:none"></select>
       <div class="polling-dot" id="polling-dot" title="Atualizando..." style="display:none"></div>
       <span class="countdown-label" id="countdown-label">atualiza em 5:00</span>
       <button class="btn-atualizar" id="btn-atualizar">↻ Atualizar</button>
@@ -544,6 +672,7 @@
     <button class="admin-tab" data-tab="jogos">Jogos</button>
     <button class="admin-tab" data-tab="config">Evento</button>
     <button class="admin-tab" data-tab="manutencao">Manutenção</button>
+    <button class="admin-tab" data-tab="administradores" id="tab-btn-administradores" style="display:none">Administradores</button>
   </div>
 
   <!-- ── ABA: FEED ── -->
@@ -714,6 +843,52 @@
     </div>
   </div>
 
+  <!-- ── ABA: ADMINISTRADORES (só super-admin) ── -->
+  <div class="tab-content" id="tab-administradores">
+    <div class="section-header">
+      <span class="section-title">Administradores</span>
+    </div>
+
+    <form class="vinculo-form" id="vinculo-form" onsubmit="criarVinculo(event)">
+      <div class="field">
+        <label class="field-label" for="vinculo-email">E-mail (já precisa ter logado 1x)</label>
+        <input class="field-input" type="email" id="vinculo-email" placeholder="pessoa@email.com" required>
+      </div>
+      <div class="field" style="max-width:140px">
+        <label class="field-label" for="vinculo-escopo">Escopo</label>
+        <select class="field-input" id="vinculo-escopo" onchange="atualizarCamposVinculo()">
+          <option value="evento">Evento</option>
+          <option value="marca">Marca</option>
+          <option value="super">Super-admin</option>
+        </select>
+      </div>
+      <div class="field" id="vinculo-campo-evento" style="max-width:220px">
+        <label class="field-label" for="vinculo-evento">Evento</label>
+        <select class="field-input" id="vinculo-evento"></select>
+      </div>
+      <div class="field" id="vinculo-campo-marca" style="max-width:220px;display:none">
+        <label class="field-label" for="vinculo-marca">Marca</label>
+        <select class="field-input" id="vinculo-marca"></select>
+      </div>
+      <button class="btn-primary" type="submit" style="width:auto;padding:0 var(--space-lg)">Adicionar</button>
+    </form>
+
+    <table class="vinculo-tabela">
+      <thead>
+        <tr>
+          <th>Pessoa</th>
+          <th>Escopo</th>
+          <th>Alvo</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="vinculos-tbody">
+        <tr><td colspan="5">Carregando...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
 </div>
 
 <!-- Toast -->
@@ -729,11 +904,14 @@ let configCarregada = false;
 
 // ── ESTADO ────────────────────────────────────────────────────────────────────
 let adminSecret = '';
+let authMode    = null;  // 'token' | 'session'
+let meInfo      = null;  // { identificador, super, eventos }
+let eventoAtual = null;  // evento_id selecionado (admin escopado)
 let feedFilter  = 'todos';
 let feedData    = [];
 let pollTimer   = null;
 
-// ── LOGIN ─────────────────────────────────────────────────────────────────────
+// ── LOGIN (token) ─────────────────────────────────────────────────────────────
 document.getElementById('login-btn').addEventListener('click', fazerLogin);
 document.getElementById('senha-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') fazerLogin();
@@ -748,7 +926,9 @@ async function fazerLogin() {
   btn.textContent = 'VERIFICANDO...';
 
   try {
-    const resp = await fetch(`${API_URL}/api/admin/feed?limit=1`, {
+    // /api/admin/me valida o token E já devolve o escopo, uma única
+    // chamada em vez de duas (antes verificava com /feed separado)
+    const resp = await fetch(`${API_URL}/api/admin/me`, {
       headers: { 'Authorization': `Bearer ${senha}` }
     });
 
@@ -760,6 +940,8 @@ async function fazerLogin() {
     }
 
     adminSecret = senha;
+    authMode = 'token';
+    meInfo = await resp.json();
     sessionStorage.setItem('admin_secret', senha);
     mostrarPainel();
 
@@ -768,6 +950,70 @@ async function fazerLogin() {
     btn.disabled = false;
     btn.textContent = 'ENTRAR';
   }
+}
+
+// ── LOGIN (Google / Magic Link) ────────────────────────────────────────────────
+// Reaproveita o mesmo sistema de login de visitante (AUTH_SPEC.md) — um
+// admin É uma conta comum, só que com um admin_vinculo (MARCAS_SPEC.md §6).
+let providersCacheAdmin = null;
+
+async function carregarProvidersAdmin() {
+  if (providersCacheAdmin) return providersCacheAdmin;
+  try {
+    const resp = await fetch(`${API_URL}/api/auth/providers`);
+    providersCacheAdmin = await resp.json();
+  } catch {
+    providersCacheAdmin = { google: false, magic_link: false };
+  }
+  return providersCacheAdmin;
+}
+
+(async () => {
+  const providers = await carregarProvidersAdmin();
+  if (providers.google || providers.magic_link) {
+    document.getElementById('login-divisor').style.display = 'flex';
+  }
+  if (providers.google) document.getElementById('btn-login-google').style.display = 'flex';
+  if (providers.magic_link) document.getElementById('login-email-form').style.display = 'flex';
+})();
+
+window.loginGoogleAdmin = function() {
+  // next=/admin.html — sem isso o Google devolveria pro index.html
+  // (ver auth/router.py, docs/MARCAS_SPEC.md §6)
+  window.location.href = `${API_URL}/api/auth/google/start?next=/admin.html`;
+};
+
+window.loginMagicLinkAdmin = async function() {
+  const input  = document.getElementById('login-email-input');
+  const status = document.getElementById('login-email-status');
+  const email  = input.value.trim();
+  if (!email) return;
+
+  status.textContent = 'Enviando...';
+  try {
+    const resp = await fetch(`${API_URL}/api/auth/magic-link/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, next: '/admin.html' }),
+    });
+    const data = await resp.json();
+    status.textContent = data.mensagem || 'Se esse e-mail existir, enviamos um link de acesso.';
+    input.value = '';
+  } catch {
+    status.textContent = 'Não foi possível enviar agora. Tente de novo em instantes.';
+  }
+};
+
+async function tentarLoginPorSessao() {
+  try {
+    const resp = await fetch(`${API_URL}/api/admin/me`, { credentials: 'include' });
+    if (resp.ok) {
+      authMode = 'session';
+      meInfo = await resp.json();
+      return true;
+    }
+  } catch {}
+  return false;
 }
 
 document.getElementById('btn-atualizar').addEventListener('click', async () => {
@@ -780,9 +1026,12 @@ document.getElementById('btn-atualizar').addEventListener('click', async () => {
   btn.textContent = '↻ Atualizar';
 });
 
-document.getElementById('logout-btn').addEventListener('click', () => {
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  if (authMode === 'session') {
+    try { await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' }); } catch {}
+  }
   sessionStorage.removeItem('admin_secret');
-  adminSecret = '';
+  adminSecret = ''; authMode = null; meInfo = null; eventoAtual = null;
   clearInterval(pollTimer);
   document.getElementById('admin-panel').style.display = 'none';
   document.getElementById('login-gate').style.display = 'flex';
@@ -790,19 +1039,72 @@ document.getElementById('logout-btn').addEventListener('click', () => {
   document.getElementById('countdown-label').textContent = '';
 });
 
-// Restaura sessão se existir
-const savedSecret = sessionStorage.getItem('admin_secret');
-if (savedSecret) {
-  adminSecret = savedSecret;
-  mostrarPainel();
-}
+// Restaura sessão — token salvo tem prioridade; senão, tenta cookie de
+// sessão (caso volte de um login Google/Magic Link, ou visita recorrente)
+(async () => {
+  const savedSecret = sessionStorage.getItem('admin_secret');
+  if (savedSecret) {
+    adminSecret = savedSecret;
+    authMode = 'token';
+    try {
+      const resp = await fetch(`${API_URL}/api/admin/me`, {
+        headers: { 'Authorization': `Bearer ${savedSecret}` }
+      });
+      if (resp.ok) { meInfo = await resp.json(); mostrarPainel(); return; }
+    } catch {}
+    sessionStorage.removeItem('admin_secret');
+    adminSecret = ''; authMode = null;
+  }
+  if (await tentarLoginPorSessao()) mostrarPainel();
+})();
 
 // ── PAINEL ────────────────────────────────────────────────────────────────────
 function mostrarPainel() {
   document.getElementById('login-gate').style.display = 'none';
   document.getElementById('admin-panel').style.display = 'grid';
+  configurarIdentidadeEEscopo();
   carregarTudo();
   iniciarContador();
+}
+
+function configurarIdentidadeEEscopo() {
+  const elIdentidade = document.getElementById('admin-identidade');
+  const elSelector    = document.getElementById('evento-selector');
+  const elTabAdmins    = document.getElementById('tab-btn-administradores');
+
+  if (!meInfo) { elIdentidade.style.display = 'none'; return; }
+
+  elIdentidade.style.display = 'flex';
+  elIdentidade.innerHTML = meInfo.super
+    ? `<strong>${escapar(meInfo.identificador)}</strong><span class="badge-super">SUPER</span>`
+    : `<strong>${escapar(meInfo.identificador)}</strong>`;
+
+  // Super-admin: sem seletor (vê tudo por padrão, igual sempre foi),
+  // aba de Administradores visível.
+  if (meInfo.super) {
+    elSelector.style.display = 'none';
+    elTabAdmins.style.display = 'block';
+    return;
+  }
+
+  // Admin escopado: SEMPRE precisa de um evento selecionado — sem isso
+  // /api/admin/feed retorna 400 (ver docs/MARCAS_SPEC.md §6).
+  elTabAdmins.style.display = 'none';
+  if (meInfo.eventos.length === 0) {
+    elIdentidade.innerHTML += ` <span style="color:var(--color-error)">— sem eventos vinculados</span>`;
+    return;
+  }
+
+  elSelector.style.display = 'inline-block';
+  elSelector.innerHTML = meInfo.eventos.map(e =>
+    `<option value="${e.id}">${escapar(e.nome)}</option>`
+  ).join('');
+  eventoAtual = meInfo.eventos[0].id;
+  elSelector.value = eventoAtual;
+  elSelector.onchange = () => {
+    eventoAtual = elSelector.value;
+    carregarTudo();
+  };
 }
 
 function iniciarContador() {
@@ -844,13 +1146,14 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+    if (tab.dataset.tab === 'administradores') carregarVinculos();
   });
 });
 
 // ── FEED ──────────────────────────────────────────────────────────────────────
 async function carregarFeed() {
   try {
-    const resp = await apiFetch('/api/admin/feed?limit=100');
+    const resp = await apiFetch(comEventoId('/api/admin/feed?limit=100'));
     feedData = await resp.json();
     renderFeed();
     // Badge da aba feed: entradas nas últimas 2 min
@@ -1301,13 +1604,25 @@ async function restaurarGeral() {
 async function apiFetch(path, method = 'GET', body = null) {
   const opts = {
     method,
-    headers: {
-      'Authorization': `Bearer ${adminSecret}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
   };
+  if (authMode === 'session') {
+    opts.credentials = 'include';
+  } else {
+    opts.headers['Authorization'] = `Bearer ${adminSecret}`;
+  }
   if (body) opts.body = JSON.stringify(body);
   return fetch(`${API_URL}${path}`, opts);
+}
+
+// Injeta evento_id na URL quando o admin é escopado (obrigatório nesse
+// caso — ver docs/MARCAS_SPEC.md §6). Super-admin não precisa, vê tudo.
+function comEventoId(path) {
+  if (meInfo && !meInfo.super && eventoAtual) {
+    const sep = path.includes('?') ? '&' : '?';
+    return `${path}${sep}evento_id=${eventoAtual}`;
+  }
+  return path;
 }
 
 function atualizarBadge(tab, count) {
@@ -1442,6 +1757,99 @@ async function criarEvento() {
     showToast(d.detail || 'Erro ao criar', 'error');
   }
 }
+
+// ── ADMINISTRADORES (só super-admin — ver docs/MARCAS_SPEC.md §6) ─────────────
+
+window.atualizarCamposVinculo = function() {
+  const escopo = document.getElementById('vinculo-escopo').value;
+  document.getElementById('vinculo-campo-evento').style.display = escopo === 'evento' ? 'block' : 'none';
+  document.getElementById('vinculo-campo-marca').style.display  = escopo === 'marca'  ? 'block' : 'none';
+};
+
+async function popularSelectsVinculo() {
+  try {
+    const [rEventos, rMarcas] = await Promise.all([
+      apiFetch('/api/admin/eventos'),
+      apiFetch('/api/admin/marcas'),
+    ]);
+    if (rEventos.ok) {
+      const eventos = await rEventos.json();
+      document.getElementById('vinculo-evento').innerHTML =
+        eventos.map(e => `<option value="${e.id}">${escapar(e.nome)}</option>`).join('');
+    }
+    if (rMarcas.ok) {
+      const marcas = await rMarcas.json();
+      document.getElementById('vinculo-marca').innerHTML =
+        marcas.map(m => `<option value="${m.id}">${escapar(m.nome)}</option>`).join('');
+    }
+  } catch {}
+}
+
+async function carregarVinculos() {
+  await popularSelectsVinculo();
+  const tbody = document.getElementById('vinculos-tbody');
+  try {
+    const resp = await apiFetch('/api/admin/vinculos');
+    if (!resp.ok) {
+      tbody.innerHTML = `<tr><td colspan="5">Erro ao carregar</td></tr>`;
+      return;
+    }
+    const vinculos = await resp.json();
+    if (vinculos.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5">Nenhum administrador vinculado ainda</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = vinculos.map(v => {
+      const alvo = v.escopo === 'super' ? '—'
+        : v.escopo === 'marca' ? escapar(v.marca_nome || v.marca_id)
+        : escapar(v.evento_nome || v.evento_id);
+      return `
+        <tr class="${v.ativo ? '' : 'inativo'}">
+          <td>${escapar(v.email || v.user_id)}${v.nome ? ` <span style="color:var(--color-text-muted)">(${escapar(v.nome)})</span>` : ''}</td>
+          <td><span class="vinculo-escopo-tag ${v.escopo}">${v.escopo}</span></td>
+          <td>${alvo}</td>
+          <td>${v.ativo ? 'Ativo' : 'Inativo'}</td>
+          <td>
+            <button class="vinculo-toggle-btn" onclick="toggleVinculo('${v.id}', ${!v.ativo})">
+              ${v.ativo ? 'Desativar' : 'Reativar'}
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch {
+    tbody.innerHTML = `<tr><td colspan="5">Erro ao carregar</td></tr>`;
+  }
+}
+
+window.criarVinculo = async function(event) {
+  event.preventDefault();
+  const email  = document.getElementById('vinculo-email').value.trim();
+  const escopo = document.getElementById('vinculo-escopo').value;
+  const dados  = { email, escopo };
+  if (escopo === 'evento') dados.evento_id = document.getElementById('vinculo-evento').value;
+  if (escopo === 'marca')  dados.marca_id  = document.getElementById('vinculo-marca').value;
+
+  const resp = await apiFetch('/api/admin/vinculos', 'POST', dados);
+  if (resp.ok) {
+    showToast('Administrador vinculado!', 'success');
+    document.getElementById('vinculo-email').value = '';
+    carregarVinculos();
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao vincular', 'error');
+  }
+};
+
+window.toggleVinculo = async function(id, novoAtivo) {
+  const resp = await apiFetch(`/api/admin/vinculos/${id}`, 'PATCH', { ativo: novoAtivo });
+  if (resp.ok) {
+    showToast(novoAtivo ? 'Reativado' : 'Desativado', 'success');
+    carregarVinculos();
+  } else {
+    showToast('Erro ao atualizar vínculo', 'error');
+  }
+};
 
 </script>
 <div class="lightbox" id="lightbox" onclick="fecharLightbox(event)">
