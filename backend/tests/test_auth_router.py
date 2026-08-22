@@ -92,6 +92,32 @@ async def test_google_start_configurado_redireciona_e_seta_cookie_state(client, 
 
 
 @pytest.mark.asyncio
+async def test_google_start_com_next_seta_cookie_oauth_next(client, monkeypatch):
+    """next=/admin.html — pra logar direto do admin.html sem cair na
+    tela errada depois do redirect do Google (ver MARCAS_SPEC.md §6)."""
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "abc")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "xyz")
+    monkeypatch.setenv("GOOGLE_REDIRECT_URI", "https://api.example.com/api/auth/google/callback")
+    get_settings.cache_clear()
+
+    resp = await client.get("/api/auth/google/start?next=/admin.html", follow_redirects=False)
+
+    assert resp.status_code in (302, 307)
+    assert resp.cookies.get("oauth_next", "").strip('"') == "/admin.html"
+
+
+@pytest.mark.asyncio
+async def test_google_start_sem_next_nao_seta_cookie_oauth_next(client, monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "abc")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "xyz")
+    get_settings.cache_clear()
+
+    resp = await client.get("/api/auth/google/start", follow_redirects=False)
+
+    assert "oauth_next" not in resp.cookies
+
+
+@pytest.mark.asyncio
 async def test_google_callback_sem_state_correspondente_retorna_400(client):
     app.dependency_overrides[get_pool] = lambda: MagicMock()
     resp = await client.get("/api/auth/google/callback?code=abc&state=nao-bate")
@@ -126,6 +152,68 @@ async def test_google_callback_completo_cria_sessao_e_redireciona(client, monkey
     assert "canal3_session" in resp.cookies
 
 
+@pytest.mark.asyncio
+async def test_google_callback_com_next_redireciona_pro_next(client, monkeypatch):
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "abc")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "xyz")
+    monkeypatch.setenv("FRONTEND_BASE_URL", "https://site.example.com")
+    get_settings.cache_clear()
+
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario()
+    sessao = {"id": make_uuid(), "user_id": usuario["id"], "criado_em": "2026-01-01",
+              "expira_em": "2026-02-01", "revogada_em": None}
+    perfil_google = {"sub": "google-sub-1", "email": "pessoa@example.com",
+                      "email_verified": True, "name": "Pessoa Teste", "picture": None}
+
+    client.cookies.set("oauth_state", "state-123")
+    client.cookies.set("oauth_next", "/admin.html")
+    with patch("auth.service.trocar_code_por_perfil_google", AsyncMock(return_value=perfil_google)), \
+         patch("auth.service.login_ou_criar_usuario", AsyncMock(return_value=usuario)), \
+         patch("auth.service.criar_sessao_para_usuario", AsyncMock(return_value=sessao)):
+        resp = await client.get(
+            "/api/auth/google/callback?code=abc&state=state-123",
+            follow_redirects=False,
+        )
+
+    assert resp.headers["location"] == "https://site.example.com/admin.html"
+
+
+@pytest.mark.asyncio
+async def test_google_callback_com_next_malicioso_ignora_e_usa_default(client, monkeypatch):
+    """
+    next apontando pra fora do site (URL absoluta ou // protocolo-
+    relativo) é ignorado — nunca vira open redirect. Mesmo se alguém
+    conseguisse forjar o cookie oauth_next manualmente.
+    """
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "abc")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "xyz")
+    monkeypatch.setenv("FRONTEND_BASE_URL", "https://site.example.com")
+    get_settings.cache_clear()
+
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario()
+    sessao = {"id": make_uuid(), "user_id": usuario["id"], "criado_em": "2026-01-01",
+              "expira_em": "2026-02-01", "revogada_em": None}
+    perfil_google = {"sub": "google-sub-1", "email": "pessoa@example.com",
+                      "email_verified": True, "name": "Pessoa Teste", "picture": None}
+
+    client.cookies.set("oauth_state", "state-123")
+    client.cookies.set("oauth_next", "//evil.com/phishing")
+    with patch("auth.service.trocar_code_por_perfil_google", AsyncMock(return_value=perfil_google)), \
+         patch("auth.service.login_ou_criar_usuario", AsyncMock(return_value=usuario)), \
+         patch("auth.service.criar_sessao_para_usuario", AsyncMock(return_value=sessao)):
+        resp = await client.get(
+            "/api/auth/google/callback?code=abc&state=state-123",
+            follow_redirects=False,
+        )
+
+    assert resp.headers["location"] == "https://site.example.com"
+    assert "evil.com" not in resp.headers["location"]
+
+
 # ── Magic Link ──────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -150,6 +238,38 @@ async def test_magic_link_request_configurado_retorna_mensagem_generica(client, 
 
     assert resp.status_code == 200
     assert "existir" in resp.json()["mensagem"]
+
+
+@pytest.mark.asyncio
+async def test_magic_link_request_repassa_next_valido(client, monkeypatch):
+    monkeypatch.setenv("RESEND_API_KEY", "re_123")
+    get_settings.cache_clear()
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    solicitar_mock = AsyncMock()
+
+    with patch("auth.service.solicitar_magic_link", solicitar_mock):
+        await client.post("/api/auth/magic-link/request",
+            json={"email": "a@b.com", "next": "/admin.html"})
+
+    solicitar_mock.assert_called_once_with(pool, "a@b.com", next_path="/admin.html")
+
+
+@pytest.mark.asyncio
+async def test_magic_link_request_next_malicioso_e_ignorado(client, monkeypatch):
+    """next fora do site (URL absoluta) nunca chega no service — mesma
+    defesa contra open redirect do fluxo Google."""
+    monkeypatch.setenv("RESEND_API_KEY", "re_123")
+    get_settings.cache_clear()
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    solicitar_mock = AsyncMock()
+
+    with patch("auth.service.solicitar_magic_link", solicitar_mock):
+        await client.post("/api/auth/magic-link/request",
+            json={"email": "a@b.com", "next": "https://evil.com/phishing"})
+
+    solicitar_mock.assert_called_once_with(pool, "a@b.com", next_path=None)
 
 
 @pytest.mark.asyncio

@@ -125,3 +125,24 @@ async def listar_eventos_acessiveis(pool: Pool, user_id: str) -> list[str]:
         user_id,
     )
     return [str(r["id"]) for r in rows]
+
+
+async def listar_eventos_acessiveis_detalhado(pool: Pool, user_id: str) -> list[dict]:
+    """
+    Igual a listar_eventos_acessiveis, mas com nome/slug — usado pelo
+    frontend do admin pra montar um seletor de evento (GET /api/admin/me).
+    """
+    rows = await pool.fetch(
+        """
+        SELECT DISTINCT e.id, e.nome, e.slug
+        FROM eventos e
+        JOIN admin_vinculos av ON (
+             av.escopo = 'evento' AND av.evento_id = e.id
+          OR av.escopo = 'marca'  AND av.marca_id  = e.marca_id
+        )
+        WHERE av.user_id = $1 AND av.ativo = true
+        ORDER BY e.nome
+        """,
+        user_id,
+    )
+    return [dict(r) for r in rows]

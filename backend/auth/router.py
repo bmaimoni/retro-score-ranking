@@ -30,6 +30,24 @@ log = structlog.get_logger()
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 STATE_COOKIE = "oauth_state"
+NEXT_COOKIE  = "oauth_next"
+
+
+def _next_e_seguro(next_path: str | None) -> bool:
+    """Só caminho relativo simples é aceito — nunca URL absoluta nem
+    '//' (protocolo-relativo, jeito clássico de burlar open-redirect)."""
+    return bool(next_path) and next_path.startswith("/") and not next_path.startswith("//")
+
+
+def _resolver_redirect_final(next_path: str | None) -> str:
+    """
+    Valida 'next' pra evitar open redirect (ver _next_e_seguro). Sem
+    next válido, cai no frontend_base_url de sempre.
+    """
+    settings = get_settings()
+    if not _next_e_seguro(next_path):
+        return settings.frontend_base_url
+    return f"{settings.frontend_base_url}{next_path}"
 
 
 def _set_session_cookie(response: Response, session_id: str) -> None:
@@ -73,7 +91,12 @@ async def listar_providers():
 # ── Google OAuth ────────────────────────────────────────────────
 
 @router.get("/google/start")
-async def google_start():
+async def google_start(next: str | None = None):
+    """
+    next: caminho relativo pra onde voltar depois do login (ex.:
+    '/admin.html', pro admin logar com Google sem cair na tela errada).
+    Ver _resolver_redirect_final para a validação de segurança.
+    """
     settings = get_settings()
     if not settings.auth_configurado["google"]:
         raise HTTPException(status_code=503, detail="Login com Google não está configurado")
@@ -86,6 +109,11 @@ async def google_start():
         STATE_COOKIE, state, max_age=600,
         httponly=True, secure=settings.is_production, samesite="lax",
     )
+    if next:
+        redirect.set_cookie(
+            NEXT_COOKIE, next, max_age=600,
+            httponly=True, secure=settings.is_production, samesite="lax",
+        )
     return redirect
 
 
@@ -125,8 +153,9 @@ async def google_callback(
         ip_hash=ip_hash,
     )
 
-    redirect = RedirectResponse(settings.frontend_base_url)
+    redirect = RedirectResponse(_resolver_redirect_final(request.cookies.get(NEXT_COOKIE)))
     redirect.delete_cookie(STATE_COOKIE)
+    redirect.delete_cookie(NEXT_COOKIE)
     _set_session_cookie(redirect, sessao["id"])
     return redirect
 
@@ -135,6 +164,7 @@ async def google_callback(
 
 class MagicLinkRequest(BaseModel):
     email: EmailStr
+    next: str | None = None
 
 
 class MagicLinkVerify(BaseModel):
@@ -148,7 +178,8 @@ async def magic_link_request(dados: MagicLinkRequest, pool=Depends(get_pool)):
         raise HTTPException(status_code=503, detail="Login por e-mail não está configurado")
 
     try:
-        await auth_svc.solicitar_magic_link(pool, dados.email)
+        next_seguro = dados.next if _next_e_seguro(dados.next) else None
+        await auth_svc.solicitar_magic_link(pool, dados.email, next_path=next_seguro)
     except Exception:
         # Nunca vaza detalhe de erro técnico pro cliente — só loga.
         # A resposta é sempre a mesma, exista o e-mail ou não, envio
