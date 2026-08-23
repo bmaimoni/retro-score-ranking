@@ -58,11 +58,23 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
    de excluído cria `user_id` novo (conta antiga fica anonimizada
    permanentemente).
 
-3. **Avatar vs. Foto — qual vence onde?** São dois conceitos coexistindo
-   (`foto_url` de hoje, vindo do Google; e um "avatar" novo, com galeria
-   pronta + upload). Preciso saber a precedência (upload de score, tela de
-   ranking, tela de perfil) e de onde vêm os avatares prontos (preciso
-   desenhar/hospedar essa galeria, ou você já tem os assets?).
+3. ~~**Avatar vs. Foto — qual vence onde?**~~ **RESOLVIDO.** Unificado num
+   campo só ("imagem de perfil resolvida"): `avatar_id` (galeria curada,
+   só super-admin cadastra/desativa — upload livre pelo usuário fica fora
+   de escopo por enquanto, precisa de moderação de imagem que não existe
+   ainda) vence sobre `foto_url` do Google quando escolhido. Perfil ≠
+   fotos de evidência de score — são conceitos completamente
+   independentes.
+
+   **Achado, fora do escopo original deste item**: as fotos de evidência
+   de score já pedem, na prática, que a pessoa apareça na própria foto —
+   ou seja, o sistema já armazena, desde o início, fotos com rosto de
+   pessoas reais. Existe (verificado no código) um checkbox de
+   consentimento explícito no envio, cobrindo foto/nome/pontuação e
+   retenção pós-evento — decisão consciente de não aprofundar direito de
+   imagem/menores agora, dado que já existe alguma base de consentimento.
+   Fica registrado pra revisão futura, não tratado com rigor por decisão
+   explícita.
 
 4. **"Indicar presença em eventos"** foi citado de passagem na definição de
    jogador, mas nunca detalhado. É um "check-in" físico no evento? Uma
