@@ -29,10 +29,10 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 
 ## 1. Perfil de usuário
 
-> **Status: 5 de 6 pontos cegos resolvidos.** Só falta definir o escopo do
-> item "seguir outros usuários" (ponto cego #6) — o resto da seção está
-> pronto pra virar spec técnica/migração quando chegar a vez desse tema no
-> plano de implementação.
+> **Status: seção inteira resolvida.** Todos os 6 pontos cegos fechados —
+> ver `docs/NICKNAME_SPEC.md`, `docs/EXCLUSAO_CONTA_SPEC.md` e
+> `docs/SEGUIR_SPEC.md`. Pronta pra virar spec técnica/migração quando
+> chegar a vez desse tema no plano de implementação.
 
 | # | Item | Nota |
 |---|---|---|
@@ -42,7 +42,7 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 | 1.4 | Ver detalhamento de todas as próprias pontuações — evento e marca de cada uma, link rápido pro jogo | Precisa de endpoint novo (`entradas` por `user_id`, join até `marcas`) |
 | 1.5 | Usuário pode "desativar" todas as próprias pontuações (soft) | `entradas.arquivado` já existe — é questão de expor em massa |
 | 1.6 | Usuário pode solicitar "exclusão" do próprio perfil (soft) | **RESOLVIDO — ver `docs/EXCLUSAO_CONTA_SPEC.md`** |
-| 1.7 | Seguir outros usuários — lista de quem eu sigo / quem me segue | Feature nova do zero, tabela nova |
+| 1.7 | Seguir outros usuários — lista de quem eu sigo / quem me segue | **RESOLVIDO — ver `docs/SEGUIR_SPEC.md`** |
 | 1.8 | Logout a partir da tela de perfil | Trivial — endpoint já existe, só falta a tela |
 
 ### Pontos cegos — Perfil
@@ -98,10 +98,11 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
    qualquer pontuação antiga com esse `nick_norm` que ainda não tinha
    `user_id` — sem fluxo manual adicional, sem mecanismo novo.
 
-6. **"Seguir" — flui pra algum lugar, ou fica só na tela de perfil?**
-   Notifica a pessoa seguida? Alimenta algum feed de atividade? Ou por
-   agora é só a lista mesmo, sem efeito colateral nenhum (mais barato de
-   construir, mas menos "vivo")?
+6. ~~**"Seguir" — flui pra algum lugar, ou fica só na tela de perfil?**~~
+   **RESOLVIDO — ver `docs/SEGUIR_SPEC.md`.** Alimenta feed de atividade
+   (mensagem de superação de score entre jogador seguido e seguidor, no
+   mesmo jogo), compilado no login, sem infraestrutura de notificação
+   (fica como item de backlog próprio, deliberadamente adiado).
 
 ---
 
@@ -132,11 +133,12 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 | # | Item | Nota |
 |---|---|---|
 | 3.1 | Mais informação por jogo: plataforma, ano de lançamento, capa, foto de gameplay | Campos novos em `jogos` |
-| 3.2 | Admin da marca configura quantos scores aparecem por página | Hoje `PAGE_SIZE=20` é fixo no client — vira config |
+| 3.2 | Admin da marca configura quantos scores aparecem por página | Hoje `PAGE_SIZE=20` é fixo no client — vira config. Item distinto de 3.7 (tamanho de página ≠ fonte de dados do ranking) |
 | 3.3 | "PARTICIPE PELO CELULAR" — ou implementar o QR de verdade (como no telão), ou remover | **Achei o bug**: o `<div id="ranking-qrcode">` já existe no HTML, mas nunca é preenchido por nenhum JS — é um elemento morto hoje, não só "estranho visualmente" |
 | 3.4 | Link "Participar" no rodapé parece perdido → navegação real (hamburguer ou footer) entre as telas | Afeta o site inteiro, não só ranking.html |
 | 3.5 | `game-tabs` vai ficar grande demais com muitos jogos, principalmente mobile | Mesmo tema do scroll infinito da tela inicial — provavelmente a mesma solução serve pras duas telas |
 | 3.6 | Logado, clicar em "meu score" pula direto pra própria posição naquele jogo/evento | Precisa saber a página onde a própria entrada cai |
+| 3.7 | Rankings configuráveis por evento (zerado / último evento / marca / marca+parceiras / geral) | **RESOLVIDO — ver `docs/RANKINGS_CONFIGURAVEIS_SPEC.md`.** Surgiu como extensão da discussão do item 1.7 (seguir); inclui modelo de parceria entre marcas e uma decisão revertida (ocultação de origem — ver §3 do documento) |
 
 ### Pontos cegos — Ranking
 
@@ -185,6 +187,9 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 |---|---|---|
 | 5.1 | Documentação pública das regras de nickname (limite de 30 dias, liberação, o que acontece com pontuações antigas) — em algum lugar que o **jogador** consiga consultar, não só doc técnica interna | Surgiu ao fechar o item de modelo de nickname (`docs/NICKNAME_SPEC.md` §5). Formato (FAQ no perfil? página estática? texto inline?) ainda não decidido — é escolha de produto pra quando chegarmos nesse item |
 | 5.2 | Estratégia de retenção pra quem solicita suspensão/cancelamento — intervir de forma não manipuladora durante a janela de 30 dias de cancelamento, pra reduzir churn por impulso | Surgida ao fechar o item de exclusão de conta (`docs/EXCLUSAO_CONTA_SPEC.md`) — decisão explícita de não misturar com a mecânica de exclusão em si, é estratégia de produto própria |
+| 5.3 | Infraestrutura de notificação (push/e-mail) para o feed de "seguir" | Deliberadamente fora de escopo do `docs/SEGUIR_SPEC.md` §5 — feed hoje só compila no login, sem entrega em tempo real |
+| 5.4 | Visualização diferente do placar geral da plataforma (layout/agrupamento, não ocultação de dado — essa foi revertida) | Mencionada de passagem, sem detalhamento, ao fechar `docs/RANKINGS_CONFIGURAVEIS_SPEC.md` §5 |
+| 5.5 | Curadoria fina de parcerias entre marcas (hoje é tudo-ou-nada) | Registrado como possível evolução futura em `docs/RANKINGS_CONFIGURAVEIS_SPEC.md` §2.2.4 — sem necessidade de uso identificada agora |
 
 ## Como esses itens se cruzam (visão de dependência, não de prioridade)
 
