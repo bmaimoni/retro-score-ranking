@@ -139,7 +139,7 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 
 | # | Item | Nota |
 |---|---|---|
-| 3.1 | Mais informação por jogo: plataforma, ano de lançamento, capa, foto de gameplay | Campos novos em `jogos` |
+| 3.1 | Mais informação por jogo: plataforma, ano de lançamento, capa, foto de gameplay | **RESOLVIDO.** Campos novos em `jogos`, todos opcionais — sem integração externa (você faz consulta manual, tipo IGDB, num processo à parte, fora do projeto). Capa/gameplay seguem o mesmo padrão de avatar (super-admin sobe pelo painel, via `services/storage.py`) |
 | 3.2 | Admin da marca configura quantos scores aparecem por página | Hoje `PAGE_SIZE=20` é fixo no client — vira config. Item distinto de 3.7 (tamanho de página ≠ fonte de dados do ranking) |
 | 3.3 | "PARTICIPE PELO CELULAR" — ou implementar o QR de verdade (como no telão), ou remover | **Achei o bug**: o `<div id="ranking-qrcode">` já existe no HTML, mas nunca é preenchido por nenhum JS — é um elemento morto hoje, não só "estranho visualmente" |
 | 3.4 | Link "Participar" no rodapé parece perdido → navegação real (hamburguer ou footer) entre as telas | Afeta o site inteiro, não só ranking.html |
@@ -149,11 +149,15 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 
 ### Pontos cegos — Ranking
 
-1. **De onde vem o metadado rico do jogo (plataforma, ano, capa,
-   gameplay)?** Cadastro manual por admin (tedioso se o catálogo crescer
-   muito) ou uma integração com alguma base externa tipo IGDB? Isso também
-   cruza com a lógica de mesclagem de jogos que acabamos de construir —
-   quando dois jogos duplicados mesclam, qual metadado "vence"?
+1. ~~**De onde vem o metadado rico do jogo (plataforma, ano, capa,
+   gameplay)?**~~ **RESOLVIDO.** Cadastro manual, sempre — integração
+   externa (IGDB ou similar) fica fora do projeto, como processo separado
+   de consulta pra informar o preenchimento manual. Todos os campos
+   opcionais (jogos existentes não ficam bloqueados). Mesclagem de jogos:
+   metadado do jogo **destino** sempre sobrevive, mesmo padrão já usado
+   pra `entradas`/`evento_jogos` — nenhum preenchimento automático a
+   partir da origem, decisão manual do super-admin se quiser copiar algo
+   antes de mesclar.
 
 2. **A config de "scores por página" é por marca, por evento, ou os dois
    com herança** (mesmo padrão que já criamos pra cor/tipografia/logo)?
