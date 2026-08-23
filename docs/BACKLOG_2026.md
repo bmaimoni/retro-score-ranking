@@ -29,6 +29,11 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 
 ## 1. Perfil de usuário
 
+> **Status: 5 de 6 pontos cegos resolvidos.** Só falta definir o escopo do
+> item "seguir outros usuários" (ponto cego #6) — o resto da seção está
+> pronto pra virar spec técnica/migração quando chegar a vez desse tema no
+> plano de implementação.
+
 | # | Item | Nota |
 |---|---|---|
 | 1.1 | Base de usuários pronta pra notificações futuras | `users` já existe (`AUTH_SPEC.md`) — provavelmente é extensão, não tabela nova |
@@ -76,19 +81,22 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
    Fica registrado pra revisão futura, não tratado com rigor por decisão
    explícita.
 
-4. **"Indicar presença em eventos"** foi citado de passagem na definição de
-   jogador, mas nunca detalhado. É um "check-in" físico no evento? Uma
-   simples marcação de interesse ("vou comparecer")? Isso afeta contagem
-   pro admin, ou é só pro próprio usuário? Preciso de mais definição antes
-   de conseguir desenhar.
+4. ~~**"Indicar presença em eventos"**~~ **RESOLVIDO.** Presença é
+   **inferida**, não é ação nova nem dado novo — upload de score num
+   evento pressupõe presença nele, sem verificação/check-in por agora
+   (fraude fica pra tratar no futuro). Nenhuma tabela nova: é consulta
+   direta sobre `entradas` JOIN `eventos` JOIN `marcas`, disponível a
+   qualquer momento, sem manter dado espelhado sincronizado. **Trava de
+   isolamento**: qualquer relatório de recorrência **cross-marca**
+   (jogador que aparece em eventos de marcas diferentes) é exclusivo de
+   `super` — nunca exposto a admin/moderador escopado, mesma classe de
+   risco já tratada em `PERMISSOES_SPEC.md`.
 
-5. **Pontuações antigas, enviadas antes de existir login.** Hoje só
-   `entradas` enviadas **enquanto logado** ganham `user_id`. Alguém que
-   already jogou antes de criar conta não veria essas pontuações antigas no
-   "detalhamento das minhas pontuações" (item 1.4), mesmo usando o mesmo
-   nick de sempre. Vale um fluxo de "essas pontuações com esse nick são
-   minhas" pra recuperar o histórico, ou aceitamos que só conta daqui pra
-   frente?
+5. ~~**Pontuações antigas, enviadas antes de existir login.**~~
+   **RESOLVIDO — ver `NICKNAME_SPEC.md`, decisão #11 (claim retroativo).**
+   Reivindicar um nick pela primeira vez já vincula automaticamente
+   qualquer pontuação antiga com esse `nick_norm` que ainda não tinha
+   `user_id` — sem fluxo manual adicional, sem mecanismo novo.
 
 6. **"Seguir" — flui pra algum lugar, ou fica só na tela de perfil?**
    Notifica a pessoa seguida? Alimenta algum feed de atividade? Ou por
