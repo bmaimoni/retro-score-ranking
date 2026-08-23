@@ -137,6 +137,11 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 
 ## 3. Ranking (`ranking.html`)
 
+> **Status: seção resolvida por completo** (itens 3.1-3.7, incluindo os 3
+> pontos cegos originais). Ver `docs/RANKINGS_CONFIGURAVEIS_SPEC.md` pro
+> item 3.7 (o mais substancial); o resto documentado direto aqui.
+
+
 | # | Item | Nota |
 |---|---|---|
 | 3.1 | Mais informação por jogo: plataforma, ano de lançamento, capa, foto de gameplay | **RESOLVIDO.** Campos novos em `jogos`, todos opcionais — sem integração externa (você faz consulta manual, tipo IGDB, num processo à parte, fora do projeto). Capa/gameplay seguem o mesmo padrão de avatar (super-admin sobe pelo painel, via `services/storage.py`) |
@@ -144,7 +149,7 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 | 3.3 | "PARTICIPE PELO CELULAR" — ou implementar o QR de verdade (como no telão), ou remover | **RESOLVIDO.** Implementar de verdade — reaproveita a função `gerarQR` que já existe em `telao.html`. Elemento HTML já existe (`<div id="ranking-qrcode">`), só nunca foi preenchido por JS. Em ranking **agregado** (item 3.7), QR sempre aponta pro evento mais recente/ativo da marca dona da página — mesmo critério de "marca dona" já usado pra scores-por-página (item 3.2) |
 | 3.4 | Link "Participar" no rodapé parece perdido → navegação real (hamburguer ou footer) entre as telas | **RESOLVIDO.** Escopo só nas telas públicas navegadas ativamente: `index.html` e `ranking.html` (mais "perfil", quando construído). `admin.html` fica como está (abas, modelo diferente — autenticado, condicional por nível). `telao.html` fica de fora (uso passivo, exibição num telão físico, não navegação por toque) |
 | 3.5 | `game-tabs` vai ficar grande demais com muitos jogos, principalmente mobile | **RESOLVIDO junto com o item 2.4** (mesma solução: renderização progressiva client-side, sem paginação de servidor; escala real fica adiada até virar problema de fato) |
-| 3.6 | Logado, clicar em "meu score" pula direto pra própria posição naquele jogo/evento | Precisa saber a página onde a própria entrada cai |
+| 3.6 | Logado, clicar em "meu score" pula direto pra própria posição naquele jogo/evento | **RESOLVIDO.** Pula pra melhor entrada da pessoa dentro do que está sendo visualizado (agregado ou não — mesmo princípio de "melhor score de todos os tempos" já usado em `SEGUIR_SPEC.md`). Calcula a página onde ela cai (considerando `PAGE_SIZE` configurável do item 3.2) e navega automaticamente, com destaque visual |
 | 3.7 | Rankings configuráveis por evento (zerado / último evento / marca / marca+parceiras / geral) | **RESOLVIDO — ver `docs/RANKINGS_CONFIGURAVEIS_SPEC.md`.** Surgiu como extensão da discussão do item 1.7 (seguir); inclui modelo de parceria entre marcas e uma decisão revertida (ocultação de origem — ver §3 do documento) |
 
 ### Pontos cegos — Ranking
