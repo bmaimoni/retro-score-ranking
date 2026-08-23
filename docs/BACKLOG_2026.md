@@ -36,30 +36,27 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 | 1.3 | Tela de perfil: ver/editar nome completo, nickname, e-mail, foto, avatar (prontos + upload), data de nascimento, cidade/estado, telefone, "outros campos futuros" | Vários campos novos em `users`; nickname esbarra no modelo de `nick_claims` (ver ponto cego) |
 | 1.4 | Ver detalhamento de todas as próprias pontuações — evento e marca de cada uma, link rápido pro jogo | Precisa de endpoint novo (`entradas` por `user_id`, join até `marcas`) |
 | 1.5 | Usuário pode "desativar" todas as próprias pontuações (soft) | `entradas.arquivado` já existe — é questão de expor em massa |
-| 1.6 | Usuário pode solicitar "exclusão" do próprio perfil (soft) | Mesma mecânica — mas ver ponto cego sobre LGPD |
+| 1.6 | Usuário pode solicitar "exclusão" do próprio perfil (soft) | **RESOLVIDO — ver `docs/EXCLUSAO_CONTA_SPEC.md`** |
 | 1.7 | Seguir outros usuários — lista de quem eu sigo / quem me segue | Feature nova do zero, tabela nova |
 | 1.8 | Logout a partir da tela de perfil | Trivial — endpoint já existe, só falta a tela |
 
 ### Pontos cegos — Perfil
 
-1. **Nickname no perfil vs. `nick_claims` atual.** Hoje `nick_claims` permite,
-   em tese, que uma pessoa reivindique **vários nicks diferentes** ao longo
-   do tempo (cada `nick_norm` é único, mas nada impede um `user_id` ter
-   várias linhas). Se o perfil agora tem "o meu nickname" como campo único
-   editável, isso é uma mudança de modelo: viramos "1 pessoa = 1 nick
-   canônico" (mais simples, mas quebra a flexibilidade atual) ou mantemos
-   múltiplos nicks e o perfil mostra "meus nicks" no plural? Isso também
-   decide se dá pra pré-preencher o nick no envio de score (item da Tela
-   Inicial) sem ambiguidade.
+1. ~~**Nickname no perfil vs. `nick_claims` atual.**~~ **RESOLVIDO — ver
+   `docs/NICKNAME_SPEC.md`.** Nick por entrada é imutável; perfil permite
+   trocar (libera o nick antigo, cooldown de 30 dias); histórico de nicks
+   fica visível pro moderador; resolução de identificação ambígua é tardia
+   (só quando um nick liberado é reivindicado de novo), não retroativa.
+   Pré-preenchimento do nick no envio (item 2.3, Tela Inicial) já pode usar
+   "nick ativo do perfil" sem ambiguidade — está desbloqueado.
 
-2. **Exclusão de perfil e LGPD.** "Arquivar" (manter tudo no banco, só
-   esconder) pode não ser suficiente pra atender uma solicitação real de
-   exclusão sob a LGPD — dependendo de como a lei se aplica aqui, pode ser
-   necessário **anonimizar** dados pessoais (nome, telefone, data de
-   nascimento) mesmo mantendo a pontuação/ranking intactos. Não sou
-   advogado — vale confirmar com alguém que entenda de LGPD antes de eu
-   desenhar isso como "só um soft-delete". Também falta um terceiro valor
-   pro `CHECK` de `users.status` (hoje só `ativo`/`suspenso`).
+2. ~~**Exclusão de perfil e LGPD.**~~ **RESOLVIDO — ver
+   `docs/EXCLUSAO_CONTA_SPEC.md`.** `users.status` ganha valor `'excluido'`;
+   janela de 30 dias de cancelamento antes de anonimizar de verdade;
+   exclusão bloqueada se a pessoa for `dono_user_id` de alguma marca
+   (mesma trava de titularidade do `PERMISSOES_SPEC.md`); retorno depois
+   de excluído cria `user_id` novo (conta antiga fica anonimizada
+   permanentemente).
 
 3. **Avatar vs. Foto — qual vence onde?** São dois conceitos coexistindo
    (`foto_url` de hoje, vindo do Google; e um "avatar" novo, com galeria
@@ -161,6 +158,13 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
    também escolhendo o **nível**, não só o escopo?
 
 ---
+
+## Itens novos, surgidos durante a análise dos itens originais
+
+| # | Item | Origem |
+|---|---|---|
+| 5.1 | Documentação pública das regras de nickname (limite de 30 dias, liberação, o que acontece com pontuações antigas) — em algum lugar que o **jogador** consiga consultar, não só doc técnica interna | Surgiu ao fechar o item de modelo de nickname (`docs/NICKNAME_SPEC.md` §5). Formato (FAQ no perfil? página estática? texto inline?) ainda não decidido — é escolha de produto pra quando chegarmos nesse item |
+| 5.2 | Estratégia de retenção pra quem solicita suspensão/cancelamento — intervir de forma não manipuladora durante a janela de 30 dias de cancelamento, pra reduzir churn por impulso | Surgida ao fechar o item de exclusão de conta (`docs/EXCLUSAO_CONTA_SPEC.md`) — decisão explícita de não misturar com a mecânica de exclusão em si, é estratégia de produto própria |
 
 ## Como esses itens se cruzam (visão de dependência, não de prioridade)
 
