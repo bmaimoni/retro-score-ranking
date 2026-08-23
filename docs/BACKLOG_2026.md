@@ -1,10 +1,12 @@
 # Backlog 2026 — Perfil de Usuário, Navegação, Ranking Rico, Admin Escalável
 
-> Status: **compilação bruta, sem desenho de solução ainda**. Cada item abaixo
-> é uma reformulação objetiva do que foi pedido, agrupada por tema, com
-> referência ao que já existe no código pra não redesenhar do zero. As
-> perguntas de "ponto cego" no final de cada bloco são pra resolver **antes**
-> de detalhar qualquer item individualmente.
+> Status: **todas as 4 seções resolvidas** (Perfil, Tela Inicial, Ranking,
+> Admin) — todo item e todo ponto cego original tem decisão fechada,
+> registrada aqui ou num documento dedicado (`PERMISSOES_SPEC.md`,
+> `NICKNAME_SPEC.md`, `EXCLUSAO_CONTA_SPEC.md`, `SEGUIR_SPEC.md`,
+> `RANKINGS_CONFIGURAVEIS_SPEC.md`). Pronto pra virar plano de
+> implementação — nenhum código foi escrito ainda, por decisão explícita
+> de fechar todas as decisões de arquitetura antes de começar a codar.
 
 ---
 
@@ -180,25 +182,35 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 
 ## 4. Admin
 
+> **Status: seção resolvida por completo.** Boa parte já estava coberta
+> por `docs/PERMISSOES_SPEC.md`; só faltava confirmar filtros/busca/
+> paginação do feed, que não tinham sido tratados em nenhum documento
+> anterior.
+
 | # | Item | Nota |
 |---|---|---|
-| 4.1 | Feed ganha filtros: data, evento, jogo, sem foto, etc. | Expande bastante `GET /api/admin/feed` |
-| 4.2 | Reforço explícito: admin não pode ser confundido com moderador — moderador não cria jogo/evento, não mexe em telão | **É o achado #0** — precisa da dimensão de nível no modelo de autorização |
-| 4.3 | Toda lista filtrada pagina (evitar lentidão com volume grande) | Feed já pagina hoje — checar se sobrevive aos filtros novos |
-| 4.4 | Campo de busca pro moderador achar uma entrada rápido | Provavelmente entra junto com os filtros do 4.1 |
+| 4.1 | Feed ganha filtros: data, evento, jogo, sem foto, etc. | **RESOLVIDO.** Filtros: data, evento (dentro do que a pessoa já tem acesso), jogo, sem foto, **e** sem identificação (`user_id` nem `nome` — o filtro que `NICKNAME_SPEC.md` §2.15 já previu pro arquivamento manual). Os dois últimos são filtros separados, não um só |
+| 4.2 | Reforço explícito: admin não pode ser confundido com moderador — moderador não cria jogo/evento, não mexe em telão | **RESOLVIDO — coberto por `docs/PERMISSOES_SPEC.md`.** Ver achado abaixo: o fluxo de aprovação de jogos já implementado precisa de ajuste, não foi escrito pensando em 3 níveis |
+| 4.3 | Toda lista filtrada pagina (evitar lentidão com volume grande) | **RESOLVIDO.** Segue o padrão já estabelecido em `EVENTOS_SPEC.md` (`X-Total-Count` no header, `limit`/`offset`), suportando múltiplos filtros simultâneos |
+| 4.4 | Campo de busca pro moderador achar uma entrada rápido | **RESOLVIDO.** Busca sobre os mesmos campos que já existem no feed (nick, jogo, evento) — extensão direta de `WHERE`, sem full-text search nem índice dedicado |
+
+### Achado de implementação (não é ponto cego de decisão — é ajuste de código já escrito)
+
+O fluxo de aprovação de jogos (`routers/admin.py:criar_jogo`, já implementado antes de `moderador` existir como conceito) hoje só distingue `super` de "qualquer outro admin" — trataria um `moderador` exatamente como trata um `admin` comum, deixando ele criar jogo pendente. Isso contradiz a decisão já fechada ("moderadores não precisam criar jogos. Admins sim.") e precisa de correção na implementação: `criar_jogo` passa a exigir nível `admin` ou `super`, bloqueando `moderador` por completo — não uma decisão nova, um ajuste pra alinhar código já escrito com decisão já tomada.
 
 ### Pontos cegos — Admin
 
-1. **A lista exata do que "admin" pode fazer vs. "moderador" bate com o
-   que já existe?** Você listou: feed, eventos, config do telão, e
-   habilitar usuário como moderador/admin — isso deixa **de fora**
-   explicitamente: jogos, marcas, placares. Preciso confirmar essa lista
-   linha por linha antes de desenhar as permissões (ex.: admin pode criar
-   marca, ou só super-admin? O texto não deixa 100% claro).
+1. ~~**A lista exata do que "admin" pode fazer vs. "moderador" bate com o
+   que já existe?**~~ **RESOLVIDO.** Confirmado contra `PERMISSOES_SPEC.md`:
+   feed/eventos/telão (admin sim, moderador não) bate exatamente. Marcas:
+   criar é exclusivo de `super`; editar marca existente é liberado a
+   qualquer admin da própria marca. Placares deixou de ser ação isolada
+   desde o item 3.7 — virou parte de criar/editar evento.
 
-2. **"Habilitar um usuário como moderador/admin"** — isso usa a mesma UI de
-   vínculos que já construímos (`/api/admin/vinculos`), só que agora
-   também escolhendo o **nível**, não só o escopo?
+2. ~~**"Habilitar um usuário como moderador/admin"**~~ **RESOLVIDO.**
+   Confirmado: mesma UI de vínculos já construída (`/api/admin/vinculos`),
+   só ganha um seletor de nível — `admin_vinculos.nivel` já foi desenhado
+   pensando nisso desde `PERMISSOES_SPEC.md`.
 
 ---
 
