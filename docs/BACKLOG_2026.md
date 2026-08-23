@@ -140,9 +140,9 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 | # | Item | Nota |
 |---|---|---|
 | 3.1 | Mais informação por jogo: plataforma, ano de lançamento, capa, foto de gameplay | **RESOLVIDO.** Campos novos em `jogos`, todos opcionais — sem integração externa (você faz consulta manual, tipo IGDB, num processo à parte, fora do projeto). Capa/gameplay seguem o mesmo padrão de avatar (super-admin sobe pelo painel, via `services/storage.py`) |
-| 3.2 | Admin da marca configura quantos scores aparecem por página | Hoje `PAGE_SIZE=20` é fixo no client — vira config. Item distinto de 3.7 (tamanho de página ≠ fonte de dados do ranking) |
+| 3.2 | Admin da marca configura quantos scores aparecem por página | **RESOLVIDO.** Config única por marca, todo evento dela herda — sem exceção por evento. Mesmo em ranking agregado (item 3.7, com ou sem parceria), sempre usa o valor da marca "dona" da página sendo visualizada, nunca uma mistura |
 | 3.3 | "PARTICIPE PELO CELULAR" — ou implementar o QR de verdade (como no telão), ou remover | **Achei o bug**: o `<div id="ranking-qrcode">` já existe no HTML, mas nunca é preenchido por nenhum JS — é um elemento morto hoje, não só "estranho visualmente" |
-| 3.4 | Link "Participar" no rodapé parece perdido → navegação real (hamburguer ou footer) entre as telas | Afeta o site inteiro, não só ranking.html |
+| 3.4 | Link "Participar" no rodapé parece perdido → navegação real (hamburguer ou footer) entre as telas | **RESOLVIDO.** Escopo só nas telas públicas navegadas ativamente: `index.html` e `ranking.html` (mais "perfil", quando construído). `admin.html` fica como está (abas, modelo diferente — autenticado, condicional por nível). `telao.html` fica de fora (uso passivo, exibição num telão físico, não navegação por toque) |
 | 3.5 | `game-tabs` vai ficar grande demais com muitos jogos, principalmente mobile | **RESOLVIDO junto com o item 2.4** (mesma solução: renderização progressiva client-side, sem paginação de servidor; escala real fica adiada até virar problema de fato) |
 | 3.6 | Logado, clicar em "meu score" pula direto pra própria posição naquele jogo/evento | Precisa saber a página onde a própria entrada cai |
 | 3.7 | Rankings configuráveis por evento (zerado / último evento / marca / marca+parceiras / geral) | **RESOLVIDO — ver `docs/RANKINGS_CONFIGURAVEIS_SPEC.md`.** Surgiu como extensão da discussão do item 1.7 (seguir); inclui modelo de parceria entre marcas e uma decisão revertida (ocultação de origem — ver §3 do documento) |
@@ -159,12 +159,17 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
    partir da origem, decisão manual do super-admin se quiser copiar algo
    antes de mesclar.
 
-2. **A config de "scores por página" é por marca, por evento, ou os dois
-   com herança** (mesmo padrão que já criamos pra cor/tipografia/logo)?
+2. ~~**A config de "scores por página" é por marca, por evento, ou os dois
+   com herança**~~ **RESOLVIDO.** Só por marca, sem override por evento —
+   mais simples que o padrão de cor/tipografia/logo (que permite override).
+   Resolve de graça a ambiguidade de qual config vale em ranking agregado
+   (item 3.7): sempre a marca dona da página, nunca uma mistura.
 
-3. **A navegação (hamburguer/footer) é só nas telas públicas
-   (index/ranking/telão), ou entra no admin também?** O admin já tem abas
-   próprias — não sei se faz sentido unificar.
+3. ~~**A navegação (hamburguer/footer) é só nas telas públicas...**~~
+   **RESOLVIDO.** `index.html` + `ranking.html` (+ perfil, quando
+   construído). `admin.html` fica com abas, sem unificar. `telao.html`
+   fica de fora — uso passivo, exibição num telão físico, sem navegação
+   por toque.
 
 ---
 
