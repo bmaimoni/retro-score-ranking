@@ -359,25 +359,27 @@ caso).
 
 ## 10. Backlog — pendências conhecidas
 
-> **Status das especificações** (atualizado): `docs/EVENTOS_SPEC.md`,
-> `docs/AUTH_SPEC.md` e `docs/MARCAS_SPEC.md` (Fases 1 e 2) já estão
-> **implementados** — backend e frontend, em produção. Os três documentos
-> continuam sendo a referência de design/decisões tomadas, mas não são mais
-> "specs pendentes de código".
+> **Status (atualizado): backlog vazio.** Todos os itens historicamente
+> listados aqui — `EVENTOS_SPEC.md`, `AUTH_SPEC.md`, `MARCAS_SPEC.md`
+> (Fases 1 e 2), identidade visual 2026, backup do Supabase, e o fluxo
+> de aprovação de jogos — estão implementados e confirmados. Os
+> documentos de spec continuam como referência de design/decisões
+> tomadas, não como trabalho pendente.
 
 Em ordem aproximada de prioridade:
 
-- [ ] **Confirmar backup do Supabase** (pendente no dashboard).
+- [x] **Confirmar backup do Supabase** — confirmado.
 - [x] **Aplicar identidade visual 2026** — código pronto (CRUD de marcas
-      no admin, `aplicarIdentidadeVisual()` no frontend). Só falta a
-      execução manual: subir o arquivo do logo em `frontend/`, criar a
-      marca "Canal3" pelo admin com a paleta certa, e vincular os
-      eventos existentes a ela.
-- [ ] **Fluxo de admin de evento propondo jogos ao catálogo global** — ideia
-      original do §8 desta seção, ainda não redesenhada à luz do
-      `EVENTOS_SPEC.md` (hoje jogos são globais + vínculo por evento via
-      `evento_jogos`; "propor" um jogo novo pro catálogo é fluxo de admin
-      que ainda não foi especificado em detalhe).
+      no admin, `aplicarIdentidadeVisual()` no frontend). Logo, marca e
+      vínculo aos eventos já executados manualmente.
+- [x] **Fluxo de admin de evento propondo jogos ao catálogo global** —
+      implementado (migration 018, `jogos.pendente_aprovacao`,
+      aprovação/mesclagem no admin, backend + frontend).
+
+Todos os itens de backlog conhecidos estão resolvidos. Os únicos pontos
+"em aberto" do projeto são os 3 itens explicitamente adiados em
+`docs/AUTH_SPEC.md` §6 (não bloqueiam nada — ver lá) e o domínio próprio
+pro backend (cosmético, ver `docs/AUTH_SPEC.md` §6 também).
 
 **Superadas pelos documentos novos** (mantidas aqui só como histórico —
 não são mais itens de backlog independentes):
