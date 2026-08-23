@@ -108,23 +108,30 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 
 ## 2. Tela inicial (`index.html`)
 
+> **Status: seção resolvida.** Ver decisões abaixo — sem necessidade de
+> spec dedicada, escopo pequeno o suficiente pra documentar direto aqui.
+
 | # | Item | Nota |
 |---|---|---|
-| 2.1 | Sem evento vinculado → mostrar marcas com eventos válidos, em vez de permitir envio "solto" | Muda o fallback hoje-hardcoded (`canal3expo`) |
-| 2.2 | Trocar "Entrar para proteger seu nick" por algo tipo "Salve suas pontuações!" | Copy simples |
-| 2.3 | Logado: mostrar nickname + avatar, e usar isso pra não pedir de novo no envio | Depende do ponto cego #1 da seção Perfil |
-| 2.4 | Scroll infinito na lista de jogos quando há muitos ativos; busca continua achando qualquer um, independente da paginação visual | — |
+| 2.1 | Sem evento vinculado → mostrar marcas com eventos válidos, em vez de permitir envio "solto" | **RESOLVIDO.** Fallback hardcoded (`canal3expo`) removido sem rede de segurança — confirmado que não existe QR/material físico impresso hoje dependendo dele |
+| 2.2 | Trocar "Entrar para proteger seu nick" por algo tipo "Salve suas pontuações!" | Copy simples — sem ponto cego, segue como pedido original |
+| 2.3 | Logado: mostrar nickname + avatar, e usar isso pra não pedir de novo no envio | Desbloqueado por `NICKNAME_SPEC.md` (nick ativo do perfil) + avatar já resolvido (item 1 do backlog) — sem ponto cego próprio, é composição de decisões já fechadas |
+| 2.4 | Scroll infinito na lista de jogos quando há muitos ativos; busca continua achando qualquer um, independente da paginação visual | **RESOLVIDO.** Carregamento client-side completo (como já é hoje) — scroll infinito é só renderização progressiva, não paginação de servidor. Preserva o link direto por jogo (`?jogo=slug`) e a busca funcionando sobre a lista inteira, sem lógica extra. Escala de verdade (paginação de servidor) fica adiada pra quando o volume de jogos por evento justificar — decisão explícita de não resolver antecipadamente |
 
 ### Pontos cegos — Tela inicial
 
-1. **O fallback `canal3expo` desaparece de vez, ou continua pra links/QRs
-   já impressos sem `?evento=`?** Se o Canal3 Expo ainal está rolando e tem
-   material físico distribuído sem esse parâmetro, tirar o fallback quebra
-   esses códigos na hora.
+1. ~~**O fallback `canal3expo` desaparece de vez, ou continua pra links/QRs
+   já impressos sem `?evento=`?**~~ **RESOLVIDO.** Sem QR/material físico
+   ativo dependendo do fallback — remove sem necessidade de compatibilidade.
 
-2. **O que torna um evento "válido" pra aparecer no seletor de marca?**
-   `publico=true`? Também dentro da janela de envio (`data_inicio`/
-   `data_fim`)? Ou só "existe e está ativo"?
+2. ~~**O que torna um evento "válido" pra aparecer no seletor de marca?**~~
+   **RESOLVIDO.** Critério é `publico=true` (mesmo padrão que já vale pra
+   ranking/telão continuarem acessíveis fora da janela de envio — não
+   precisa estar dentro de `data_inicio`/`data_fim`). **Decisão de UX
+   adicional**: se existir exatamente **uma** marca com evento(s) válido(s)
+   no momento, pula o seletor direto pro fluxo dela — seletor só aparece
+   de verdade com mais de uma opção real. Evita fricção hoje (só existe
+   Canal3 em uso), escala sozinho conforme mais marcas entrarem.
 
 ---
 
@@ -136,7 +143,7 @@ Mudanças que esse desenho força nos itens abaixo desta lista:
 | 3.2 | Admin da marca configura quantos scores aparecem por página | Hoje `PAGE_SIZE=20` é fixo no client — vira config. Item distinto de 3.7 (tamanho de página ≠ fonte de dados do ranking) |
 | 3.3 | "PARTICIPE PELO CELULAR" — ou implementar o QR de verdade (como no telão), ou remover | **Achei o bug**: o `<div id="ranking-qrcode">` já existe no HTML, mas nunca é preenchido por nenhum JS — é um elemento morto hoje, não só "estranho visualmente" |
 | 3.4 | Link "Participar" no rodapé parece perdido → navegação real (hamburguer ou footer) entre as telas | Afeta o site inteiro, não só ranking.html |
-| 3.5 | `game-tabs` vai ficar grande demais com muitos jogos, principalmente mobile | Mesmo tema do scroll infinito da tela inicial — provavelmente a mesma solução serve pras duas telas |
+| 3.5 | `game-tabs` vai ficar grande demais com muitos jogos, principalmente mobile | **RESOLVIDO junto com o item 2.4** (mesma solução: renderização progressiva client-side, sem paginação de servidor; escala real fica adiada até virar problema de fato) |
 | 3.6 | Logado, clicar em "meu score" pula direto pra própria posição naquele jogo/evento | Precisa saber a página onde a própria entrada cai |
 | 3.7 | Rankings configuráveis por evento (zerado / último evento / marca / marca+parceiras / geral) | **RESOLVIDO — ver `docs/RANKINGS_CONFIGURAVEIS_SPEC.md`.** Surgiu como extensão da discussão do item 1.7 (seguir); inclui modelo de parceria entre marcas e uma decisão revertida (ocultação de origem — ver §3 do documento) |
 
