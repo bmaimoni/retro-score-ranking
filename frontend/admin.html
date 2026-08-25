@@ -714,6 +714,7 @@
     <button class="admin-tab" data-tab="config">Evento</button>
     <button class="admin-tab" data-tab="manutencao">Manutenção</button>
     <button class="admin-tab" data-tab="administradores" id="tab-btn-administradores" style="display:none">Administradores</button>
+    <button class="admin-tab" data-tab="exclusoes" id="tab-btn-exclusoes" style="display:none">Exclusões</button>
   </div>
 
   <!-- ── ABA: FEED ── -->
@@ -853,6 +854,29 @@
             </div>
           </div>
           <button class="btn-action btn-reativar" onclick="criarEvento()">+ Criar evento</button>
+        </div>
+      </details>
+    </div>
+
+    <div class="section-header" style="margin-top:var(--space-lg)">
+      <span class="section-title">Avatares</span>
+    </div>
+
+    <!-- Avatares (super only) -->
+    <div class="manut-card" id="avatares-secao">
+      <h3 class="manut-titulo">Galeria de avatares</h3>
+      <p class="manut-desc">
+        Curada por você — o jogador escolhe um desses no próprio perfil.
+        Desativar tira da galeria, mas quem já tinha escolhido continua com ele.
+      </p>
+      <div id="avatares-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:var(--space-md)">Carregando...</div>
+
+      <details style="margin-top:var(--space-md)">
+        <summary style="cursor:pointer;font-size:var(--text-xs);color:var(--color-text-muted);letter-spacing:0.08em">ADICIONAR AVATAR</summary>
+        <div style="margin-top:var(--space-sm);display:flex;flex-direction:column;gap:var(--space-sm)">
+          <input class="field-input" id="avatar-nome" placeholder="Nome (ex: Robô Azul)" maxlength="80">
+          <input class="field-input" id="avatar-url" placeholder="URL da imagem" maxlength="300">
+          <button class="btn-action btn-reativar" onclick="criarAvatar()">+ Adicionar avatar</button>
         </div>
       </details>
     </div>
@@ -1000,6 +1024,18 @@
     </table>
   </div>
 
+  <!-- ── ABA: EXCLUSÕES (só super) ── -->
+  <div class="tab-content" id="tab-exclusoes">
+    <div class="section-header">
+      <span class="section-title">Exclusões de conta pendentes</span>
+    </div>
+    <p class="manut-desc" style="margin-bottom:var(--space-md)">
+      Sem job agendado — a anonimização só acontece quando você clica em "Processar" aqui,
+      e só depois de 30 dias da solicitação (docs/EXCLUSAO_CONTA_SPEC.md §7).
+    </p>
+    <div id="exclusoes-lista">Carregando...</div>
+  </div>
+
 </div>
 
 <!-- Toast -->
@@ -1058,6 +1094,12 @@ function aplicarVisibilidadePorNivel() {
 
   const manutGeral = document.getElementById('manut-geral');
   if (manutGeral) manutGeral.style.display = super_ ? '' : 'none';
+
+  const avatares = document.getElementById('avatares-secao');
+  if (avatares) avatares.style.display = super_ ? '' : 'none';
+
+  const tabExclusoes = document.getElementById('tab-btn-exclusoes');
+  if (tabExclusoes) tabExclusoes.style.display = super_ ? 'block' : 'none';
 }
 
 let feedFilter  = 'todos';
@@ -1302,7 +1344,8 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     tab.classList.add('active');
     document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
     if (tab.dataset.tab === 'administradores') carregarVinculos();
-    if (tab.dataset.tab === 'config') { carregarMarcas(); carregarEventos(); }
+    if (tab.dataset.tab === 'exclusoes') carregarExclusoesPendentes();
+    if (tab.dataset.tab === 'config') { carregarMarcas(); carregarEventos(); carregarAvatares(); }
     if (tab.dataset.tab === 'jogos' && meInfo && meInfo.super) carregarJogosPendentes();
   });
 });
@@ -1622,8 +1665,15 @@ function renderConfig(cfg) {
 // ── CARD DE ENTRADA ───────────────────────────────────────────────────────────
 function motivoModeracao(e) {
   const motivos = [];
-  if (e.pendente && !e.foto_url) motivos.push('sem foto');
-  if (e.pendente &&  e.foto_url) motivos.push('limite de envios');
+  // pendente_motivo (NICKNAME_SPEC.md decisão #7) tem prioridade — é o
+  // motivo de verdade gravado no banco, não uma inferência.
+  if (e.pendente && e.pendente_motivo === 'identificacao_ambigua') {
+    motivos.push('identificação ambígua — nick liberado, reivindicado de novo');
+  } else if (e.pendente && !e.foto_url) {
+    motivos.push('sem foto');
+  } else if (e.pendente && e.foto_url) {
+    motivos.push('limite de envios');
+  }
   if (!e.no_ranking && !e.pendente) motivos.push('ocultado pelo moderador');
   return motivos.length ? motivos.join(' · ') : '';
 }
@@ -1686,6 +1736,13 @@ function cardEntrada(e, tipo) {
       </div>`;
   }
 
+  // Histórico de nicks do usuário identificado — não só o nick desta
+  // entrada isolada (decisão #4 do NICKNAME_SPEC.md). Só faz sentido
+  // pra entrada com login (user_id); anônima não tem conta pra ver.
+  const nicksBtnHtml = e.user_id
+    ? `<button class="btn-action" style="padding:4px 10px;font-size:10px" onclick="toggleHistoricoNicks('${e.id}', '${e.user_id}')">🕐 Nicks</button>`
+    : '';
+
   return `
     <div class="${classes}" data-id="${e.id}">
       ${foto}
@@ -1698,11 +1755,65 @@ function cardEntrada(e, tipo) {
           <span class="entrada-score">${(e.pontuacao || 0).toLocaleString('pt-BR')} pts</span>
           <span>${tempoRelativo(e.criado_em)}</span>
         </div>
+        <div class="historico-nicks" id="historico-nicks-${e.id}" style="display:none;margin-top:8px"></div>
       </div>
-      <div class="entrada-actions">${acoes}</div>
+      <div class="entrada-actions">${acoes}${nicksBtnHtml}</div>
     </div>
   `;
 }
+
+window.toggleHistoricoNicks = function(entradaId, userId) {
+  const el = document.getElementById(`historico-nicks-${entradaId}`);
+  const abrindo = el.style.display === 'none';
+  el.style.display = abrindo ? 'block' : 'none';
+  if (abrindo) carregarHistoricoNicks(entradaId, userId);
+};
+
+async function carregarHistoricoNicks(entradaId, userId) {
+  const el = document.getElementById(`historico-nicks-${entradaId}`);
+  el.innerHTML = `<div style="font-size:10px;color:var(--color-text-muted)">Carregando histórico...</div>`;
+  try {
+    const resp = await apiFetch(`/api/admin/usuarios/${userId}/nicks`);
+    const nicks = resp.ok ? await resp.json() : [];
+
+    const listaHtml = nicks.length
+      ? nicks.map(n => `
+          <div style="font-size:10px;color:${n.ativo ? 'var(--color-text)' : 'var(--color-text-muted)'}">
+            ${n.ativo ? '● ' : '○ '}${escapar(n.nick)}${n.ativo ? ' (atual)' : ''}
+            <span style="opacity:0.6"> — ${new Date(n.criado_em).toLocaleDateString('pt-BR')}</span>
+          </div>
+        `).join('')
+      : `<div style="font-size:10px;color:var(--color-text-muted)">Sem histórico de nicks</div>`;
+
+    el.innerHTML = `
+      <div style="background:var(--color-bg-surface2);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:4px">
+        ${listaHtml}
+        <div style="display:flex;gap:6px;margin-top:4px">
+          <input class="field-input" id="forcar-nick-${entradaId}" placeholder="Forçar novo nick" style="font-size:10px;padding:6px">
+          <button class="btn-action" style="padding:4px 10px;font-size:10px;flex-shrink:0" onclick="forcarTrocaNick('${entradaId}', '${userId}')">Forçar</button>
+        </div>
+      </div>
+    `;
+  } catch {
+    el.innerHTML = `<div style="font-size:10px;color:var(--color-error)">Erro ao carregar histórico</div>`;
+  }
+}
+
+window.forcarTrocaNick = async function(entradaId, userId) {
+  const input = document.getElementById(`forcar-nick-${entradaId}`);
+  const novoNick = input.value.trim();
+  if (!novoNick) return;
+  if (!confirm(`Forçar troca de nick pra "${novoNick}"? Ignora o cooldown de 30 dias e fica registrado na auditoria.`)) return;
+
+  const resp = await apiFetch(`/api/admin/usuarios/${userId}/trocar-nick`, 'POST', { novo_nick: novoNick });
+  if (resp.ok) {
+    showToast('Nick trocado à força', 'success');
+    carregarHistoricoNicks(entradaId, userId);
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao forçar troca de nick', 'error');
+  }
+};
 
 function bindCardActions(container) {
   container.querySelectorAll('.btn-ocultar').forEach(btn => {
@@ -2046,6 +2157,65 @@ window.salvarMarca = async function() {
   }
 };
 
+// ── AVATARES (só super — BACKLOG_2026.md §1 ponto cego #3) ────
+async function carregarAvatares() {
+  const lista = document.getElementById('avatares-lista');
+  if (!lista) return;
+  try {
+    const resp = await apiFetch('/api/admin/avatares');
+    if (!resp.ok) { lista.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar avatares</div>`; return; }
+    const avatares = await resp.json();
+
+    if (avatares.length === 0) {
+      lista.innerHTML = `<div style="color:var(--color-text-muted);font-size:var(--text-sm)">Nenhum avatar cadastrado ainda</div>`;
+      return;
+    }
+
+    lista.innerHTML = avatares.map(a => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--color-bg-surface2);border-radius:6px;border:1px solid var(--color-border);${a.ativo ? '' : 'opacity:0.5'}">
+        <img src="${escapar(a.url)}" alt="${escapar(a.nome)}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0" loading="lazy">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:var(--text-sm);font-weight:600">${escapar(a.nome)}</div>
+          <div style="font-size:var(--text-xs);color:var(--color-text-muted)">${a.ativo ? 'Ativo' : 'Inativo'}</div>
+        </div>
+        <button class="btn-action ${a.ativo ? 'btn-rejeitar' : 'btn-reativar'}" style="padding:4px 10px;font-size:10px"
+                onclick="toggleAvatarAtivo('${a.id}', ${!a.ativo})">
+          ${a.ativo ? 'Desativar' : 'Reativar'}
+        </button>
+      </div>
+    `).join('');
+  } catch {
+    lista.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar avatares</div>`;
+  }
+}
+
+window.criarAvatar = async function() {
+  const nome = document.getElementById('avatar-nome').value.trim();
+  const url  = document.getElementById('avatar-url').value.trim();
+  if (!nome || !url) { showToast('Nome e URL são obrigatórios', 'error'); return; }
+
+  const resp = await apiFetch('/api/admin/avatares', 'POST', { nome, url });
+  if (resp.ok) {
+    showToast('Avatar adicionado!', 'success');
+    document.getElementById('avatar-nome').value = '';
+    document.getElementById('avatar-url').value = '';
+    carregarAvatares();
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao adicionar avatar', 'error');
+  }
+};
+
+window.toggleAvatarAtivo = async function(id, novoAtivo) {
+  const resp = await apiFetch(`/api/admin/avatares/${id}`, 'PATCH', { ativo: novoAtivo });
+  if (resp.ok) {
+    showToast(novoAtivo ? 'Avatar reativado' : 'Avatar desativado', 'success');
+    carregarAvatares();
+  } else {
+    showToast('Erro ao atualizar avatar', 'error');
+  }
+};
+
 // ── EVENTOS ──────────────────────────────────────────────────
 // Não existe mais "o evento ativo" (conceito antigo, pré-EVENTOS_SPEC.md)
 // — vários eventos podem rodar simultaneamente. 'ativo' e 'publico' são
@@ -2235,6 +2405,56 @@ window.toggleVinculo = async function(id, novoAtivo) {
     carregarVinculos();
   } else {
     showToast('Erro ao atualizar vínculo', 'error');
+  }
+};
+
+// ── EXCLUSÕES DE CONTA (só super — EXCLUSAO_CONTA_SPEC.md) ────────────────────
+
+async function carregarExclusoesPendentes() {
+  const el = document.getElementById('exclusoes-lista');
+  try {
+    const resp = await apiFetch('/api/admin/exclusoes-pendentes');
+    if (!resp.ok) { el.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar</div>`; return; }
+    const pendentes = await resp.json();
+
+    if (pendentes.length === 0) {
+      el.innerHTML = `<div style="color:var(--color-text-muted);font-size:var(--text-sm)">Nenhuma exclusão pendente</div>`;
+      return;
+    }
+
+    el.innerHTML = pendentes.map(p => {
+      const solicitado = new Date(p.exclusao_solicitada_em);
+      const limite = new Date(solicitado.getTime() + 30 * 24 * 60 * 60 * 1000);
+      return `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--color-bg-surface2);border-radius:6px;border:1px solid ${p.elegivel ? 'var(--color-error)' : 'var(--color-border)'};margin-bottom:6px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:var(--text-sm);font-weight:600">${escapar(p.nome || p.email || p.id)}</div>
+            <div style="font-size:var(--text-xs);color:var(--color-text-muted)">
+              ${escapar(p.email || '')} · solicitado em ${solicitado.toLocaleDateString('pt-BR')}
+              · ${p.elegivel ? 'elegível desde ' + limite.toLocaleDateString('pt-BR') : 'ainda na janela, libera em ' + limite.toLocaleDateString('pt-BR')}
+            </div>
+          </div>
+          <button class="btn-action ${p.elegivel ? 'btn-rejeitar' : ''}" style="padding:4px 10px;font-size:10px" ${p.elegivel ? '' : 'disabled'}
+                  onclick="processarExclusao('${p.id}')">
+            Processar
+          </button>
+        </div>
+      `;
+    }).join('');
+  } catch {
+    el.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar</div>`;
+  }
+}
+
+window.processarExclusao = async function(userId) {
+  if (!confirm('Anonimizar esta conta agora? Ação irreversível — nome, e-mail e outros dados pessoais somem pra sempre.')) return;
+  const resp = await apiFetch(`/api/admin/usuarios/${userId}/processar-exclusao`, 'POST');
+  if (resp.ok) {
+    showToast('Conta anonimizada', 'success');
+    carregarExclusoesPendentes();
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao processar exclusão', 'error');
   }
 };
 

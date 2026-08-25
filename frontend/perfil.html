@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0b1331">
+  <title>Meu perfil — Retro Score</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Poppins:wght@400;600;700&display=swap">
+  <style>
+    .perfil-page {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: var(--space-xl) var(--space-md) var(--space-2xl);
+    }
+    .page-header { text-align: center; margin-bottom: var(--space-lg); width: 100%; max-width: 560px; }
+    .page-logo { height: 72px; width: auto; object-fit: contain; display: block; margin: 0 auto var(--space-md); }
+    .page-title {
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+      color: var(--color-primary);
+      line-height: 1.4; margin-bottom: var(--space-xs);
+    }
+    .page-subtitle { font-size: var(--text-sm); color: var(--color-text-muted); }
+    .voltar-link {
+      display: inline-block;
+      margin-top: var(--space-sm);
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      text-decoration: underline;
+    }
+
+    .perfil-topo {
+      width: 100%; max-width: 560px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-lg);
+    }
+    .perfil-topo-info { font-size: var(--text-sm); color: rgba(255,255,255,0.75); }
+    .perfil-topo-info strong { color: var(--color-primary); }
+    .perfil-sair {
+      background: transparent; border: none;
+      color: var(--color-text-muted); font-size: var(--text-xs);
+      text-decoration: underline; cursor: pointer; padding: 4px 8px; white-space: nowrap;
+    }
+
+    .perfil-card {
+      width: 100%; max-width: 560px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-lg);
+    }
+    .perfil-card-titulo {
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
+      color: var(--color-primary);
+      letter-spacing: 0.08em;
+      margin-bottom: var(--space-md);
+    }
+    .perfil-card-desc {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      line-height: 1.5;
+      margin-bottom: var(--space-md);
+    }
+    .field-row { display: flex; gap: var(--space-sm); }
+    .field-row .field { flex: 1; }
+
+    /* ── Avatar ── */
+    .avatar-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+    }
+    .avatar-opcao {
+      aspect-ratio: 1;
+      border-radius: var(--radius-sm);
+      border: 2px solid transparent;
+      overflow: hidden;
+      cursor: pointer;
+      background: var(--color-bg-surface2);
+      transition: border-color var(--transition), transform var(--transition);
+      padding: 0;
+    }
+    .avatar-opcao img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .avatar-opcao:hover { transform: scale(1.05); }
+    .avatar-opcao.selecionado { border-color: var(--color-primary); box-shadow: 0 0 12px var(--color-primary-glow); }
+    .avatar-vazio { font-size: var(--text-xs); color: var(--color-text-muted); }
+
+    /* ── Nick ── */
+    .nick-atual {
+      font-size: var(--text-md);
+      color: var(--color-text);
+      margin-bottom: var(--space-md);
+    }
+    .nick-atual strong { color: var(--color-secondary); }
+    .nick-form { display: flex; gap: var(--space-sm); }
+    .nick-form .field-input { flex: 1; }
+    .nick-form button { flex-shrink: 0; width: auto; padding: 0 var(--space-lg); }
+    .nick-status { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: var(--space-sm); min-height: 1em; }
+    .nick-status.error { color: var(--color-error); }
+
+    /* ── Pontuações ── */
+    .pontuacoes-lista { display: flex; flex-direction: column; gap: 6px; }
+    .pontuacao-item {
+      display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm);
+      padding: 10px 12px;
+      background: var(--color-bg-surface2);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--color-border);
+      text-decoration: none;
+      color: var(--color-text);
+      transition: border-color var(--transition);
+    }
+    .pontuacao-item:hover { border-color: var(--color-border-hover); }
+    .pontuacao-info { min-width: 0; }
+    .pontuacao-jogo { font-size: var(--text-sm); font-weight: var(--weight-bold); }
+    .pontuacao-meta { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; }
+    .pontuacao-score {
+      font-family: var(--font-mono);
+      font-size: var(--text-md);
+      color: var(--color-secondary);
+      white-space: nowrap;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .pontuacoes-vazio { text-align: center; color: var(--color-text-muted); font-size: var(--text-sm); padding: var(--space-lg) 0; }
+
+    /* ── Ações / exclusão ── */
+    .acao-leve { border-color: rgba(240,192,64,0.3); }
+    .acao-perigo {
+      border-color: rgba(240,64,96,0.3);
+      background: rgba(240,64,96,0.06);
+    }
+    .acao-perigo .perfil-card-titulo { color: var(--color-error); }
+    .btn-perigo {
+      display: block; width: 100%;
+      padding: var(--space-md) var(--space-lg);
+      background: transparent;
+      color: var(--color-error);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      font-weight: var(--weight-bold);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      border-radius: var(--radius-md);
+      border: var(--border-width) solid var(--color-error);
+      transition: all var(--transition);
+    }
+    .btn-perigo:hover { background: rgba(240,64,96,0.15); }
+    .exclusao-pendente-aviso {
+      font-size: var(--text-sm);
+      color: var(--color-warning);
+      line-height: 1.6;
+      margin-bottom: var(--space-md);
+    }
+    .exclusao-confirmar { display: none; margin-top: var(--space-md); }
+    .exclusao-confirmar.aberto { display: block; }
+
+    /* ── Login gate (não logado) ── */
+    .login-painel {
+      width: 100%; max-width: 420px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+    }
+    .login-btn {
+      width: 100%;
+      border-radius: var(--radius-sm, 6px);
+      padding: 10px 16px;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-bold);
+      cursor: pointer;
+      transition: filter var(--transition);
+    }
+    .login-btn:hover { filter: brightness(1.1); }
+    .login-btn-google {
+      background: #ffffff; color: #1f1f1f;
+      border: 1px solid rgba(0,0,0,0.1);
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    .login-divisor {
+      display: flex; align-items: center; gap: var(--space-sm);
+      margin: var(--space-md) 0;
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+    }
+    .login-divisor::before, .login-divisor::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.15); }
+    .login-email-form { display: flex; flex-direction: column; gap: var(--space-sm); }
+    .login-btn-email { background: var(--color-primary); color: var(--color-bg, #0b1331); }
+    .login-email-status { font-size: var(--text-xs); color: var(--color-text-muted); text-align: center; margin-top: var(--space-sm); min-height: 1em; }
+
+    .carregando { text-align: center; color: var(--color-text-muted); font-size: var(--text-sm); padding: var(--space-2xl) 0; }
+
+    input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="perfil-page">
+  <div class="page-header animate-slide-up">
+    <img src="logo-principal.png" alt="Canal3" class="page-logo">
+    <h1 class="page-title">MEU PERFIL</h1>
+    <p class="page-subtitle">Seus dados, seu nick, suas pontuações</p>
+    <a href="index.html" class="voltar-link">← Voltar pro início</a>
+  </div>
+
+  <div id="conteudo">
+    <div class="carregando">···</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+const API_URL = 'https://retro-score-ranking-production.up.railway.app';
+
+let perfilAtual = null;
+let avataresCache = [];
+let providersCache = null;
+
+document.addEventListener('DOMContentLoaded', carregar);
+
+async function carregar() {
+  try {
+    const resp = await fetch(`${API_URL}/api/perfil`, { credentials: 'include' });
+    if (!resp.ok) { renderLoginGate(); return; }
+    perfilAtual = await resp.json();
+    await Promise.all([carregarAvatares(), renderPerfil()]);
+  } catch {
+    renderLoginGate();
+  }
+}
+
+// ── LOGIN GATE (sem sessão) ─────────────────────────────────────
+function renderLoginGate() {
+  document.getElementById('conteudo').innerHTML = `
+    <div class="login-painel animate-slide-up">
+      <p class="perfil-card-desc" style="text-align:center">
+        Entre pra ver e editar seu perfil, trocar de nick e gerenciar suas pontuações.
+      </p>
+      <button class="login-btn login-btn-google" id="btn-login-google" onclick="loginGoogle()" style="display:none">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+        Continuar com Google
+      </button>
+      <div class="login-divisor" id="login-divisor" style="display:none"><span>ou</span></div>
+      <div class="login-email-form" id="login-email-form" style="display:none">
+        <input type="email" class="field-input" id="login-email-input" placeholder="seu@email.com" autocomplete="email">
+        <button class="login-btn login-btn-email" onclick="loginMagicLink()">Enviar link de acesso</button>
+      </div>
+      <p class="login-email-status" id="login-email-status"></p>
+    </div>
+  `;
+  carregarProvidersLogin();
+}
+
+async function carregarProvidersLogin() {
+  try {
+    const resp = await fetch(`${API_URL}/api/auth/providers`);
+    providersCache = await resp.json();
+  } catch {
+    providersCache = { google: false, magic_link: false };
+  }
+  document.getElementById('btn-login-google').style.display = providersCache.google ? 'flex' : 'none';
+  document.getElementById('login-divisor').style.display =
+    (providersCache.google && providersCache.magic_link) ? 'flex' : 'none';
+  document.getElementById('login-email-form').style.display = providersCache.magic_link ? 'flex' : 'none';
+}
+
+window.loginGoogle = function() {
+  window.location.href = `${API_URL}/api/auth/google/start?next=${encodeURIComponent('/perfil.html')}`;
+};
+
+window.loginMagicLink = async function() {
+  const input  = document.getElementById('login-email-input');
+  const status = document.getElementById('login-email-status');
+  const email  = input.value.trim();
+  if (!email) return;
+
+  status.textContent = 'Enviando...';
+  try {
+    const resp = await fetch(`${API_URL}/api/auth/magic-link/request`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, next: '/perfil.html' }),
+    });
+    const data = await resp.json();
+    status.textContent = data.mensagem || 'Se esse e-mail existir, enviamos um link de acesso.';
+    input.value = '';
+  } catch {
+    status.textContent = 'Não foi possível enviar agora. Tente de novo em instantes.';
+  }
+};
+
+window.fazerLogout = async function() {
+  try {
+    await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+  } catch {}
+  window.location.href = 'index.html';
+};
+
+// ── PERFIL (logado) ──────────────────────────────────────────────
+async function carregarAvatares() {
+  try {
+    const resp = await fetch(`${API_URL}/api/avatares`);
+    avataresCache = resp.ok ? await resp.json() : [];
+  } catch {
+    avataresCache = [];
+  }
+}
+
+async function renderPerfil() {
+  const nomeExibicao = perfilAtual.nome || perfilAtual.email || 'sua conta';
+
+  document.getElementById('conteudo').innerHTML = `
+    <div class="perfil-topo animate-slide-up">
+      <span class="perfil-topo-info">Logado como <strong>${escapar(nomeExibicao)}</strong></span>
+      <button class="perfil-sair" onclick="fazerLogout()">Sair</button>
+    </div>
+
+    <div class="perfil-card animate-slide-up">
+      <div class="perfil-card-titulo">👤 DADOS PESSOAIS</div>
+      <div class="field">
+        <label class="field-label">Nome completo</label>
+        <input class="field-input" id="pf-nome-completo" value="${escapar(perfilAtual.nome_completo || '')}" placeholder="Seu nome completo" maxlength="120">
+      </div>
+      <div class="field">
+        <label class="field-label">Data de nascimento</label>
+        <input class="field-input" type="date" id="pf-nascimento" value="${perfilAtual.data_nascimento || ''}">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="field-label">Cidade</label>
+          <input class="field-input" id="pf-cidade" value="${escapar(perfilAtual.cidade || '')}" placeholder="Sua cidade" maxlength="80">
+        </div>
+        <div class="field" style="max-width:110px">
+          <label class="field-label">Estado</label>
+          <select class="field-input" id="pf-estado">${optionsEstados(perfilAtual.estado)}</select>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field-label">Telefone</label>
+        <input class="field-input" id="pf-telefone" value="${escapar(perfilAtual.telefone || '')}" placeholder="(00) 00000-0000" maxlength="20">
+      </div>
+      <button class="btn-primary" onclick="salvarDados()">Salvar dados</button>
+    </div>
+
+    <div class="perfil-card animate-slide-up">
+      <div class="perfil-card-titulo">🖼️ AVATAR</div>
+      <div class="perfil-card-desc">Escolha uma imagem da galeria — vale mais que sua foto do Google quando definida.</div>
+      <div class="avatar-grid" id="avatar-grid">${renderAvatarGrid()}</div>
+    </div>
+
+    <div class="perfil-card animate-slide-up">
+      <div class="perfil-card-titulo">🎮 NICKNAME</div>
+      <div class="nick-atual">
+        Nick atual: ${perfilAtual.nick_atual ? `<strong>${escapar(perfilAtual.nick_atual)}</strong>` : '<span style="color:var(--color-text-muted)">nenhum ainda</span>'}
+      </div>
+      <div class="perfil-card-desc">Trocar de nick libera o antigo pra qualquer pessoa reivindicar. Só é possível trocar de novo depois de 30 dias.</div>
+      <div class="nick-form">
+        <input class="field-input" id="pf-novo-nick" placeholder="Novo nick">
+        <button class="btn-primary" onclick="trocarNick()">Trocar</button>
+      </div>
+      <div class="nick-status" id="nick-status"></div>
+    </div>
+
+    <div class="perfil-card animate-slide-up">
+      <div class="perfil-card-titulo">🏆 MINHAS PONTUAÇÕES</div>
+      <div class="pontuacoes-lista" id="pontuacoes-lista">
+        <div class="carregando">Carregando...</div>
+      </div>
+    </div>
+
+    <div class="perfil-card acao-leve animate-slide-up">
+      <div class="perfil-card-titulo">⬇ DESATIVAR PONTUAÇÕES</div>
+      <div class="perfil-card-desc">
+        Some do ranking sem excluir sua conta — reversível, um admin pode restaurar depois se você pedir.
+      </div>
+      <button class="btn-ghost" onclick="desativarPontuacoes()">Desativar todas as minhas pontuações</button>
+    </div>
+
+    <div class="perfil-card acao-perigo animate-slide-up" id="card-exclusao">
+      ${renderCardExclusao()}
+    </div>
+  `;
+
+  carregarPontuacoes();
+}
+
+function optionsEstados(atual) {
+  const estados = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+  return '<option value="">—</option>' + estados.map(uf =>
+    `<option value="${uf}" ${uf === atual ? 'selected' : ''}>${uf}</option>`
+  ).join('');
+}
+
+function renderAvatarGrid() {
+  if (avataresCache.length === 0) {
+    return `<div class="avatar-vazio">Nenhum avatar disponível ainda.</div>`;
+  }
+  return avataresCache.map(a => `
+    <button class="avatar-opcao ${a.id === perfilAtual.avatar_id ? 'selecionado' : ''}"
+            title="${escapar(a.nome)}" onclick="escolherAvatar('${a.id}')">
+      <img src="${escapar(a.url)}" alt="${escapar(a.nome)}" loading="lazy">
+    </button>
+  `).join('');
+}
+
+window.escolherAvatar = async function(avatarId) {
+  try {
+    const resp = await apiFetch('/api/perfil', 'PATCH', { avatar_id: avatarId });
+    if (resp.ok) {
+      perfilAtual = await resp.json();
+      document.getElementById('avatar-grid').innerHTML = renderAvatarGrid();
+      showToast('Avatar atualizado!', 'success');
+    } else {
+      showToast('Erro ao trocar avatar', 'error');
+    }
+  } catch {
+    showToast('Erro ao trocar avatar', 'error');
+  }
+};
+
+window.salvarDados = async function() {
+  const dados = {
+    nome_completo: document.getElementById('pf-nome-completo').value.trim() || null,
+    data_nascimento: document.getElementById('pf-nascimento').value || null,
+    cidade: document.getElementById('pf-cidade').value.trim() || null,
+    estado: document.getElementById('pf-estado').value || null,
+    telefone: document.getElementById('pf-telefone').value.trim() || null,
+  };
+  // Remove campos vazios — a API só atualiza o que vier no corpo
+  Object.keys(dados).forEach(k => { if (dados[k] === null) delete dados[k]; });
+
+  try {
+    const resp = await apiFetch('/api/perfil', 'PATCH', dados);
+    if (resp.ok) {
+      perfilAtual = await resp.json();
+      showToast('Dados salvos!', 'success');
+    } else {
+      showToast('Erro ao salvar dados', 'error');
+    }
+  } catch {
+    showToast('Erro ao salvar dados', 'error');
+  }
+};
+
+window.trocarNick = async function() {
+  const input  = document.getElementById('pf-novo-nick');
+  const status = document.getElementById('nick-status');
+  const nick   = input.value.trim();
+  if (!nick) return;
+
+  status.textContent = '';
+  status.classList.remove('error');
+  try {
+    const resp = await apiFetch('/api/perfil/nick', 'POST', { nick });
+    const data = await resp.json();
+    if (resp.ok) {
+      perfilAtual.nick_atual = data.nick;
+      input.value = '';
+      showToast('Nick atualizado!', 'success');
+      renderPerfil();
+    } else {
+      status.textContent = data.detail || 'Não foi possível trocar o nick.';
+      status.classList.add('error');
+    }
+  } catch {
+    status.textContent = 'Erro ao trocar nick.';
+    status.classList.add('error');
+  }
+};
+
+async function carregarPontuacoes() {
+  const el = document.getElementById('pontuacoes-lista');
+  try {
+    const resp = await apiFetch('/api/perfil/pontuacoes');
+    if (!resp.ok) { el.innerHTML = `<div class="pontuacoes-vazio">Erro ao carregar pontuações</div>`; return; }
+    const pontuacoes = await resp.json();
+
+    if (pontuacoes.length === 0) {
+      el.innerHTML = `<div class="pontuacoes-vazio">Você ainda não enviou nenhuma pontuação logado.</div>`;
+      return;
+    }
+
+    el.innerHTML = pontuacoes.map(p => {
+      const data = new Date(p.criado_em).toLocaleDateString('pt-BR');
+      let tag = '';
+      if (p.arquivado) tag = ' <span style="color:var(--color-text-muted)">(desativada)</span>';
+      else if (p.pendente) tag = ' <span style="color:var(--color-warning)">(em moderação)</span>';
+      else if (p.superado) tag = ' <span style="color:var(--color-text-muted)">(superada)</span>';
+      return `
+        <a class="pontuacao-item" href="ranking.html?evento=${escapar(p.evento_slug)}&jogo=${escapar(p.jogo_slug)}">
+          <div class="pontuacao-info">
+            <div class="pontuacao-jogo">${escapar(p.jogo_nome)}${tag}</div>
+            <div class="pontuacao-meta">${escapar(p.evento_nome)} · ${escapar(p.marca_nome)} · ${data}</div>
+          </div>
+          <div class="pontuacao-score">${p.pontuacao.toLocaleString('pt-BR')}</div>
+        </a>
+      `;
+    }).join('');
+  } catch {
+    el.innerHTML = `<div class="pontuacoes-vazio">Erro ao carregar pontuações</div>`;
+  }
+}
+
+window.desativarPontuacoes = async function() {
+  if (!confirm('Desativar TODAS as suas pontuações? Elas somem do ranking, mas isso é reversível — um admin pode restaurar depois.')) return;
+  try {
+    const resp = await apiFetch('/api/perfil/desativar-pontuacoes', 'POST');
+    const data = await resp.json();
+    if (resp.ok) {
+      showToast(`${data.total_afetadas} pontuações desativadas`, 'success');
+      carregarPontuacoes();
+    } else {
+      showToast('Erro ao desativar pontuações', 'error');
+    }
+  } catch {
+    showToast('Erro ao desativar pontuações', 'error');
+  }
+};
+
+// ── Exclusão de conta — sempre separada de "desativar pontuações" ──
+function renderCardExclusao() {
+  if (perfilAtual.exclusao_solicitada_em) {
+    const dataSolicitacao = new Date(perfilAtual.exclusao_solicitada_em);
+    const dataLimite = new Date(dataSolicitacao.getTime() + 30 * 24 * 60 * 60 * 1000);
+    return `
+      <div class="perfil-card-titulo">⚠️ EXCLUSÃO DE CONTA SOLICITADA</div>
+      <div class="exclusao-pendente-aviso">
+        Sua conta será excluída permanentemente em <strong>${dataLimite.toLocaleDateString('pt-BR')}</strong>.
+        Até lá você pode cancelar e continuar normalmente.
+      </div>
+      <button class="btn-ghost" onclick="cancelarExclusao()">Cancelar exclusão</button>
+    `;
+  }
+  return `
+    <div class="perfil-card-titulo">🗑️ EXCLUIR CONTA</div>
+    <div class="perfil-card-desc">
+      Anonimiza seus dados pessoais (nome, e-mail, telefone, etc.) permanentemente, depois de uma
+      janela de 30 dias em que você pode desistir. Suas pontuações continuam no ranking, sem seu nome
+      associado. Isso é diferente de "desativar pontuações" — não mexe no ranking.
+    </div>
+    <button class="btn-perigo" onclick="abrirConfirmacaoExclusao()">Excluir minha conta</button>
+    <div class="exclusao-confirmar" id="exclusao-confirmar">
+      <div class="field">
+        <label class="field-label">Digite EXCLUIR para confirmar</label>
+        <input class="field-input" id="exclusao-confirmar-input" placeholder="EXCLUIR" autocomplete="off">
+      </div>
+      <button class="btn-perigo" onclick="confirmarExclusao()">Confirmar exclusão</button>
+    </div>
+  `;
+}
+
+window.abrirConfirmacaoExclusao = function() {
+  document.getElementById('exclusao-confirmar').classList.add('aberto');
+};
+
+window.confirmarExclusao = async function() {
+  const input = document.getElementById('exclusao-confirmar-input');
+  if (input.value.trim().toUpperCase() !== 'EXCLUIR') {
+    showToast('Digite EXCLUIR pra confirmar', 'error');
+    return;
+  }
+  try {
+    const resp = await apiFetch('/api/perfil/exclusao', 'POST');
+    const data = await resp.json();
+    if (resp.ok) {
+      perfilAtual.exclusao_solicitada_em = data.exclusao_solicitada_em;
+      document.getElementById('card-exclusao').innerHTML = renderCardExclusao();
+      showToast('Exclusão solicitada — você tem 30 dias pra desistir', 'success');
+    } else {
+      showToast(data.detail || 'Erro ao solicitar exclusão', 'error');
+    }
+  } catch {
+    showToast('Erro ao solicitar exclusão', 'error');
+  }
+};
+
+window.cancelarExclusao = async function() {
+  try {
+    const resp = await apiFetch('/api/perfil/exclusao/cancelar', 'POST');
+    if (resp.ok) {
+      perfilAtual.exclusao_solicitada_em = null;
+      document.getElementById('card-exclusao').innerHTML = renderCardExclusao();
+      showToast('Exclusão cancelada', 'success');
+    } else {
+      showToast('Erro ao cancelar exclusão', 'error');
+    }
+  } catch {
+    showToast('Erro ao cancelar exclusão', 'error');
+  }
+};
+
+// ── HELPERS ────────────────────────────────────────────────────
+async function apiFetch(path, method = 'GET', body = null) {
+  const opts = {
+    method,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+  };
+  if (body !== null) opts.body = JSON.stringify(body);
+  return fetch(`${API_URL}${path}`, opts);
+}
+
+function showToast(msg, tipo = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `toast ${tipo} show`;
+  clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function escapar(s = '') {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+
+</body>
+</html>
