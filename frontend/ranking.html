@@ -628,6 +628,7 @@
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script type="module">
 import { aplicarTema } from './temas.js';
+import { inserirNav } from './nav.js';
 
 // ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
 const API_URL      = 'https://retro-score-ranking-production.up.railway.app';
@@ -637,6 +638,8 @@ const UPLOAD_URL   = 'https://retro-score-ranking.vercel.app';
 // comportamento de sempre (placar geral, sem filtro de evento) — nenhum
 // QR/link já publicado quebra. Ver docs/MARCAS_SPEC.md §4.5.
 const EVENTO_SLUG = new URLSearchParams(location.search).get('evento');
+
+inserirNav('ranking', { index: EVENTO_SLUG ? `index.html?evento=${EVENTO_SLUG}` : 'index.html' });
 // id de entrada vindo de perfil.html ("ver no ranking") — navega até a
 // página certa e destaca o card, uma única vez (docs/BACKLOG_2026.md §3.6).
 const DESTAQUE_ID = new URLSearchParams(location.search).get('destaque');

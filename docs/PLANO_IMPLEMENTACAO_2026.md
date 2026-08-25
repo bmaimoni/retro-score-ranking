@@ -15,8 +15,12 @@ Próxima migração livre: **`026`**.
 `docs/SEGUIR_SPEC.md`). **Fase 4 concluída** (migrações 024-025, ver
 `docs/RANKINGS_CONFIGURAVEIS_SPEC.md`). **Fase 5 concluída** (sem
 migração — extensão pura de `WHERE`, nenhuma mudança de schema, ver
-`docs/BACKLOG_2026.md` §4). Todas aplicadas em produção, backend e
-frontend prontos. Próxima: Fase 6.
+`docs/BACKLOG_2026.md` §4). **Fase 6 concluída** (sem migração —
+`frontend`/`marcas_publico` novo endpoint público, sem schema novo, ver
+`docs/BACKLOG_2026.md` §2/§3.4). Todas aplicadas em produção, backend e
+frontend prontos. Backlog do plano original está completo — próximos
+itens vêm de `docs/BACKLOG_2026.md` §5 (pendências registradas, sem
+ordem de execução fechada ainda).
 
 ---
 
@@ -196,20 +200,42 @@ documentados em `docs/BACKLOG_2026.md` §3.
 
 ---
 
-## Fase 6 — Tela Inicial e Navegação
+## Fase 6 — Tela Inicial e Navegação ✅ concluída
 
 **Spec**: itens 2.1-2.4 e 3.4, documentados em `docs/BACKLOG_2026.md` §2/§3.
 **Depende de**: Fase 2 (prefill de nick/avatar), beneficia-se da Fase 1
 (critério de marca "válida" já resolvido)
 **Sem dependência de**: nada impede fazer isso mais cedo, exceto o prefill
 
-- Frontend, só: remove fallback hardcoded; seletor de marca (pula
-  automaticamente se só uma opção válida); copy nova ("Salve suas
-  pontuações!"); mostra nickname/avatar quando logado, pré-preenche envio;
-  scroll infinito client-side na lista de jogos (sem paginação de
-  servidor); componente de navegação (hamburguer/footer) em `index.html`
-  e `ranking.html` — **não** em `admin.html` (fica com abas) nem
-  `telao.html` (uso passivo).
+- [x] Backend: único endpoint novo da fase — `GET /api/marcas/com-evento-ativo`
+  (`routers/marcas_publico.py`), pra `index.html` descobrir marca/evento
+  quando não há `?evento=` na URL. Reaproveita `evento_repo.buscar_
+  evento_envio_atual_da_marca` (já existia desde a Fase 4, mesmo critério
+  do QR em ranking agregado) — sem duplicar a lógica de "qual evento
+  oferecer" em dois lugares.
+- [x] `index.html`: fallback hardcoded (`|| 'canal3expo'`) removido sem
+  rede de segurança, confirmado sem QR/material físico dependendo dele
+  (item 2.1). Sem `?evento=`: marca única pula direto pro fluxo dela;
+  0 marcas mostra estado vazio; 2+ mostra seletor (reaproveita a classe
+  `.jogo-card` da lista de jogos — zero CSS novo pro seletor). Copy
+  "Salve suas pontuações!" no lugar de "Entrar para proteger seu nick"
+  (item 2.2). Logado: mostra nick ativo do perfil + avatar (via
+  `GET /api/perfil` + `GET /api/avatares`, mesmo padrão de resolução de
+  `perfil.html`) e pré-preenche o campo de apelido — só preenche, nunca
+  trava o campo (decisão #2 do `NICKNAME_SPEC.md`, item 2.3). Scroll
+  infinito (item 2.4): lista inteira já em memória como sempre, lotes de
+  20 cards renderizados via `IntersectionObserver` — busca continua
+  filtrando sobre a lista completa, não sobre o que já foi renderizado.
+  Achado na implementação: sem isso, escolher uma marca no seletor
+  deixava o título da página preso em "ESCOLHA O LOCAL" — corrigido
+  salvando/restaurando o título original em vez de um valor fixo (o
+  título pode já vir customizado de `carregarConfig()`).
+- [x] `nav.js` (novo, módulo compartilhado): componente de navegação
+  (hamburguer) inserido em `index.html`, `ranking.html` e `perfil.html`
+  — **não** em `admin.html` (fica com abas, modelo autenticado
+  condicional por nível) nem `telao.html` (uso passivo, sem navegação
+  por toque). `ranking.html` preserva o evento atual no link de volta
+  pro Início quando há um.
 
 ---
 

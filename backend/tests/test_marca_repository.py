@@ -152,6 +152,28 @@ async def test_transferir_titularidade_marca_inexistente_retorna_none(fake_pool)
 
 # ── listar_onde_e_dono: trava de exclusão de conta (EXCLUSAO_CONTA_SPEC.md #5) ─
 
+# ── listar_com_evento_ativo (BACKLOG_2026.md §2 item 2.1) ───────────────────────
+
+@pytest.mark.asyncio
+async def test_listar_com_evento_ativo_filtra_ativo_e_publico(fake_pool):
+    fake_pool.set_fetch([{"id": "m1", "nome": "Canal3", "slug": "canal3", "logo_url": None}])
+
+    resultado = await marca_repo.listar_com_evento_ativo(fake_pool)
+
+    assert len(resultado) == 1
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "JOIN eventos e ON e.marca_id = m.id" in sql
+    assert "WHERE e.ativo = true AND e.publico = true" in sql
+    assert "DISTINCT m.id" in sql
+
+
+@pytest.mark.asyncio
+async def test_listar_com_evento_ativo_vazio(fake_pool):
+    fake_pool.set_fetch([])
+    resultado = await marca_repo.listar_com_evento_ativo(fake_pool)
+    assert resultado == []
+
+
 @pytest.mark.asyncio
 async def test_listar_onde_e_dono_retorna_marcas(fake_pool):
     fake_pool.set_fetch([{"id": "m1", "nome": "Canal3"}])

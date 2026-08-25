@@ -143,6 +143,27 @@ async def listar_eventos_da_marca(pool: Pool, marca_id: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+async def listar_com_evento_ativo(pool: Pool) -> list[dict]:
+    """
+    Marcas com pelo menos um evento ativo+público — critério de "marca
+    válida" pro seletor da tela inicial quando não há ?evento= na URL
+    (docs/BACKLOG_2026.md §2 item 2.1, ponto cego #2: publico=true, não
+    precisa estar dentro da janela de envio). Quem chama resolve, por
+    marca, qual evento oferecer (evento_repo.buscar_evento_envio_atual_
+    da_marca) — não é responsabilidade desta query.
+    """
+    rows = await pool.fetch(
+        """
+        SELECT DISTINCT m.id, m.nome, m.slug, m.logo_url
+        FROM marcas m
+        JOIN eventos e ON e.marca_id = m.id
+        WHERE e.ativo = true AND e.publico = true
+        ORDER BY m.nome
+        """
+    )
+    return [dict(r) for r in rows]
+
+
 async def resolver_identidade_visual(pool: Pool, evento_slug: str) -> dict | None:
     """
     Resolve cor_primaria/tipografia/logo_url de um evento aplicando a

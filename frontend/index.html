@@ -62,6 +62,13 @@
       color: rgba(255,255,255,0.75);
     }
     .conta-info strong { color: var(--color-primary); }
+    .conta-avatar {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid rgba(255,255,255,0.2);
+      flex-shrink: 0;
+    }
     .conta-sair {
       background: transparent;
       border: none;
@@ -772,15 +779,20 @@
 
 <script type="module">
 import { getTema, aplicarTema } from './temas.js';
+import { inserirNav } from './nav.js';
 
 const API_URL = 'https://retro-score-ranking-production.up.railway.app';
 
-// Slug do evento — vem da URL (?evento=slug), com fallback para o evento
-// padrão em uso hoje. Permite múltiplos eventos simultâneos, cada um com
-// sua própria URL de envio (ex: index.html?evento=canal3expo-2027),
-// sem quebrar QR codes/links já publicados que não têm o parâmetro.
-// Ver docs/EVENTOS_SPEC.md.
-const EVENTO_SLUG = new URLSearchParams(location.search).get('evento') || 'canal3expo';
+inserirNav('index');
+
+// Slug do evento — vem da URL (?evento=slug). Sem fallback hardcoded
+// (removido na Fase 6, docs/BACKLOG_2026.md §2 item 2.1 — confirmado
+// que não existe QR/material físico impresso dependendo dele). Ausente
+// = resolverMarcaOuEvento() decide: marca única com evento válido pula
+// direto pro fluxo dela, senão mostra o seletor de marca. Permite
+// múltiplos eventos simultâneos, cada um com sua própria URL de envio
+// (ex: index.html?evento=canal3expo-2027) — ver docs/EVENTOS_SPEC.md.
+let EVENTO_SLUG = new URLSearchParams(location.search).get('evento');
 
 // Link direto por jogo (QR na própria cabine) — ver docs/MARCAS_SPEC.md §4.3
 const JOGO_SLUG_DIRETO = new URLSearchParams(location.search).get('jogo');
@@ -795,7 +807,16 @@ let cardExpandido = null;
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  await Promise.all([carregarJogos(), carregarConfig(), carregarSessao(), carregarIdentidadeVisual()]);
+  await Promise.all([carregarConfig(), carregarSessao()]);
+
+  // Sem ?evento= na URL: precisa resolver marca/evento antes de
+  // qualquer fetch escopado por EVENTO_SLUG (docs/BACKLOG_2026.md §2
+  // item 2.1) — diferente de antes, não existe mais fallback fixo.
+  if (EVENTO_SLUG) {
+    await Promise.all([carregarJogos(), carregarIdentidadeVisual()]);
+  } else {
+    await resolverMarcaOuEvento();
+  }
 });
 
 // ── CONTA / LOGIN (opcional — AUTH_SPEC.md §4) ─────────────────
@@ -805,11 +826,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 let usuarioAtual = null;
 let providersCache = null;
 
+// Nick ativo do perfil + avatar — só pra pré-preencher envios futuros
+// (decisão #2 do NICKNAME_SPEC.md), nunca trava o campo. Ver
+// docs/BACKLOG_2026.md §2 item 2.3.
+let nickAtualCache   = null;
+let avatarUrlCache   = null;
+
 async function carregarSessao() {
   try {
     const resp = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
     if (resp.ok) {
       usuarioAtual = await resp.json();
+      await carregarNickEAvatar();
       renderContaLogado(usuarioAtual);
       mostrarAtividadeDeQuemSigo();
     } else {
@@ -820,6 +848,26 @@ async function carregarSessao() {
     usuarioAtual = null;
     renderContaDeslogado();
   }
+}
+
+// Busca nick_atual (via /api/perfil) e resolve avatar_id → url (via
+// /api/avatares, mesmo padrão de perfil.html) — falha silenciosa, é
+// só conveniência de preenchimento, nunca bloqueia o envio anônimo.
+async function carregarNickEAvatar() {
+  try {
+    const [rPerfil, rAvatares] = await Promise.all([
+      fetch(`${API_URL}/api/perfil`, { credentials: 'include' }),
+      fetch(`${API_URL}/api/avatares`),
+    ]);
+    if (rPerfil.ok) {
+      const perfil = await rPerfil.json();
+      nickAtualCache = perfil.nick_atual || null;
+      if (perfil.avatar_id && rAvatares.ok) {
+        const avatares = await rAvatares.json();
+        avatarUrlCache = avatares.find(a => a.id === perfil.avatar_id)?.url || null;
+      }
+    }
+  } catch { /* silencioso */ }
 }
 
 // Mensagem de superação (docs/SEGUIR_SPEC.md) — compilada aqui, no
@@ -841,8 +889,12 @@ async function mostrarAtividadeDeQuemSigo() {
 
 function renderContaLogado(usuario) {
   const el = document.getElementById('conta-status');
-  const nomeExibicao = usuario.nome || usuario.email || 'sua conta';
+  const nomeExibicao = nickAtualCache || usuario.nome || usuario.email || 'sua conta';
+  const avatarHtml = avatarUrlCache
+    ? `<img src="${escaparHtml(avatarUrlCache)}" alt="" class="conta-avatar">`
+    : '';
   el.innerHTML = `
+    ${avatarHtml}
     <span class="conta-info">✓ Logado como <strong>${escaparHtml(nomeExibicao)}</strong></span>
     <a href="perfil.html" class="conta-sair" style="text-decoration:underline">Meu perfil</a>
     <button class="conta-sair" onclick="fazerLogout()">Sair</button>
@@ -853,7 +905,7 @@ function renderContaDeslogado() {
   const el = document.getElementById('conta-status');
   el.innerHTML = `
     <button class="conta-entrar-btn" onclick="toggleLoginPainel()">
-      👤 Entrar para proteger seu nick
+      👤 Salve suas pontuações!
     </button>
     <div class="login-painel" id="login-painel" style="display:none">
       <p class="login-painel-texto">
@@ -1017,6 +1069,132 @@ window.mostrarTodosJogos = function() {
   location.reload();
 };
 
+// ── SELEÇÃO DE MARCA (sem ?evento= na URL) ─────────────────────
+// docs/BACKLOG_2026.md §2 item 2.1, ponto cego #2: sem fallback fixo,
+// "marca válida" = tem pelo menos um evento ativo+público. Marca única
+// pula o seletor direto pro fluxo dela; mais de uma mostra o seletor.
+let marcasDisponiveis = [];
+
+async function resolverMarcaOuEvento() {
+  try {
+    const resp = await fetch(`${API_URL}/api/marcas/com-evento-ativo`);
+    marcasDisponiveis = resp.ok ? await resp.json() : [];
+  } catch {
+    marcasDisponiveis = [];
+  }
+
+  if (marcasDisponiveis.length === 1) {
+    await selecionarMarca(marcasDisponiveis[0]);
+  } else if (marcasDisponiveis.length === 0) {
+    renderSemEventoDisponivel();
+  } else {
+    renderSeletorDeMarcas(marcasDisponiveis);
+  }
+}
+
+// Guarda o título/subtítulo de antes do seletor de marca sobrescrever
+// (já pode ter vindo customizado de carregarConfig()) — pra restaurar
+// depois que a marca for escolhida, em vez de hardcoded.
+let tituloAntesDoSeletor, subtituloAntesDoSeletor;
+
+async function selecionarMarca(marca) {
+  EVENTO_SLUG = marca.evento_slug;
+  if (tituloAntesDoSeletor !== undefined) {
+    document.getElementById('page-title').textContent = tituloAntesDoSeletor;
+    document.getElementById('page-subtitle').textContent = subtituloAntesDoSeletor;
+  }
+  const buscaBar = document.getElementById('jogos-busca-input')?.closest('.jogos-busca-bar');
+  if (buscaBar) buscaBar.style.display = '';
+
+  history.replaceState(null, '', location.pathname + `?evento=${EVENTO_SLUG}`);
+  await Promise.all([carregarJogos(), carregarIdentidadeVisual()]);
+}
+
+window.selecionarMarcaPorId = function(id) {
+  const marca = marcasDisponiveis.find(m => m.id === id);
+  if (marca) selecionarMarca(marca);
+};
+
+function renderSeletorDeMarcas(marcas) {
+  const tituloEl    = document.getElementById('page-title');
+  const subtituloEl = document.getElementById('page-subtitle');
+  tituloAntesDoSeletor    = tituloEl.textContent;
+  subtituloAntesDoSeletor = subtituloEl.textContent;
+  tituloEl.textContent    = 'ESCOLHA O LOCAL';
+  subtituloEl.textContent = 'Selecione onde você está pra ver os jogos certos';
+
+  const buscaBar = document.getElementById('jogos-busca-input')?.closest('.jogos-busca-bar');
+  if (buscaBar) buscaBar.style.display = 'none';  // busca não se aplica à seleção de marca
+
+  document.getElementById('jogos-lista').innerHTML = marcas.map(m => `
+    <div class="jogo-card">
+      <div class="jogo-header" onclick="selecionarMarcaPorId('${m.id}')">
+        <span class="jogo-icone">
+          ${m.logo_url ? `<img class="jogo-icone-img" src="${escapar(m.logo_url)}" alt="${escapar(m.nome)}">` : '📍'}
+        </span>
+        <div class="jogo-info">
+          <div class="jogo-nome">${escapar(m.nome)}</div>
+        </div>
+        <span class="jogo-chevron">›</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderSemEventoDisponivel() {
+  document.getElementById('jogos-lista').innerHTML =
+    `<div class="loading-jogos"><span>Nenhum evento disponível pra envio de pontuações no momento.</span></div>`;
+}
+
+// Scroll infinito client-side (docs/BACKLOG_2026.md §2 item 2.4) — a
+// lista inteira já está em memória (jogosCache) e a busca já filtra
+// sobre ela toda, sem paginação de servidor. O que muda aqui é só
+// RENDERIZAÇÃO progressiva: evita centenas de cards pesados (com tema,
+// custom properties, formulário completo) no DOM de uma vez só quando
+// o evento tem muitos jogos ativos.
+const JOGOS_BATCH_SIZE = 20;
+let jogosRenderState = { lista: [], lideres: {}, renderizados: 0, observer: null };
+
+function renderCardJogo(j, lideres) {
+  const tema    = getTema(j.slug);
+  const lider   = lideres[j.id];
+  const iconeHtml = tema.assets.icone_url
+    ? `<img class="jogo-icone-img" src="${tema.assets.icone_url}" alt="${escapar(j.nome)}">`
+    : (tema.assets.icone || '🎮');
+
+  const liderHtml = lider
+    ? `<span class="lider-nick">🥇 ${escapar(lider.nick)}</span>
+       <span class="lider-score">${lider.pontuacao.toLocaleString('pt-BR')}</span>`
+    : `<span style="opacity:0.4;font-style:italic">sem registros ainda</span>`;
+
+  return `
+  <div class="jogo-card" id="card-${j.id}"
+       style="--card-primary:${tema.cores.primary};
+              --card-secondary:${tema.cores.secondary};
+              --card-accent:${tema.cores.accent};
+              --card-bg:${tema.cores.surface};
+              --card-bg-image:${tema.assets.bg_image ? `url('${tema.assets.bg_image}')` : 'none'};
+              --card-overlay:${tema.assets.bg_overlay || 0.75};
+              --card-font-display:${tema.tipografia.font_display};
+              --card-font-body:${tema.tipografia.font_body}">
+    <div class="jogo-header" onclick="toggleCard('${j.id}', '${j.slug}', '${escapar(j.nome)}')">
+      <span class="jogo-icone">${iconeHtml}</span>
+      <div class="jogo-info">
+        <div class="jogo-nome">${escapar(j.nome)}</div>
+        <div class="jogo-lider">${liderHtml}</div>
+      </div>
+      <a href="ranking.html?evento=${EVENTO_SLUG}&jogo=${j.slug}" class="jogo-ranking-link"
+         onclick="event.stopPropagation()">Ranking</a>
+      <span class="jogo-chevron">›</span>
+    </div>
+    <div class="jogo-body" id="body-${j.id}">
+      <div class="jogo-conteudo" id="conteudo-${j.id}">
+        ${renderFormulario(j)}
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderJogos(jogos, lideres) {
   const lista = document.getElementById('jogos-lista');
   if (!jogos.length) {
@@ -1024,50 +1202,42 @@ function renderJogos(jogos, lideres) {
     return;
   }
 
-  lista.innerHTML = jogos.map(j => {
-    const tema    = getTema(j.slug);
-    const lider   = lideres[j.id];
-    const iconeHtml = tema.assets.icone_url
-      ? `<img class="jogo-icone-img" src="${tema.assets.icone_url}" alt="${escapar(j.nome)}">`
-      : (tema.assets.icone || '🎮');
-
-    const liderHtml = lider
-      ? `<span class="lider-nick">🥇 ${escapar(lider.nick)}</span>
-         <span class="lider-score">${lider.pontuacao.toLocaleString('pt-BR')}</span>`
-      : `<span style="opacity:0.4;font-style:italic">sem registros ainda</span>`;
-
-    return `
-    <div class="jogo-card" id="card-${j.id}"
-         style="--card-primary:${tema.cores.primary};
-                --card-secondary:${tema.cores.secondary};
-                --card-accent:${tema.cores.accent};
-                --card-bg:${tema.cores.surface};
-                --card-bg-image:${tema.assets.bg_image ? `url('${tema.assets.bg_image}')` : 'none'};
-                --card-overlay:${tema.assets.bg_overlay || 0.75};
-                --card-font-display:${tema.tipografia.font_display};
-                --card-font-body:${tema.tipografia.font_body}">
-      <div class="jogo-header" onclick="toggleCard('${j.id}', '${j.slug}', '${escapar(j.nome)}')">
-        <span class="jogo-icone">${iconeHtml}</span>
-        <div class="jogo-info">
-          <div class="jogo-nome">${escapar(j.nome)}</div>
-          <div class="jogo-lider">${liderHtml}</div>
-        </div>
-        <a href="ranking.html?evento=${EVENTO_SLUG}&jogo=${j.slug}" class="jogo-ranking-link"
-           onclick="event.stopPropagation()">Ranking</a>
-        <span class="jogo-chevron">›</span>
-      </div>
-      <div class="jogo-body" id="body-${j.id}">
-        <div class="jogo-conteudo" id="conteudo-${j.id}">
-          ${renderFormulario(j)}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-
-  // Inicializa estado dos cards (fontes já carregadas no <head>)
+  // Inicializa estado dos cards (fontes já carregadas no <head>) — pra
+  // TODOS os jogos, não só o primeiro lote: foto/envio dependem disso
+  // independente de o card já ter sido renderizado na tela.
   jogos.forEach(j => {
     estado[j.id] = { fotoFile: null, jogoId: j.id, jogoNome: j.nome, jogoSlug: j.slug };
   });
+
+  if (jogosRenderState.observer) jogosRenderState.observer.disconnect();
+  jogosRenderState = { lista: jogos, lideres, renderizados: 0, observer: null };
+  lista.innerHTML = '';
+  renderProximoLoteDeJogos();
+}
+
+function renderProximoLoteDeJogos() {
+  const { lista: jogos, lideres, renderizados } = jogosRenderState;
+  const container = document.getElementById('jogos-lista');
+  const proximoLote = jogos.slice(renderizados, renderizados + JOGOS_BATCH_SIZE);
+
+  document.getElementById('jogos-scroll-sentinela')?.remove();
+  container.insertAdjacentHTML('beforeend', proximoLote.map(j => renderCardJogo(j, lideres)).join(''));
+  jogosRenderState.renderizados += proximoLote.length;
+
+  if (jogosRenderState.renderizados >= jogos.length) return;
+
+  const sentinela = document.createElement('div');
+  sentinela.id = 'jogos-scroll-sentinela';
+  sentinela.style.height = '1px';
+  container.appendChild(sentinela);
+
+  jogosRenderState.observer = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      jogosRenderState.observer.disconnect();
+      renderProximoLoteDeJogos();
+    }
+  });
+  jogosRenderState.observer.observe(sentinela);
 }
 
 function renderFormulario(j) {
@@ -1096,6 +1266,7 @@ function renderFormulario(j) {
              placeholder="Ex: PLAYER1 (padrão: suas iniciais)" maxlength="20"
              autocomplete="off" autocapitalize="characters" spellcheck="false"
              oninput="this.value=this.value.toUpperCase()"
+             value="${nickAtualCache ? escapar(nickAtualCache) : ''}"
              style="text-transform:uppercase">
     </div>
 

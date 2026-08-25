@@ -256,12 +256,15 @@
 <div class="toast" id="toast"></div>
 
 <script type="module">
+import { inserirNav } from './nav.js';
+
 const API_URL = 'https://retro-score-ranking-production.up.railway.app';
 
 let perfilAtual = null;
 let avataresCache = [];
 let providersCache = null;
 
+inserirNav('perfil');
 document.addEventListener('DOMContentLoaded', carregar);
 
 async function carregar() {
