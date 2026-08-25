@@ -1,5 +1,6 @@
 import uuid
 import pytest
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 from main import app
 from utils.db import get_pool
@@ -9,6 +10,14 @@ import auth.service as auth_svc
 ADMIN_SECRET = "test-secret-123"
 AUTH_HEADER  = {"Authorization": f"Bearer {ADMIN_SECRET}"}
 ADMIN_CTX    = AdminContext(identificador="admin", user_id=None, super=True)
+
+# Kwargs de filtro do feed quando nenhum filtro novo (BACKLOG_2026.md §4.1/4.4)
+# foi passado na query string — reaproveitado pelos testes de paginação/escopo
+# que não são sobre esses filtros especificamente.
+FILTROS_FEED_VAZIOS = dict(
+    status=None, data_de=None, data_ate=None, jogo_id=None,
+    sem_foto=False, sem_identificacao=False, busca=None,
+)
 
 
 def make_uuid():
@@ -472,7 +481,55 @@ async def test_feed_repassa_limit_e_offset_ao_repository(client):
          patch("repositories.entrada.contar_feed_admin",  AsyncMock(return_value=0)):
         await client.get("/api/admin/feed?limit=20&offset=40", headers=AUTH_HEADER)
 
-    listar_mock.assert_called_once_with(pool, limit=20, offset=40, evento_ids=None)
+    listar_mock.assert_called_once_with(pool, limit=20, offset=40, evento_ids=None, **FILTROS_FEED_VAZIOS)
+
+
+# ── Filtros combináveis do feed (docs/BACKLOG_2026.md §4.1/4.4) ────────────────
+
+@pytest.mark.asyncio
+async def test_feed_repassa_todos_os_filtros_novos_ao_repository(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    listar_mock = AsyncMock(return_value=[])
+    jogo_id = make_uuid()
+
+    with patch("repositories.entrada.listar_feed_admin", listar_mock), \
+         patch("repositories.entrada.contar_feed_admin", AsyncMock(return_value=0)):
+        await client.get(
+            "/api/admin/feed"
+            f"?status=pendentes&data_de=2026-01-01&data_ate=2026-01-31"
+            f"&jogo_id={jogo_id}&sem_foto=true&sem_identificacao=true&busca=novato",
+            headers=AUTH_HEADER,
+        )
+
+    listar_mock.assert_called_once_with(
+        pool, limit=50, offset=0, evento_ids=None,
+        status="pendentes", data_de=date(2026, 1, 1), data_ate=date(2026, 1, 31),
+        jogo_id=jogo_id, sem_foto=True, sem_identificacao=True, busca="novato",
+    )
+
+
+@pytest.mark.asyncio
+async def test_feed_status_invalido_retorna_422(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.get("/api/admin/feed?status=inventado", headers=AUTH_HEADER)
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_feed_sem_filtros_novos_usa_defaults(client):
+    """Sem nenhum filtro na query string, repassa os defaults (sem
+    filtro nenhum) — não quebra quem já chama /feed sem esses params."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    listar_mock = AsyncMock(return_value=[])
+
+    with patch("repositories.entrada.listar_feed_admin", listar_mock), \
+         patch("repositories.entrada.contar_feed_admin", AsyncMock(return_value=0)):
+        resp = await client.get("/api/admin/feed", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    listar_mock.assert_called_once_with(pool, limit=50, offset=0, evento_ids=None, **FILTROS_FEED_VAZIOS)
 
 
 @pytest.mark.asyncio
@@ -554,7 +611,7 @@ async def test_admin_escopado_evento_dentro_do_escopo_funciona(client):
         resp = await client.get("/api/admin/feed?evento_id=ev-meu")
 
     assert resp.status_code == 200
-    contar_mock.assert_called_once_with(pool, evento_ids=["ev-meu"])
+    contar_mock.assert_called_once_with(pool, evento_ids=["ev-meu"], **FILTROS_FEED_VAZIOS)
 
 
 @pytest.mark.asyncio
@@ -574,7 +631,7 @@ async def test_super_admin_pode_filtrar_por_evento_id_tambem(client):
     assert resp.status_code == 200
     # Super-admin não passa pela checagem de vínculo — não precisa
     tem_acesso_mock.assert_not_called()
-    contar_mock.assert_called_once_with(pool, evento_ids=["algum-evento"])
+    contar_mock.assert_called_once_with(pool, evento_ids=["algum-evento"], **FILTROS_FEED_VAZIOS)
 
 
 @pytest.mark.asyncio

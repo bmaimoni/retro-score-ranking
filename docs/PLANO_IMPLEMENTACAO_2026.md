@@ -13,8 +13,10 @@ Próxima migração livre: **`026`**.
 **Fase 2 concluída** (migrações 020-022, ver `docs/NICKNAME_SPEC.md` e
 `docs/EXCLUSAO_CONTA_SPEC.md`). **Fase 3 concluída** (migração 023, ver
 `docs/SEGUIR_SPEC.md`). **Fase 4 concluída** (migrações 024-025, ver
-`docs/RANKINGS_CONFIGURAVEIS_SPEC.md`). Todas aplicadas em produção,
-backend e frontend prontos. Próxima: Fase 5.
+`docs/RANKINGS_CONFIGURAVEIS_SPEC.md`). **Fase 5 concluída** (sem
+migração — extensão pura de `WHERE`, nenhuma mudança de schema, ver
+`docs/BACKLOG_2026.md` §4). Todas aplicadas em produção, backend e
+frontend prontos. Próxima: Fase 6.
 
 ---
 
@@ -163,18 +165,34 @@ documentados em `docs/BACKLOG_2026.md` §3.
 
 ---
 
-## Fase 5 — Admin: Filtros de Feed
+## Fase 5 — Admin: Filtros de Feed ✅ concluída
 
 **Spec**: itens 4.1/4.3/4.4 documentados em `docs/BACKLOG_2026.md` §4.
 **Depende de**: Fase 1 (escopo de evento por nível) e Fase 2 (critério
 "sem identificação" já definido em `NICKNAME_SPEC.md`)
 
-- Backend: `GET /api/admin/feed` ganha filtros combináveis (data, evento,
-  jogo, sem foto, sem identificação) + busca sobre os campos já existentes
-  (nick, jogo, evento) — extensão direta de `WHERE`, sem full-text search;
-  paginação seguindo o padrão já estabelecido (`X-Total-Count`,
-  `limit`/`offset`) suportando múltiplos filtros simultâneos.
-- Frontend: `admin.html` ganha UI de filtros na aba Feed.
+- [x] Backend: `GET /api/admin/feed` ganha filtros combináveis — `status`
+  (visiveis/ocultos/pendentes/todos — o pill de visibilidade que já
+  existia na aba, agora resolvido no banco em vez de no cliente),
+  `data_de`/`data_ate`, `jogo_id`, `sem_foto`, `sem_identificacao`
+  (`user_id IS NULL AND nome IS NULL`, mesmo critério da decisão #7 do
+  `NICKNAME_SPEC.md`) — mais `busca` (item 4.4) via `ILIKE` sobre
+  nick/jogo/evento, sem full-text search. `evento_id` (escopo por
+  nível) já existia antes da Fase 5, não é filtro novo.
+  `repositories/entrada.py` ganhou `_filtros_feed_sql`, helper
+  compartilhado entre `listar_feed_admin`/`contar_feed_admin` — as duas
+  precisam aplicar exatamente os mesmos filtros, senão `X-Total-Count`
+  diverge da página retornada.
+- [x] Frontend: `admin.html` ganha UI de filtros na aba Feed (busca com
+  debounce, seletor de jogo, intervalo de datas, checkboxes sem
+  foto/sem identificação, botão limpar filtros) e paginação real
+  (Anterior/Próxima + `X-Total-Count`), substituindo o fetch de
+  `limit=100` + filtro no cliente que existia antes. Achado na
+  implementação: o contador do pill "Pendentes" e o badge de "recentes"
+  da aba antes vinham só do topo de 100 itens buscado (aproximação, não
+  o total real) — viraram consultas leves e independentes da
+  página/filtro em exibição, sempre refletindo o estado global de
+  verdade.
 
 ---
 

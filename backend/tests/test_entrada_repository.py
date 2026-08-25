@@ -187,6 +187,144 @@ async def test_listar_lideres_por_eventos_agrega_top1_por_jogo(fake_pool):
     assert fake_pool.fetch.call_args[0][1:] == ("ev-atual", ["ev1", "ev2"])
 
 
+
+# ── listar_feed_admin / contar_feed_admin — filtros (BACKLOG_2026.md §4) ────────
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_sem_filtros_so_evento_ids(fake_pool):
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, limit=50, offset=0, evento_ids=None)
+
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "WHERE ($3::uuid[] IS NULL OR e.evento_id = ANY($3::uuid[]))" in sql
+    assert "JOIN eventos ev ON ev.id = e.evento_id" in sql
+    args = fake_pool.fetch.call_args[0]
+    assert args[1:] == (50, 0, None)
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_status_visiveis(fake_pool):
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, status="visiveis")
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.pendente = false AND e.no_ranking = true" in sql
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_status_ocultos(fake_pool):
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, status="ocultos")
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.pendente = false AND e.no_ranking = false" in sql
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_status_pendentes(fake_pool):
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, status="pendentes")
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.pendente = true" in sql
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_status_todos_sem_filtro_extra(fake_pool):
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, status="todos")
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.pendente = false" not in sql
+    assert "e.pendente = true" not in sql
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_filtro_data(fake_pool):
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, data_de="2026-01-01", data_ate="2026-01-31")
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.criado_em::date >= $4" in sql
+    assert "e.criado_em::date <= $5" in sql
+    args = fake_pool.fetch.call_args[0]
+    assert args[4] == "2026-01-01"
+    assert args[5] == "2026-01-31"
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_filtro_jogo_id(fake_pool):
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, jogo_id="j1")
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.jogo_id = $4" in sql
+    assert fake_pool.fetch.call_args[0][4] == "j1"
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_filtro_sem_foto(fake_pool):
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, sem_foto=True)
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.foto_url IS NULL" in sql
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_filtro_sem_identificacao(fake_pool):
+    """user_id IS NULL AND nome IS NULL — mesmo critério de
+    marcar_pendente_identificacao_ambigua (NICKNAME_SPEC.md decisão #7).
+    Filtro separado de sem_foto (decisão do item 4.1: dois filtros,
+    não um só)."""
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, sem_identificacao=True)
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.user_id IS NULL AND e.nome IS NULL" in sql
+    assert "e.foto_url IS NULL" not in sql
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_busca_pesquisa_nick_jogo_evento(fake_pool):
+    """Sem full-text search — ILIKE direto sobre os 3 campos já
+    existentes no feed (decisão do item 4.4)."""
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, busca="novato")
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.nick ILIKE $4" in sql
+    assert "j.nome ILIKE $4" in sql
+    assert "ev.nome ILIKE $4" in sql
+    assert fake_pool.fetch.call_args[0][4] == "%novato%"
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_filtros_combinados_indices_sequenciais(fake_pool):
+    """Vários filtros juntos — os índices posicionais não podem colidir
+    nem pular (senão o parâmetro errado vai pro placeholder errado)."""
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(
+        fake_pool, data_de="2026-01-01", jogo_id="j1", busca="novato",
+    )
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.criado_em::date >= $4" in sql
+    assert "e.jogo_id = $5" in sql
+    assert "e.nick ILIKE $6" in sql
+    args = fake_pool.fetch.call_args[0]
+    assert args[4] == "2026-01-01"
+    assert args[5] == "j1"
+    assert args[6] == "%novato%"
+
+
+@pytest.mark.asyncio
+async def test_contar_feed_admin_aplica_mesmos_filtros_que_listar(fake_pool):
+    """contar_feed_admin não tem limit/offset — os índices dos filtros
+    começam em $1, não $3. Precisa aplicar exatamente os mesmos filtros
+    de listar_feed_admin, senão X-Total-Count diverge da página."""
+    fake_pool.set_fetchval(0)
+    await entrada_repo.contar_feed_admin(fake_pool, status="pendentes", jogo_id="j1", busca="x")
+
+    sql = " ".join(fake_pool.fetchval.call_args[0][0].split())
+    assert "e.pendente = true" in sql
+    assert "e.jogo_id = $2" in sql
+    assert "e.nick ILIKE $3" in sql
+    assert "JOIN eventos ev ON ev.id = e.evento_id" in sql
+    args = fake_pool.fetchval.call_args[0]
+    assert args[1:] == (None, "j1", "%x%")
+
+
 @pytest.mark.asyncio
 async def test_listar_lideres_por_eventos_none_e_modo_geral_sem_filtro(fake_pool):
     """evento_ids=None (modo 'geral') não filtra por evento nenhum —

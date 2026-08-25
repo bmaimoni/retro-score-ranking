@@ -56,44 +56,130 @@ async def listar_ranking(pool: Pool, jogo_id: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def _filtros_feed_sql(
+    idx_inicial: int,
+    evento_ids: list[str] | None,
+    status: str | None,
+    data_de,
+    data_ate,
+    jogo_id: str | None,
+    sem_foto: bool,
+    sem_identificacao: bool,
+    busca: str | None,
+) -> tuple[str, list]:
+    """
+    Monta a cláusula WHERE (string) e a lista de parâmetros posicionais
+    pros filtros combináveis do feed admin (docs/BACKLOG_2026.md §4,
+    itens 4.1/4.4). Compartilhada entre listar_feed_admin e
+    contar_feed_admin — as duas precisam aplicar exatamente os mesmos
+    filtros, senão X-Total-Count diverge da página retornada.
+
+    status: 'visiveis' | 'ocultos' | 'pendentes' | None/'todos' (sem filtro).
+    sem_foto/sem_identificacao: filtros separados, não um só — uma
+    entrada sem foto pode estar identificada, e vice-versa (decisão do
+    item 4.1). "sem identificação" = user_id IS NULL AND nome IS NULL,
+    mesmo critério de marcar_pendente_identificacao_ambigua
+    (NICKNAME_SPEC.md decisão #7).
+    busca: ILIKE sobre nick/jogo/evento — extensão direta de WHERE,
+    sem full-text search (decisão do item 4.4).
+    """
+    condicoes = ["(${0}::uuid[] IS NULL OR e.evento_id = ANY(${0}::uuid[]))".format(idx_inicial)]
+    params: list = [evento_ids]
+    idx = idx_inicial + 1
+
+    if status == "visiveis":
+        condicoes.append("e.pendente = false AND e.no_ranking = true")
+    elif status == "ocultos":
+        condicoes.append("e.pendente = false AND e.no_ranking = false")
+    elif status == "pendentes":
+        condicoes.append("e.pendente = true")
+    # None/'todos' — sem filtro adicional, mesmo comportamento de sempre.
+
+    if data_de is not None:
+        condicoes.append(f"e.criado_em::date >= ${idx}"); params.append(data_de); idx += 1
+    if data_ate is not None:
+        condicoes.append(f"e.criado_em::date <= ${idx}"); params.append(data_ate); idx += 1
+    if jogo_id is not None:
+        condicoes.append(f"e.jogo_id = ${idx}"); params.append(jogo_id); idx += 1
+    if sem_foto:
+        condicoes.append("e.foto_url IS NULL")
+    if sem_identificacao:
+        condicoes.append("e.user_id IS NULL AND e.nome IS NULL")
+    if busca:
+        condicoes.append(f"(e.nick ILIKE ${idx} OR j.nome ILIKE ${idx} OR ev.nome ILIKE ${idx})")
+        params.append(f"%{busca}%"); idx += 1
+
+    return " AND ".join(condicoes), params
+
+
 async def listar_feed_admin(
     pool: Pool,
     limit: int = 50,
     offset: int = 0,
     evento_ids: list[str] | None = None,
+    status: str | None = None,
+    data_de=None,
+    data_ate=None,
+    jogo_id: str | None = None,
+    sem_foto: bool = False,
+    sem_identificacao: bool = False,
+    busca: str | None = None,
 ) -> list[dict]:
     """
-    Feed do admin: todas as entradas, mais recentes primeiro.
+    Feed do admin: entradas mais recentes primeiro, com filtros
+    combináveis (docs/BACKLOG_2026.md §4.1/4.4) e busca sobre
+    nick/jogo/evento.
 
     evento_ids: se informado, restringe às entradas desses eventos —
     usado quando o admin não é super-admin (ver docs/MARCAS_SPEC.md §6,
     "efeito colateral necessário: feed e pendentes precisam saber o evento").
     None = sem filtro (comportamento de sempre, usado por super-admin).
     """
+    where_sql, filtro_params = _filtros_feed_sql(
+        3, evento_ids, status, data_de, data_ate, jogo_id, sem_foto, sem_identificacao, busca,
+    )
     rows = await pool.fetch(
-        """
+        f"""
         SELECT e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.evento_id, e.no_ranking,
                e.superado, e.pendente, e.user_id, e.criado_em, e.moderado_em,
-               e.moderado_por, j.nome AS jogo_nome, j.slug AS jogo_slug
+               e.moderado_por, j.nome AS jogo_nome, j.slug AS jogo_slug,
+               ev.nome AS evento_nome, ev.slug AS evento_slug
         FROM entradas e
         JOIN jogos j ON j.id = e.jogo_id
-        WHERE ($3::uuid[] IS NULL OR e.evento_id = ANY($3::uuid[]))
+        JOIN eventos ev ON ev.id = e.evento_id
+        WHERE {where_sql}
         ORDER BY e.criado_em DESC
         LIMIT $1 OFFSET $2
         """,
-        limit, offset, evento_ids,
+        limit, offset, *filtro_params,
     )
     return [dict(r) for r in rows]
 
 
-async def contar_feed_admin(pool: Pool, evento_ids: list[str] | None = None) -> int:
-    """Total de entradas no feed do admin — para paginação."""
+async def contar_feed_admin(
+    pool: Pool,
+    evento_ids: list[str] | None = None,
+    status: str | None = None,
+    data_de=None,
+    data_ate=None,
+    jogo_id: str | None = None,
+    sem_foto: bool = False,
+    sem_identificacao: bool = False,
+    busca: str | None = None,
+) -> int:
+    """Total de entradas no feed do admin sob os mesmos filtros de
+    listar_feed_admin — para paginação (X-Total-Count)."""
+    where_sql, filtro_params = _filtros_feed_sql(
+        1, evento_ids, status, data_de, data_ate, jogo_id, sem_foto, sem_identificacao, busca,
+    )
     return await pool.fetchval(
-        """
+        f"""
         SELECT COUNT(*) FROM entradas e
-        WHERE ($1::uuid[] IS NULL OR e.evento_id = ANY($1::uuid[]))
+        JOIN jogos j ON j.id = e.jogo_id
+        JOIN eventos ev ON ev.id = e.evento_id
+        WHERE {where_sql}
         """,
-        evento_ids,
+        *filtro_params,
     )
 
 

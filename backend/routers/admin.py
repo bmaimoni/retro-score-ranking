@@ -1,3 +1,5 @@
+from datetime import date
+from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, UUID4, field_validator
 from middleware.auth import require_admin, AdminContext
@@ -98,6 +100,13 @@ async def feed_entradas(
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
     evento_id: str | None = Query(default=None),
+    status: Literal["todos", "visiveis", "ocultos", "pendentes"] | None = Query(default=None),
+    data_de: date | None = Query(default=None),
+    data_ate: date | None = Query(default=None),
+    jogo_id: str | None = Query(default=None),
+    sem_foto: bool = Query(default=False),
+    sem_identificacao: bool = Query(default=False),
+    busca: str | None = Query(default=None),
     pool=Depends(get_pool),
     admin: AdminContext = Depends(require_admin),
 ):
@@ -109,11 +118,19 @@ async def feed_entradas(
     evento_id: opcional para super-admin (ausente = vê tudo, como
     sempre); obrigatório para admin escopado por marca/evento — ver
     docs/MARCAS_SPEC.md §6.
+
+    Filtros combináveis (docs/BACKLOG_2026.md §4.1): status (visibilidade),
+    data_de/data_ate, jogo_id, sem_foto, sem_identificacao — mais busca
+    (item 4.4) sobre nick/jogo/evento. Todos opcionais, aplicáveis juntos.
     """
     evento_ids = await _resolver_evento_ids_admin(pool, admin, evento_id)
-    total = await entrada_repo.contar_feed_admin(pool, evento_ids=evento_ids)
+    filtros = dict(
+        evento_ids=evento_ids, status=status, data_de=data_de, data_ate=data_ate,
+        jogo_id=jogo_id, sem_foto=sem_foto, sem_identificacao=sem_identificacao, busca=busca,
+    )
+    total = await entrada_repo.contar_feed_admin(pool, **filtros)
     response.headers["X-Total-Count"] = str(total)
-    return await entrada_repo.listar_feed_admin(pool, limit=limit, offset=offset, evento_ids=evento_ids)
+    return await entrada_repo.listar_feed_admin(pool, limit=limit, offset=offset, **filtros)
 
 
 @router.get("/pendentes")

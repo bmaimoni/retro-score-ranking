@@ -14,6 +14,15 @@ from config import get_settings
 
 AUTH_HEADER = {"Authorization": "Bearer test-secret-123"}
 
+# /api/admin/feed é usado aqui só como "qualquer rota protegida" pra
+# exercitar require_admin — os filtros combináveis (BACKLOG_2026.md
+# §4.1/4.4) não são o foco deste arquivo, mas o kwarg completo precisa
+# bater pra assert_called_once_with não quebrar.
+FILTROS_FEED_VAZIOS = dict(
+    status=None, data_de=None, data_ate=None, jogo_id=None,
+    sem_foto=False, sem_identificacao=False, busca=None,
+)
+
 
 @pytest.fixture(autouse=True)
 def clear_overrides():
@@ -44,7 +53,7 @@ async def test_bearer_correto_e_sempre_super(client, monkeypatch):
 
     assert resp.status_code == 200
     # Super-admin sem evento_id na URL → evento_ids=None (vê tudo, como sempre)
-    contar_mock.assert_called_once_with(pool, evento_ids=None)
+    contar_mock.assert_called_once_with(pool, evento_ids=None, **FILTROS_FEED_VAZIOS)
 
 
 @pytest.mark.asyncio
@@ -92,7 +101,7 @@ async def test_sessao_com_vinculo_marca_funciona_escopado(client):
         resp = await client.get(f"{_rota_teste_protegida()}?evento_id=ev1")
 
     assert resp.status_code == 200
-    contar_mock.assert_called_once_with(pool, evento_ids=["ev1"])
+    contar_mock.assert_called_once_with(pool, evento_ids=["ev1"], **FILTROS_FEED_VAZIOS)
 
 
 @pytest.mark.asyncio
@@ -112,7 +121,7 @@ async def test_sessao_com_vinculo_super(client):
         resp = await client.get(_rota_teste_protegida())
 
     assert resp.status_code == 200
-    contar_mock.assert_called_once_with(pool, evento_ids=None)
+    contar_mock.assert_called_once_with(pool, evento_ids=None, **FILTROS_FEED_VAZIOS)
 
 
 @pytest.mark.asyncio

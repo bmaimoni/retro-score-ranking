@@ -417,6 +417,52 @@
       color: #fff;
     }
 
+    .feed-filtros-extra {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      align-items: center;
+      margin-bottom: var(--space-md);
+      padding: var(--space-sm) var(--space-md);
+      background: var(--color-bg-surface);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-md);
+    }
+    .feed-filtro-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .feed-filtro-checkbox input { cursor: pointer; }
+
+    .feed-paginacao {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-md);
+      margin-top: var(--space-lg);
+    }
+    .pag-btn {
+      padding: 8px 16px;
+      background: var(--color-bg-surface);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text);
+      font-size: var(--text-xs);
+      font-weight: var(--weight-bold);
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      font-family: var(--font-body);
+      transition: all var(--transition);
+    }
+    .pag-btn:hover:not(:disabled) { border-color: var(--color-secondary); color: var(--color-secondary); }
+    .pag-btn:disabled { opacity: 0.35; cursor: default; }
+    .pag-info { font-size: var(--text-xs); color: var(--color-text-muted); }
+
     /* ── Tabela de jogos ── */
     .jogos-grid {
       display: flex;
@@ -729,7 +775,31 @@
       <button class="filter-pill" data-filter="ocultos">Ocultos</button>
       <button class="filter-pill" data-filter="pendentes" id="pill-pendentes">Pendentes <span id="pill-pendentes-count" style="display:none"></span></button>
     </div>
+
+    <!-- Filtros combináveis (docs/BACKLOG_2026.md §4.1/4.4) -->
+    <div class="feed-filtros-extra">
+      <input class="field-input" type="search" id="feed-busca" placeholder="Buscar por nick, jogo ou evento…" style="flex:1;min-width:180px">
+      <select class="field-input" id="feed-filtro-jogo" style="max-width:180px">
+        <option value="">Todos os jogos</option>
+      </select>
+      <input class="field-input" type="date" id="feed-data-de" title="De" style="max-width:150px">
+      <input class="field-input" type="date" id="feed-data-ate" title="Até" style="max-width:150px">
+      <label class="feed-filtro-checkbox">
+        <input type="checkbox" id="feed-sem-foto"> sem foto
+      </label>
+      <label class="feed-filtro-checkbox">
+        <input type="checkbox" id="feed-sem-identificacao"> sem identificação
+      </label>
+      <button class="btn-action btn-ocultar" id="feed-limpar-filtros" style="padding:6px 14px">Limpar filtros</button>
+    </div>
+
     <div id="feed-list"></div>
+
+    <div class="feed-paginacao" id="feed-paginacao" style="display:none">
+      <button id="feed-pag-anterior" class="pag-btn">‹ Anterior</button>
+      <span id="feed-pag-info" class="pag-info"></span>
+      <button id="feed-pag-proxima" class="pag-btn">Próxima ›</button>
+    </div>
   </div>
 
 
@@ -1314,6 +1384,7 @@ function configurarIdentidadeEEscopo() {
   elSelector.value = eventoAtual;
   elSelector.onchange = () => {
     eventoAtual = elSelector.value;
+    feedOffset = 0;  // troca de evento sempre volta pra primeira página
     carregarTudo();
   };
 }
@@ -1365,16 +1436,65 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
 });
 
 // ── FEED ──────────────────────────────────────────────────────────────────────
-async function carregarFeed() {
+// Filtros combináveis + busca (docs/BACKLOG_2026.md §4.1/4.4) e paginação real
+// (item 4.3 — X-Total-Count/limit/offset, mesmo padrão de EVENTOS_SPEC.md §5).
+// feedFilter é o pill de status (todos/visiveis/ocultos/pendentes); os demais
+// filtros vêm dos campos em .feed-filtros-extra. Tudo vira query string pro
+// backend — nada é filtrado no cliente, senão a paginação real não faz sentido.
+const FEED_LIMIT = 50;
+let feedOffset = 0;
+let feedTotal  = 0;
+let feedBuscaTimeout = null;
+
+function montarQueryFeed(offset) {
+  const params = new URLSearchParams({ limit: FEED_LIMIT, offset });
+  if (feedFilter && feedFilter !== 'todos') params.set('status', feedFilter);
+
+  const busca = document.getElementById('feed-busca').value.trim();
+  if (busca) params.set('busca', busca);
+
+  const jogoId = document.getElementById('feed-filtro-jogo').value;
+  if (jogoId) params.set('jogo_id', jogoId);
+
+  const dataDe = document.getElementById('feed-data-de').value;
+  if (dataDe) params.set('data_de', dataDe);
+
+  const dataAte = document.getElementById('feed-data-ate').value;
+  if (dataAte) params.set('data_ate', dataAte);
+
+  if (document.getElementById('feed-sem-foto').checked)           params.set('sem_foto', 'true');
+  if (document.getElementById('feed-sem-identificacao').checked)  params.set('sem_identificacao', 'true');
+
+  return params.toString();
+}
+
+async function carregarFeed(offset = feedOffset) {
+  feedOffset = offset;
   try {
-    const resp = await apiFetch(comEventoId('/api/admin/feed?limit=100'));
-    feedData = await resp.json();
+    const resp = await apiFetch(comEventoId(`/api/admin/feed?${montarQueryFeed(offset)}`));
+    feedData  = await resp.json();
+    feedTotal = Number(resp.headers.get('X-Total-Count') || feedData.length);
     renderFeed();
-    // Badge da aba feed: entradas nas últimas 2 min
-    const recentes = feedData.filter(e => Date.now() - new Date(e.criado_em) < 120000).length;
-    atualizarBadge('feed', recentes);
-    // Contador no pill de pendentes
-    const totalPendentes = feedData.filter(e => e.pendente).length;
+    renderPaginacaoFeed();
+    atualizarBadgesFeed();
+  } catch { /* silencioso */ }
+}
+
+// Badges da aba (contador de "recentes" e do pill Pendentes) refletem o
+// estado GLOBAL, não a página/filtro atual sendo visualizada — por isso
+// usam sua própria consulta leve, em vez de derivar de feedData.
+async function atualizarBadgesFeed() {
+  try {
+    const [rRecentes, rPendentes] = await Promise.all([
+      apiFetch(comEventoId('/api/admin/feed?limit=20')),
+      apiFetch(comEventoId('/api/admin/feed?limit=1&status=pendentes')),
+    ]);
+    if (rRecentes.ok) {
+      const recentesData = await rRecentes.json();
+      const recentes = recentesData.filter(e => Date.now() - new Date(e.criado_em) < 120000).length;
+      atualizarBadge('feed', recentes);
+    }
+    const totalPendentes = rPendentes.ok ? Number(rPendentes.headers.get('X-Total-Count') || 0) : 0;
     const pillCount = document.getElementById('pill-pendentes-count');
     if (pillCount) {
       if (totalPendentes > 0) {
@@ -1394,26 +1514,55 @@ document.querySelectorAll('.filter-pill').forEach(p => {
     document.querySelectorAll('.filter-pill').forEach(x => x.classList.remove('active'));
     p.classList.add('active');
     feedFilter = p.dataset.filter;
-    renderFeed();
+    carregarFeed(0);
   });
 });
 
+document.getElementById('feed-busca').addEventListener('input', () => {
+  clearTimeout(feedBuscaTimeout);
+  feedBuscaTimeout = setTimeout(() => carregarFeed(0), 350);
+});
+['feed-filtro-jogo', 'feed-data-de', 'feed-data-ate', 'feed-sem-foto', 'feed-sem-identificacao'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => carregarFeed(0));
+});
+document.getElementById('feed-limpar-filtros').addEventListener('click', () => {
+  document.getElementById('feed-busca').value = '';
+  document.getElementById('feed-filtro-jogo').value = '';
+  document.getElementById('feed-data-de').value = '';
+  document.getElementById('feed-data-ate').value = '';
+  document.getElementById('feed-sem-foto').checked = false;
+  document.getElementById('feed-sem-identificacao').checked = false;
+  carregarFeed(0);
+});
+document.getElementById('feed-pag-anterior').addEventListener('click', () => {
+  if (feedOffset > 0) carregarFeed(Math.max(0, feedOffset - FEED_LIMIT));
+});
+document.getElementById('feed-pag-proxima').addEventListener('click', () => {
+  if (feedOffset + FEED_LIMIT < feedTotal) carregarFeed(feedOffset + FEED_LIMIT);
+});
+
+function renderPaginacaoFeed() {
+  const el = document.getElementById('feed-paginacao');
+  if (feedTotal <= FEED_LIMIT) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  const paginaAtual  = Math.floor(feedOffset / FEED_LIMIT) + 1;
+  const totalPaginas = Math.max(1, Math.ceil(feedTotal / FEED_LIMIT));
+  document.getElementById('feed-pag-info').textContent = `Página ${paginaAtual} de ${totalPaginas} (${feedTotal} no total)`;
+  document.getElementById('feed-pag-anterior').disabled = feedOffset <= 0;
+  document.getElementById('feed-pag-proxima').disabled  = feedOffset + FEED_LIMIT >= feedTotal;
+}
+
 function renderFeed() {
   const container = document.getElementById('feed-list');
-  let lista = feedData;
 
-  if (feedFilter === 'visiveis')  lista = feedData.filter(e => e.no_ranking && !e.pendente);
-  if (feedFilter === 'ocultos')   lista = feedData.filter(e => !e.no_ranking && !e.pendente);
-  if (feedFilter === 'pendentes') lista = feedData.filter(e => e.pendente);
+  document.getElementById('feed-count').textContent = `${feedTotal} entrada${feedTotal !== 1 ? 's' : ''}`;
 
-  document.getElementById('feed-count').textContent = `${lista.length} entrada${lista.length !== 1 ? 's' : ''}`;
-
-  if (lista.length === 0) {
+  if (feedData.length === 0) {
     container.innerHTML = emptyState('Nenhuma entrada encontrada');
     return;
   }
 
-  container.innerHTML = lista.map(e => cardEntrada(e, 'feed')).join('');
+  container.innerHTML = feedData.map(e => cardEntrada(e, 'feed')).join('');
   bindCardActions(container);
 }
 
@@ -1507,6 +1656,17 @@ function renderJogos(jogos) {
     selManut.innerHTML = jogos.map(j =>
       `<option value="${j.id}">${escapar(j.nome)}</option>`
     ).join('');
+  }
+
+  // Popula filtro de jogo do feed (docs/BACKLOG_2026.md §4.1) —
+  // preserva a seleção atual, já que jogos podem recarregar sem o
+  // usuário ter mexido no filtro.
+  const selFeedJogo = document.getElementById('feed-filtro-jogo');
+  if (selFeedJogo) {
+    const selecionado = selFeedJogo.value;
+    selFeedJogo.innerHTML = '<option value="">Todos os jogos</option>' +
+      jogos.map(j => `<option value="${j.id}">${escapar(j.nome)}</option>`).join('');
+    selFeedJogo.value = selecionado;
   }
 }
 
@@ -1768,6 +1928,7 @@ function cardEntrada(e, tipo) {
           <span>${e.jogo_nome || ''}</span>
           <span class="entrada-score">${(e.pontuacao || 0).toLocaleString('pt-BR')} pts</span>
           <span>${tempoRelativo(e.criado_em)}</span>
+          ${e.evento_nome ? `<span style="opacity:0.6">· ${escapar(e.evento_nome)}</span>` : ''}
         </div>
         <div class="historico-nicks" id="historico-nicks-${e.id}" style="display:none;margin-top:8px"></div>
       </div>
