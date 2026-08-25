@@ -7,13 +7,14 @@
 > produção, seguindo o mesmo processo já usado no projeto inteiro: migração
 > testada localmente → aplicada → backend → testes → frontend → validação.
 
-Próxima migração livre: **`024`**.
+Próxima migração livre: **`026`**.
 
 **Fase 1 concluída** (migração 019, ver `docs/PERMISSOES_SPEC.md` §7).
 **Fase 2 concluída** (migrações 020-022, ver `docs/NICKNAME_SPEC.md` e
 `docs/EXCLUSAO_CONTA_SPEC.md`). **Fase 3 concluída** (migração 023, ver
-`docs/SEGUIR_SPEC.md`). Todas aplicadas em produção, backend e frontend
-prontos. Próxima: Fase 4.
+`docs/SEGUIR_SPEC.md`). **Fase 4 concluída** (migrações 024-025, ver
+`docs/RANKINGS_CONFIGURAVEIS_SPEC.md`). Todas aplicadas em produção,
+backend e frontend prontos. Próxima: Fase 5.
 
 ---
 
@@ -120,24 +121,45 @@ independente)
 
 ---
 
-## Fase 4 — Rankings Configuráveis e Metadado de Jogo
+## Fase 4 — Rankings Configuráveis e Metadado de Jogo ✅ concluída
 
 **Spec**: `docs/RANKINGS_CONFIGURAVEIS_SPEC.md`, mais itens 3.1/3.2/3.3/3.6
 documentados em `docs/BACKLOG_2026.md` §3.
 **Depende de**: Fase 1 (`eventos.marca_id NOT NULL` é pré-requisito direto)
 
-- Migração: `eventos.modo_ranking`, `marcas_parcerias` (nova),
+- [x] Migração 024: `eventos.modo_ranking`, `marcas_parcerias` (nova),
   `marcas.itens_por_pagina`, `jogos` ganha `plataforma`/`ano_lancamento`/
-  `capa_url`/`gameplay_url` (todos opcionais).
-- Backend: resolução de ranking por modo (zerado/último evento/marca/
-  marca+parceiras/geral); endpoints de parceria (liberar/aceitar/revogar,
-  liberação mútua automática, tudo-ou-nada); revogação em tempo real via
-  filtro de query.
-- Frontend: `ranking.html` mostra metadado de jogo; QR implementado de
-  verdade (reaproveita `gerarQR` de `telao.html`, aponta pro evento mais
-  recente da marca em ranking agregado); "meu score" navega e destaca a
-  melhor entrada da pessoa; admin ganha seletor de `modo_ranking` na
-  criação/edição de evento, e config de `itens_por_pagina` por marca.
+  `capa_url`/`gameplay_url` (todos opcionais). Migração 025 (achado na
+  implementação): `admin_vinculos_auditoria.user_alvo_id` passa a
+  aceitar `NULL` — parceria acionada via bootstrap (`Bearer
+  <ADMIN_SECRET>`) não tem `user_id` de sessão pra gravar ali, e é a
+  primeira ação auditada onde o "alvo" é o próprio ator, não um usuário
+  diferente (mesma categoria de gap já corrigida uma vez na migration 022).
+- [x] Backend: `services/ranking.py` resolve os 5 modos (zerado/último
+  evento/marca/marca+parceiras/geral), calculado ao vivo via
+  `evento_ids` resolvidos por modo, sem dado espelhado;
+  `repositories/marca_parceria.py` + endpoints em `marcas_admin.py`
+  cobrem liberar/aceitar/revogar (liberação mútua automática ao
+  aceitar, tudo-ou-nada, sem granularidade por evento), tudo auditado
+  em `admin_vinculos_auditoria`; jogos ganham metadado opcional; marcas
+  ganham `itens_por_pagina`. Achado na implementação: o QR de
+  `ranking.html` (item 3.3) não podia simplesmente reusar o slug da URL
+  em ranking agregado — se a janela de envio do evento sendo
+  visualizado já tivesse fechado, o QR apontaria pra um link de envio
+  morto mesmo com a marca tendo outro evento ativo. Endpoint novo
+  `GET /api/e/{slug}/evento-envio-atual` resolve isso: em modo
+  `zerado` devolve o próprio slug; nos modos agregados, o evento
+  mais recente/ativo (janela aberta tem prioridade) da marca dona da
+  página, via `evento_repo.buscar_evento_envio_atual_da_marca`.
+- [x] Frontend: `ranking.html` mostra metadado de jogo; QR real
+  (reaproveita `gerarQR` de `telao.html`, resolve o evento de destino
+  via `/evento-envio-atual` antes de montar o link); "meu score"
+  (`?destaque=`) navega e destaca a melhor entrada da pessoa; `admin.html`
+  ganha seletor de `modo_ranking` na criação de evento + `<select>`
+  inline por evento pra trocar depois, config de `itens_por_pagina` por
+  marca, e painel de parcerias por marca (liberar/aceitar/revogar,
+  carregado sob demanda). Todos os controles de gestão respeitam
+  "qualquer admin da marca, moderador nunca" (decisão #3 da spec).
 
 ---
 

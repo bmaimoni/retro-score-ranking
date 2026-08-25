@@ -679,7 +679,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('link-participar').href = hrefComEvento;
   }
   await carregarSessaoESeguindo();
-  gerarQR();
+  gerarQR();  // não bloqueia — QR pode chegar um instante depois
   await carregarJogos();
   conectarControlesBuscaEPaginacao();
 });
@@ -688,9 +688,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 // Mesmo padrão de telao.html: aponta pro fluxo de envio, escopado pro
 // evento atual quando há um (?evento=), senão cai no envio padrão da
 // plataforma — nunca ficava vazio antes por falta de geração real.
-function gerarQR() {
-  const url = EVENTO_SLUG
-    ? `${UPLOAD_URL}/index.html?evento=${EVENTO_SLUG}`
+// Em ranking agregado (modo_ranking != 'zerado'), não usa o evento da
+// URL direto — pede ao backend qual é o evento mais recente/ativo da
+// marca dona da página (docs/BACKLOG_2026.md §3 item 3.3), pra não
+// apontar pro envio de um evento cuja janela já fechou.
+async function gerarQR() {
+  let slugAlvo = EVENTO_SLUG;
+  if (EVENTO_SLUG) {
+    try {
+      const resp = await fetch(`${API_URL}/api/e/${EVENTO_SLUG}/evento-envio-atual`);
+      if (resp.ok) slugAlvo = (await resp.json()).slug;
+    } catch {}
+  }
+  const url = slugAlvo
+    ? `${UPLOAD_URL}/index.html?evento=${slugAlvo}`
     : `${UPLOAD_URL}/index.html`;
 
   const el = document.getElementById('ranking-qrcode');

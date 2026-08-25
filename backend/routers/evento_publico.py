@@ -85,6 +85,25 @@ async def get_config_evento(slug: str, pool=Depends(get_pool)):
     }
 
 
+# ── Evento de envio atual (QR/link "participe") ────────────────
+
+@router.get("/{slug}/evento-envio-atual")
+async def get_evento_envio_atual(slug: str, pool=Depends(get_pool)):
+    """
+    Resolve pra qual evento apontar o QR/link de envio nesta página
+    (docs/BACKLOG_2026.md §3 item 3.3). Em modo_ranking='zerado' o
+    próprio evento já é a resposta certa; nos modos agregados, aponta
+    pro evento mais recente/ativo da marca dona da página — mesmo
+    critério de "marca dona" já usado pra itens_por_pagina (item 3.2).
+    """
+    evento = await _get_evento_publico(slug, pool)
+    if evento["modo_ranking"] == "zerado":
+        return {"slug": slug}
+
+    alvo = await evento_repo.buscar_evento_envio_atual_da_marca(pool, str(evento["marca_id"]))
+    return {"slug": alvo["slug"] if alvo else slug}
+
+
 # ── Jogos do evento ───────────────────────────────────────────
 
 @router.get("/{slug}/jogos")

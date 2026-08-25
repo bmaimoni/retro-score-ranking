@@ -75,6 +75,30 @@ async def buscar_publico_por_slug(pool: Pool, slug: str) -> dict | None:
     return dict(row) if row else None
 
 
+async def buscar_evento_envio_atual_da_marca(pool: Pool, marca_id: str) -> dict | None:
+    """
+    Resolve o evento pra onde apontar o QR/link de envio quando a
+    página visualizada está em ranking agregado (BACKLOG_2026.md §3
+    item 3.3: 'QR sempre aponta pro evento mais recente/ativo da marca
+    dona da página'). Prioriza um evento cuja janela [data_inicio,
+    data_fim] esteja aberta agora; sem nenhum aberto, cai pro mais
+    recente por data_inicio — nunca aponta pra um evento arquivado ou
+    inacessível (mesmo filtro de visibilidade pública de sempre).
+    """
+    row = await pool.fetchrow(
+        """
+        SELECT id, nome, slug, ativo, publico, logo_url, cor_primaria,
+               tipografia, marca_id, modo_ranking, data_inicio, data_fim, criado_em
+        FROM eventos
+        WHERE marca_id = $1 AND ativo = true AND publico = true
+        ORDER BY (data_inicio <= now() AND data_fim >= now()) DESC, data_inicio DESC
+        LIMIT 1
+        """,
+        marca_id,
+    )
+    return dict(row) if row else None
+
+
 async def criar(pool: Pool, dados: dict) -> dict:
     row = await pool.fetchrow(
         """
