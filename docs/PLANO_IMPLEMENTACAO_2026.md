@@ -10,10 +10,9 @@
 Próxima migração livre: **`021`**.
 
 **Fase 1 concluída** (migração 019 aplicada em produção, backend e frontend
-prontos — ver `docs/PERMISSOES_SPEC.md` §7). **Fase 2 em andamento**:
-migração 020 aplicada em produção (avatares, campos de perfil em `users`,
-`nick_claims.ativo`, `nick_troca_forcada_auditoria`,
-`entradas.pendente_motivo`) — falta backend e frontend.
+prontos — ver `docs/PERMISSOES_SPEC.md` §7). **Fase 2 concluída** (migrações
+020-022, backend e frontend prontos — ver `docs/NICKNAME_SPEC.md` e
+`docs/EXCLUSAO_CONTA_SPEC.md`). Próxima: Fase 3.
 
 ---
 
@@ -60,7 +59,7 @@ depende de nada.
 
 ---
 
-## Fase 2 — Identidade do Jogador (Perfil, Nickname, Exclusão, Avatar)
+## Fase 2 — Identidade do Jogador (Perfil, Nickname, Exclusão, Avatar) ✅ concluída
 
 **Specs**: `docs/NICKNAME_SPEC.md`, `docs/EXCLUSAO_CONTA_SPEC.md`,
 mais os itens de avatar/campos de perfil documentados direto em
@@ -86,10 +85,11 @@ mais os itens de avatar/campos de perfil documentados direto em
   `GET/POST /api/admin/exclusoes-pendentes`, anonimização cobrindo `users`
   + `identities.email` + `magic_link_tokens.email`); desativar pontuações
   em massa; CRUD de avatares (`super`) + seleção (usuário).
-- [ ] Frontend: tela de perfil nova (ver/editar dados, trocar nick, escolher
+- [x] Frontend: `perfil.html` nova (ver/editar dados, trocar nick, escolher
   avatar, detalhamento de pontuações próprias com link pro jogo, desativar
-  pontuações, solicitar exclusão, logout); admin ganha CRUD de avatares,
-  histórico de nicks no painel de moderação, e tela de exclusões pendentes.
+  pontuações, solicitar/cancelar exclusão, logout); `index.html` ganha link
+  "Meu perfil"; `admin.html` ganha CRUD de avatares, histórico de nicks +
+  força-troca no feed, e aba de exclusões pendentes.
 
 ---
 
