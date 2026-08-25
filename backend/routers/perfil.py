@@ -2,7 +2,8 @@
 Router de perfil de usuário — requer login (sessão de visitante comum,
 não admin). Prefixo: /api/perfil
 
-Ver docs/BACKLOG_2026.md §1 (itens 1.3/1.4/1.5/1.8) e docs/EXCLUSAO_CONTA_SPEC.md.
+Ver docs/BACKLOG_2026.md §1 (itens 1.3/1.4/1.5/1.7/1.8), docs/EXCLUSAO_CONTA_SPEC.md
+e docs/SEGUIR_SPEC.md.
 """
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
@@ -13,6 +14,7 @@ import auth.repository as auth_repo
 import repositories.usuario as usuario_repo
 import repositories.avatar as avatar_repo
 import repositories.entrada as entrada_repo
+import repositories.seguidor as seguidor_repo
 import services.exclusao_conta as exclusao_svc
 
 router = APIRouter(prefix="/api/perfil", tags=["perfil"])
@@ -141,3 +143,67 @@ async def cancelar_exclusao(
     if not resultado:
         raise HTTPException(status_code=404, detail="Não há solicitação de exclusão pendente")
     return resultado
+
+
+# ── Seguir jogadores (docs/SEGUIR_SPEC.md) ──────────────────────────────────────
+
+@router.post("/seguir/{user_id}", status_code=201)
+async def seguir(
+    user_id: str,
+    pool=Depends(get_pool),
+    usuario: dict = Depends(auth_svc.sessao_obrigatoria),
+):
+    if user_id == usuario["id"]:
+        raise HTTPException(status_code=422, detail="Não é possível seguir a própria conta")
+    try:
+        return await seguidor_repo.seguir(pool, usuario["id"], user_id)
+    except Exception as exc:
+        if "foreign key" in str(exc).lower():
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise
+
+
+@router.post("/seguir/{user_id}/cancelar")
+async def deixar_de_seguir(
+    user_id: str,
+    pool=Depends(get_pool),
+    usuario: dict = Depends(auth_svc.sessao_obrigatoria),
+):
+    resultado = await seguidor_repo.deixar_de_seguir(pool, usuario["id"], user_id)
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Você não segue este usuário")
+    return resultado
+
+
+@router.get("/seguindo")
+async def listar_seguindo(
+    pool=Depends(get_pool),
+    usuario: dict = Depends(auth_svc.sessao_obrigatoria),
+):
+    return await seguidor_repo.listar_seguindo(pool, usuario["id"])
+
+
+@router.get("/seguidores")
+async def listar_seguidores(
+    pool=Depends(get_pool),
+    usuario: dict = Depends(auth_svc.sessao_obrigatoria),
+):
+    return await seguidor_repo.listar_seguidores(pool, usuario["id"])
+
+
+@router.get("/atividade")
+async def minha_atividade(
+    pool=Depends(get_pool),
+    usuario: dict = Depends(auth_svc.sessao_obrigatoria),
+):
+    """
+    Feed de superação de score entre quem eu sigo, compilado agora
+    (decisão #5 do SEGUIR_SPEC.md — não a cada envio de score). Marca
+    como conferido ao final: users.ultimo_login_em avança pra agora,
+    então a próxima chamada só traz o que aconteceu depois desta
+    (decisão #6 — sem repetir o que já foi mostrado).
+    """
+    desde = usuario.get("ultimo_login_em")
+    atividade = await seguidor_repo.compilar_atividade(pool, usuario["id"], desde)
+    await auth_repo.atualizar_ultimo_login(pool, usuario["id"])
+    return atividade

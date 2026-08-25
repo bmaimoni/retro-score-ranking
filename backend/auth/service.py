@@ -99,13 +99,17 @@ async def login_ou_criar_usuario(
        linka automaticamente a nova identity a essa conta (decisão #2:
        account linking automático, só com email_verified=true).
     3. Senão: cria usuário novo.
+
+    Não atualiza users.ultimo_login_em aqui — isso acontece só quando
+    GET /api/perfil/atividade é chamado (docs/SEGUIR_SPEC.md decisão
+    #6). O valor retornado aqui é sempre o ultimo_login_em ANTERIOR a
+    este login, de propósito: é o corte que o feed de atividade usa.
     """
     email = normalizar_email(email) if email else email
 
     identity = await auth_repo.buscar_identity(pool, provider, provider_user_id)
     if identity:
         usuario = await auth_repo.buscar_usuario_por_id(pool, identity["user_id"])
-        await auth_repo.atualizar_ultimo_login(pool, usuario["id"])
         return usuario
 
     usuario_existente = None
@@ -114,7 +118,6 @@ async def login_ou_criar_usuario(
 
     if usuario_existente:
         await auth_repo.criar_identity(pool, usuario_existente["id"], provider, provider_user_id, email)
-        await auth_repo.atualizar_ultimo_login(pool, usuario_existente["id"])
         log.info("auth_conta_linkada", user_id=usuario_existente["id"], provider=provider)
         return usuario_existente
 

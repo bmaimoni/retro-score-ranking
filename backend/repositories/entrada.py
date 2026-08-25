@@ -42,7 +42,7 @@ async def listar_ranking(pool: Pool, jogo_id: str) -> list[dict]:
     """
     rows = await pool.fetch(
         """
-        SELECT id, nick, nome, pontuacao, foto_url, evento_id, criado_em
+        SELECT id, nick, nome, pontuacao, foto_url, evento_id, user_id, criado_em
         FROM entradas
         WHERE jogo_id    = $1
           AND no_ranking = true
@@ -347,7 +347,7 @@ async def listar_ranking_por_evento(
     """
     rows = await pool.fetch(
         """
-        SELECT id, nick, nome, pontuacao, foto_url, evento_id, criado_em
+        SELECT id, nick, nome, pontuacao, foto_url, evento_id, user_id, criado_em
         FROM entradas
         WHERE jogo_id    = $1
           AND evento_id  = $2

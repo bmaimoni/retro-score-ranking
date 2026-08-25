@@ -347,3 +347,165 @@ async def test_cancelar_exclusao_sem_pendencia_retorna_404(client):
         resp = await client.post("/api/perfil/exclusao/cancelar")
 
     assert resp.status_code == 404
+
+
+# ── Seguir jogadores (docs/SEGUIR_SPEC.md) ──────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_seguir_sem_sessao_retorna_401(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.post(f"/api/perfil/seguir/{make_uuid()}")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_seguir_sucesso(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+    alvo_id = make_uuid()
+    vinculo = {"id": make_uuid(), "seguidor_id": usuario["id"], "seguido_id": alvo_id, "ativo": True, "criado_em": "2026-01-01"}
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.seguidor.seguir", AsyncMock(return_value=vinculo)) as mock:
+        resp = await client.post(f"/api/perfil/seguir/{alvo_id}")
+
+    assert resp.status_code == 201
+    mock.assert_called_once_with(pool, usuario["id"], alvo_id)
+
+
+@pytest.mark.asyncio
+async def test_seguir_a_si_mesmo_retorna_422(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)):
+        resp = await client.post(f"/api/perfil/seguir/{usuario['id']}")
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_seguir_usuario_inexistente_retorna_404(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.seguidor.seguir", AsyncMock(side_effect=Exception("violates foreign key constraint"))):
+        resp = await client.post(f"/api/perfil/seguir/{make_uuid()}")
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_deixar_de_seguir_sucesso(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+    alvo_id = make_uuid()
+    vinculo = {"id": make_uuid(), "seguidor_id": usuario["id"], "seguido_id": alvo_id, "ativo": False, "criado_em": "2026-01-01"}
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.seguidor.deixar_de_seguir", AsyncMock(return_value=vinculo)):
+        resp = await client.post(f"/api/perfil/seguir/{alvo_id}/cancelar")
+
+    assert resp.status_code == 200
+    assert resp.json()["ativo"] is False
+
+
+@pytest.mark.asyncio
+async def test_deixar_de_seguir_quem_nao_segue_retorna_404(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.seguidor.deixar_de_seguir", AsyncMock(return_value=None)):
+        resp = await client.post(f"/api/perfil/seguir/{make_uuid()}/cancelar")
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_listar_seguindo(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.seguidor.listar_seguindo", AsyncMock(return_value=[{"id": make_uuid(), "nome": "Ciclano"}])):
+        resp = await client.get("/api/perfil/seguindo")
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_listar_seguidores(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.seguidor.listar_seguidores", AsyncMock(return_value=[{"id": make_uuid(), "nome": "Fulano"}])):
+        resp = await client.get("/api/perfil/seguidores")
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
+
+# ── GET /api/perfil/atividade ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_atividade_sem_sessao_retorna_401(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.get("/api/perfil/atividade")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_atividade_compila_e_avanca_ultimo_login(client):
+    """A entrega usa o ultimo_login_em ATUAL (ainda o anterior a este
+    login, decisão #6) e só DEPOIS de compilar avança pra agora."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+    usuario["ultimo_login_em"] = "2026-01-01T00:00:00"
+    atividade = [{"seguido_nome": "Ciclano", "jogo_nome": "Pac-Man", "pontuacao_seguido": 9000, "minha_pontuacao": 5000}]
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.seguidor.compilar_atividade", AsyncMock(return_value=atividade)) as compilar_mock, \
+         patch("auth.repository.atualizar_ultimo_login", AsyncMock()) as atualizar_mock:
+        resp = await client.get("/api/perfil/atividade")
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    compilar_mock.assert_called_once_with(pool, usuario["id"], "2026-01-01T00:00:00")
+    atualizar_mock.assert_called_once_with(pool, usuario["id"])
+
+
+@pytest.mark.asyncio
+async def test_atividade_primeira_vez_desde_none(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+    usuario["ultimo_login_em"] = None
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.seguidor.compilar_atividade", AsyncMock(return_value=[])) as compilar_mock, \
+         patch("auth.repository.atualizar_ultimo_login", AsyncMock()):
+        resp = await client.get("/api/perfil/atividade")
+
+    assert resp.status_code == 200
+    compilar_mock.assert_called_once_with(pool, usuario["id"], None)

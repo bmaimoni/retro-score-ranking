@@ -47,10 +47,17 @@ async def criar_usuario(
     nome: str | None = None,
     foto_url: str | None = None,
 ) -> dict:
+    """
+    ultimo_login_em nasce NULL, não now() — desde o SEGUIR_SPEC.md
+    (decisão #6) esse campo significa "última vez que o feed de
+    atividade foi conferido", não mais "último login de fato" (a
+    atualização foi deslocada pra quando GET /api/perfil/atividade é
+    chamado, não mais pro momento do login em si — ver auth/service.py).
+    """
     row = await pool.fetchrow(
         """
-        INSERT INTO users (email, email_verified, nome, foto_url, ultimo_login_em)
-        VALUES ($1, $2, $3, $4, now())
+        INSERT INTO users (email, email_verified, nome, foto_url)
+        VALUES ($1, $2, $3, $4)
         RETURNING id, email, email_verified, nome, foto_url, status,
                   criado_em, ultimo_login_em
         """,
@@ -60,6 +67,14 @@ async def criar_usuario(
 
 
 async def atualizar_ultimo_login(pool: Pool, user_id: str) -> None:
+    """
+    Chamado a partir de services/seguidor.py (compilar_atividade), não
+    mais do login em si — ver docs/SEGUIR_SPEC.md decisão #6. Adiar
+    esse update pro momento em que o feed de atividade é realmente
+    calculado é o que permite usar o valor anterior de ultimo_login_em
+    como corte, sem precisar de tabela nova nem lidar com a entrega
+    assíncrona do redirect do Google OAuth.
+    """
     await pool.execute(
         "UPDATE users SET ultimo_login_em = now() WHERE id = $1", user_id
     )

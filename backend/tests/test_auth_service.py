@@ -37,8 +37,13 @@ def _identity(user_id, provider="google", provider_user_id="google-sub-1"):
 
 @pytest.mark.asyncio
 async def test_identity_ja_existe_so_faz_login(fake_pool):
-    """Segunda vez que a mesma conta Google loga: não cria nada novo,
-    só busca o usuário já vinculado e atualiza último login."""
+    """
+    Segunda vez que a mesma conta Google loga: não cria nada novo, só
+    busca o usuário já vinculado. NÃO atualiza ultimo_login_em aqui —
+    isso é adiado pra GET /api/perfil/atividade (docs/SEGUIR_SPEC.md
+    decisão #6): o valor retornado precisa continuar sendo o de ANTES
+    deste login, é o corte que o feed de atividade usa.
+    """
     usuario = _usuario()
     identity = _identity(usuario["id"])
 
@@ -53,7 +58,7 @@ async def test_identity_ja_existe_so_faz_login(fake_pool):
         )
 
     assert resultado["id"] == usuario["id"]
-    atualizar_mock.assert_called_once()
+    atualizar_mock.assert_not_called()
     criar_mock.assert_not_called()
     criar_identity_mock.assert_not_called()
 
@@ -70,7 +75,6 @@ async def test_email_verificado_linka_automaticamente_conta_existente(fake_pool)
     with patch("auth.repository.buscar_identity", AsyncMock(return_value=None)), \
          patch("auth.repository.buscar_usuario_por_email", AsyncMock(return_value=usuario_existente)), \
          patch("auth.repository.criar_identity", AsyncMock(return_value=_identity(usuario_existente["id"]))) as criar_identity_mock, \
-         patch("auth.repository.atualizar_ultimo_login", AsyncMock()), \
          patch("auth.repository.criar_usuario") as criar_usuario_mock:
         resultado = await auth_svc.login_ou_criar_usuario(
             fake_pool, provider="magic_link", provider_user_id="pessoa@example.com",
