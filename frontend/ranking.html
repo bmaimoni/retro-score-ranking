@@ -267,6 +267,21 @@
       width: 100%;
     }
     .historico-btn:hover { color: var(--color-primary); }
+    .seguir-btn {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: var(--radius-sm, 6px);
+      color: var(--color-text-muted);
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      padding: 3px 8px;
+      margin-top: 4px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+      white-space: nowrap;
+    }
+    .seguir-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+    .seguir-btn.seguindo { color: var(--color-secondary); border-color: var(--color-secondary); }
     .historico-painel {
       display: none;
       grid-column: 1 / -1;
@@ -618,6 +633,8 @@ let buscaQuery  = '';
 let jogoAtual = null;   // { id, nome, slug }
 let entradas  = [];     // lista completa e não-filtrada do jogo atual
 let sseSource = null;   // EventSource ativo
+let usuarioAtual = null; // sessão de visitante (docs/SEGUIR_SPEC.md) — null = deslogado
+let seguindoIds  = new Set(); // ids que o visitante logado já segue
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -627,6 +644,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('link-voltar').href = hrefComEvento;
     document.getElementById('link-participar').href = hrefComEvento;
   }
+  await carregarSessaoESeguindo();
   await carregarJogos();
   conectarControlesBuscaEPaginacao();
 });
@@ -885,11 +903,74 @@ function renderRanking(lista, novaEntradaId = null, offset = 0) {
           <div class="player-score-value">${entry.pontuacao.toLocaleString('pt-BR')}</div>
           <div class="player-score-label">pts</div>
           <button class="historico-btn" onclick="toggleHistorico(this, '${jogoAtual.slug}', '${escapar(entry.nick)}')">▾ histórico</button>
+          ${botaoSeguirHtml(entry)}
         </div>
         <div class="historico-painel"></div>
       </div>
     `;
   }).join('');
+}
+
+// ── SEGUIR (docs/SEGUIR_SPEC.md) ────────────────────────────────────────────
+// entry.user_id só existe pra quem enviou o score logado — placar
+// anônimo não tem conta pra seguir. Visibilidade cross-marca é
+// aceitável (decisão #7): é o mesmo dado de ranking já público.
+
+async function carregarSessaoESeguindo() {
+  try {
+    const respSessao = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
+    if (!respSessao.ok) return;
+    usuarioAtual = await respSessao.json();
+
+    const respSeguindo = await fetch(`${API_URL}/api/perfil/seguindo`, { credentials: 'include' });
+    if (respSeguindo.ok) {
+      const seguindo = await respSeguindo.json();
+      seguindoIds = new Set(seguindo.map(s => s.id));
+    }
+  } catch { /* segue deslogado, sem quebrar a página */ }
+}
+
+function botaoSeguirHtml(entry) {
+  if (!usuarioAtual || !entry.user_id || entry.user_id === usuarioAtual.id) return '';
+  const jaSegue = seguindoIds.has(entry.user_id);
+  return `
+    <button class="seguir-btn ${jaSegue ? 'seguindo' : ''}" data-user-id="${entry.user_id}"
+            onclick="toggleSeguir(this)">
+      ${jaSegue ? '✓ seguindo' : '+ seguir'}
+    </button>
+  `;
+}
+
+window.toggleSeguir = async function(btn) {
+  const userId  = btn.dataset.userId;
+  const jaSegue = seguindoIds.has(userId);
+  const path = jaSegue ? `/api/perfil/seguir/${userId}/cancelar` : `/api/perfil/seguir/${userId}`;
+
+  try {
+    const resp = await fetch(`${API_URL}${path}`, { method: 'POST', credentials: 'include' });
+    if (!resp.ok) { showToast('Não foi possível atualizar agora', 'error'); return; }
+
+    if (jaSegue) {
+      seguindoIds.delete(userId);
+      btn.classList.remove('seguindo');
+      btn.textContent = '+ seguir';
+      showToast('Deixou de seguir', 'success');
+    } else {
+      seguindoIds.add(userId);
+      btn.classList.add('seguindo');
+      btn.textContent = '✓ seguindo';
+      showToast('Agora você segue esse jogador!', 'success');
+    }
+  } catch {
+    showToast('Erro ao atualizar', 'error');
+  }
+};
+
+function showToast(msg, tipo = 'success') {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg; t.className = `toast ${tipo} show`;
+  clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 3000);
 }
 
 function renderLoading() {
@@ -1020,5 +1101,6 @@ document.addEventListener('keydown', function(e) {
   <button class="lightbox-fechar" onclick="fecharLightbox()">&times;</button>
   <img id="lightbox-img" src="" alt="Foto ampliada">
 </div>
+<div class="toast" id="toast"></div>
 </body>
 </html>

@@ -811,6 +811,7 @@ async function carregarSessao() {
     if (resp.ok) {
       usuarioAtual = await resp.json();
       renderContaLogado(usuarioAtual);
+      mostrarAtividadeDeQuemSigo();
     } else {
       usuarioAtual = null;
       renderContaDeslogado();
@@ -819,6 +820,23 @@ async function carregarSessao() {
     usuarioAtual = null;
     renderContaDeslogado();
   }
+}
+
+// Mensagem de superação (docs/SEGUIR_SPEC.md) — compilada aqui, no
+// momento em que a sessão é confirmada (decisão #5: não a cada envio
+// de score). Falha silenciosa: não é crítico pra usar a página.
+async function mostrarAtividadeDeQuemSigo() {
+  try {
+    const resp = await fetch(`${API_URL}/api/perfil/atividade`, { credentials: 'include' });
+    if (!resp.ok) return;
+    const atividade = await resp.json();
+
+    atividade.forEach((a, i) => {
+      setTimeout(() => {
+        showToast(`🏆 ${a.seguido_nome || 'Alguém que você segue'} te superou em ${a.jogo_nome}!`, 'success');
+      }, i * 3500);
+    });
+  } catch { /* silencioso — não é crítico */ }
 }
 
 function renderContaLogado(usuario) {

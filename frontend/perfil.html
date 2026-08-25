@@ -133,6 +133,41 @@
     }
     .pontuacoes-vazio { text-align: center; color: var(--color-text-muted); font-size: var(--text-sm); padding: var(--space-lg) 0; }
 
+    /* ── Seguir ── */
+    .seguir-tabs { display: flex; gap: var(--space-sm); margin-bottom: var(--space-md); }
+    .seguir-tab {
+      flex: 1;
+      background: var(--color-bg-surface2);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      font-weight: var(--weight-bold);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 8px;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .seguir-tab.active { color: var(--color-primary); border-color: var(--color-primary); }
+    .seguir-lista { display: flex; flex-direction: column; gap: 6px; }
+    .seguir-item {
+      display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm);
+      padding: 8px 12px;
+      background: var(--color-bg-surface2);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--color-border);
+    }
+    .seguir-item-nome { font-size: var(--text-sm); }
+    .seguir-item-desde { font-size: var(--text-xs); color: var(--color-text-muted); }
+    .seguir-item-acao {
+      background: none; border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm); color: var(--color-text-muted);
+      font-size: var(--text-xs); padding: 4px 10px; cursor: pointer;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    .seguir-item-acao:hover { border-color: var(--color-error); color: var(--color-error); }
+
     /* ── Ações / exclusão ── */
     .acao-leve { border-color: rgba(240,192,64,0.3); }
     .acao-perigo {
@@ -379,6 +414,21 @@ async function renderPerfil() {
       </div>
     </div>
 
+    <div class="perfil-card animate-slide-up">
+      <div class="perfil-card-titulo">👥 SEGUINDO</div>
+      <div class="perfil-card-desc">
+        Siga jogadores a partir do ranking (botão "+ seguir" nas pontuações) — quando alguém que
+        você segue te superar num jogo que vocês dois jogam, você vê aqui no próximo login.
+      </div>
+      <div class="seguir-tabs">
+        <button class="seguir-tab active" data-lista="seguindo" onclick="trocarAbaSeguir(this)">Sigo</button>
+        <button class="seguir-tab" data-lista="seguidores" onclick="trocarAbaSeguir(this)">Me seguem</button>
+      </div>
+      <div class="seguir-lista" id="seguir-lista">
+        <div class="carregando">Carregando...</div>
+      </div>
+    </div>
+
     <div class="perfil-card acao-leve animate-slide-up">
       <div class="perfil-card-titulo">⬇ DESATIVAR PONTUAÇÕES</div>
       <div class="perfil-card-desc">
@@ -393,6 +443,7 @@ async function renderPerfil() {
   `;
 
   carregarPontuacoes();
+  carregarSeguir('seguindo');
 }
 
 function optionsEstados(atual) {
@@ -511,6 +562,66 @@ async function carregarPontuacoes() {
     el.innerHTML = `<div class="pontuacoes-vazio">Erro ao carregar pontuações</div>`;
   }
 }
+
+// ── SEGUIR (docs/SEGUIR_SPEC.md) ────────────────────────────────────────────
+let abaSeguirAtual = 'seguindo';
+
+window.trocarAbaSeguir = function(btn) {
+  document.querySelectorAll('.seguir-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  carregarSeguir(btn.dataset.lista);
+};
+
+async function carregarSeguir(lista) {
+  abaSeguirAtual = lista;
+  const el = document.getElementById('seguir-lista');
+  el.innerHTML = `<div class="carregando">Carregando...</div>`;
+
+  const path = lista === 'seguindo' ? '/api/perfil/seguindo' : '/api/perfil/seguidores';
+  try {
+    const resp = await apiFetch(path);
+    if (!resp.ok) { el.innerHTML = `<div class="pontuacoes-vazio">Erro ao carregar</div>`; return; }
+    const pessoas = await resp.json();
+
+    if (pessoas.length === 0) {
+      el.innerHTML = `<div class="pontuacoes-vazio">${lista === 'seguindo' ? 'Você ainda não segue ninguém.' : 'Ninguém te segue ainda.'}</div>`;
+      return;
+    }
+
+    el.innerHTML = pessoas.map(p => {
+      const nome  = p.nome || p.email || 'Jogador';
+      const desde = new Date(p.seguindo_desde).toLocaleDateString('pt-BR');
+      const acao  = lista === 'seguindo'
+        ? `<button class="seguir-item-acao" onclick="pararDeSeguir('${p.id}')">deixar de seguir</button>`
+        : '';
+      return `
+        <div class="seguir-item">
+          <div>
+            <div class="seguir-item-nome">${escapar(nome)}</div>
+            <div class="seguir-item-desde">desde ${desde}</div>
+          </div>
+          ${acao}
+        </div>
+      `;
+    }).join('');
+  } catch {
+    el.innerHTML = `<div class="pontuacoes-vazio">Erro ao carregar</div>`;
+  }
+}
+
+window.pararDeSeguir = async function(userId) {
+  try {
+    const resp = await apiFetch(`/api/perfil/seguir/${userId}/cancelar`, 'POST');
+    if (resp.ok) {
+      showToast('Deixou de seguir', 'success');
+      carregarSeguir(abaSeguirAtual);
+    } else {
+      showToast('Erro ao atualizar', 'error');
+    }
+  } catch {
+    showToast('Erro ao atualizar', 'error');
+  }
+};
 
 window.desativarPontuacoes = async function() {
   if (!confirm('Desativar TODAS as suas pontuações? Elas somem do ranking, mas isso é reversível — um admin pode restaurar depois.')) return;
