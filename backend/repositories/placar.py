@@ -43,6 +43,36 @@ async def criar(pool: Pool, nome: str, slug: str) -> dict:
     return dict(row)
 
 
+async def resolver_marca_id(pool: Pool, placar_id: str) -> str | None:
+    """
+    Marca 'efetiva' de um placar customizado, SE todos os eventos
+    vinculados (placar_eventos) pertencerem à mesma marca — caso comum
+    de uso real (ex: Hall da Fama só com eventos da Canal3). Se os
+    eventos vinculados forem de marcas diferentes, ou não houver nenhum
+    ainda, retorna None. O placar 'global' também sempre retorna None
+    aqui — não usa placar_eventos (agrega tudo, sem filtro), não
+    pertence a nenhuma marca.
+
+    None é tratado por quem chama como "só super pode operar" — ver
+    routers/teloes_admin.py. Não existe hoje um jeito de um admin de
+    marca "reivindicar" um placar customizado multi-marca; é decisão
+    consciente de simplificação, não suportada ainda pelo schema
+    (placares não tem marca_id próprio).
+    """
+    rows = await pool.fetch(
+        """
+        SELECT DISTINCT e.marca_id
+        FROM placar_eventos pe
+        JOIN eventos e ON e.id = pe.evento_id
+        WHERE pe.placar_id = $1
+        """,
+        placar_id,
+    )
+    if len(rows) != 1:
+        return None
+    return str(rows[0]["marca_id"])
+
+
 async def listar_eventos_do_placar(pool: Pool, placar_id: str) -> list[dict]:
     """Eventos vinculados a um placar customizado (ativos e inativos)."""
     rows = await pool.fetch(
