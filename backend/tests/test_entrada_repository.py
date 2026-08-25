@@ -43,6 +43,17 @@ async def test_marcar_pendente_identificacao_ambigua(fake_pool):
     assert "arquivado = false" in sql
 
 
+@pytest.mark.asyncio
+async def test_listar_pendentes_expoe_pendente_motivo(fake_pool):
+    """Sem isso o painel admin não consegue distinguir 'rate_limit' de
+    'identificacao_ambigua' (decisão #7 do NICKNAME_SPEC.md)."""
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_pendentes(fake_pool)
+
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.pendente_motivo" in sql
+
+
 # ── lazy-archive embutido em listar_pendentes/contar_pendentes (decisão #8) ─
 
 @pytest.mark.asyncio

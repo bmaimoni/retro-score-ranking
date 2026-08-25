@@ -131,6 +131,7 @@ async def listar_pendentes(
         """
         SELECT
             e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.criado_em,
+            e.pendente_motivo,
             j.nome AS jogo_nome, j.slug AS jogo_slug,
             -- Melhor score atual deste nick neste jogo (no ranking)
             (
