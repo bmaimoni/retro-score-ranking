@@ -110,17 +110,36 @@ diferente) do que descobrir tarde que "arquivar" não bastava.
 
 ---
 
-## 7. Próximos passos (implementação — não iniciada)
+## 7. Próximos passos (implementação)
 
-1. Migração: `users.status` ganha `'excluido'` no `CHECK`; campo de
-   "solicitado em" pra controlar a janela de 30 dias.
+1. [x] Migração: `users.status` ganha `'excluido'` no `CHECK`; campo
+   `exclusao_solicitada_em` pra controlar a janela de 30 dias — feito na
+   migration 020.
 2. Backend: endpoint de solicitar exclusão (bloqueia na hora se
-   `dono_user_id` de alguma marca); rotina de anonimização (roda após 30
-   dias, cobrindo `users` + `identities.email` + `magic_link_tokens.email`
-   — e qualquer campo pessoal novo adicionado depois); revogação em
-   cascata de sessões e `admin_vinculos` no momento da confirmação.
+   `dono_user_id` de alguma marca); rotina de anonimização cobrindo
+   `users` + `identities.email` + `magic_link_tokens.email` — e qualquer
+   campo pessoal novo adicionado depois; revogação em cascata de sessões
+   e `admin_vinculos` no momento da anonimização.
 3. Frontend: distinguir claramente "desativar pontuações" de "excluir
    conta" na UI — nunca no mesmo botão/fluxo.
 4. Testes: trava de titularidade (dono não consegue excluir sem
    transferir primeiro), rotina de anonimização cobrindo as 3 tabelas,
    cancelamento dentro da janela de 30 dias revertendo o pedido.
+
+**Decisão adicional, resolvendo "roda após 30 dias" sem infraestrutura
+de job agendado** (mesmo princípio de `NICKNAME_SPEC.md` §4 — o projeto
+nunca teve cron): ao contrário da fila de identificação ambígua (que usa
+checagem preguiçosa embutida numa listagem já existente), a anonimização
+de conta é **manual, disparada por `super`, sem prazo garantido** —
+mesmo padrão da decisão #15 do `NICKNAME_SPEC.md` pras pontuações nunca
+identificadas. Razão de não usar checagem preguiçosa aqui: não existe
+hoje nenhuma tela admin que um `super` abra rotineiramente e que sirva
+de gancho natural (diferente da fila de pendentes, que já é visitada o
+tempo todo); depender só do próprio usuário excluído logar de novo não
+garante nada (ele pode nunca mais voltar, e o dado nunca seria
+anonimizado). `GET /api/admin/exclusoes-pendentes` lista quem solicitou,
+há quanto tempo, e quem já passou dos 30 dias (`elegivel=true`);
+`POST /api/admin/usuarios/{id}/processar-exclusao` dispara a anonimização
+daquele usuário — bloqueado se ainda dentro da janela, ou se a pessoa se
+tornou `dono_user_id` de alguma marca depois de solicitar (checagem
+repetida no momento de processar, não só no momento de solicitar).
