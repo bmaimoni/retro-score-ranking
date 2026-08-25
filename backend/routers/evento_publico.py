@@ -233,7 +233,7 @@ async def upload_evento(
     nick_normalizado = nick_svc.normalizar_nick(nick)
     try:
         await auth_svc.verificar_e_reivindicar_nick(
-            pool, nick_normalizado, usuario["id"] if usuario else None
+            pool, nick, nick_normalizado, usuario["id"] if usuario else None
         )
     except auth_svc.NickJaReivindicadoError as exc:
         raise HTTPException(status_code=409, detail=str(exc))

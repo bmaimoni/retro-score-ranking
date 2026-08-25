@@ -14,6 +14,8 @@ from fastapi import Depends, HTTPException, Request
 from config import get_settings
 from utils.db import get_pool
 import auth.repository as auth_repo
+import repositories.entrada as entrada_repo
+import services.nick as nick_svc
 
 log = structlog.get_logger()
 
@@ -24,6 +26,11 @@ GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 
 class NickJaReivindicadoError(Exception):
     """Nick pertence a outra conta — quem está enviando não é o dono."""
+
+
+class NickTrocaEmCooldownError(Exception):
+    """Última troca de nick foi há menos de 30 dias (decisão #6 do
+    docs/NICKNAME_SPEC.md) — não conta a primeira reivindicação."""
 
 
 def normalizar_email(email: str) -> str:
@@ -235,14 +242,32 @@ async def sessao_obrigatoria(usuario: dict | None = Depends(sessao_opcional)) ->
     return usuario
 
 
-# ── Reivindicação de nick (AUTH_SPEC.md §3, §4.3) ──────────────────
+# ── Reivindicação de nick (AUTH_SPEC.md §3, §4.3; NICKNAME_SPEC.md) ────
 
-async def verificar_e_reivindicar_nick(pool, nick_norm: str, user_id: str | None) -> None:
+async def _processar_novo_claim(pool, nick_norm: str, user_id: str, ja_teve_dono: bool) -> None:
+    """
+    Roda toda vez que um nick_claims novo é criado com sucesso — seja
+    claim implícito no upload, seja troca explícita no perfil. Decisões
+    #7/#11 do docs/NICKNAME_SPEC.md:
+      - Nunca teve dono (ja_teve_dono=False): vincula retroativamente
+        qualquer pontuação órfã com esse nick_norm.
+      - Já teve dono antes, foi liberado, está sendo reivindicado de
+        novo (ja_teve_dono=True): NÃO vincula — só sinaliza pro
+        moderador as entradas sem identificação nenhuma.
+    """
+    if ja_teve_dono:
+        await entrada_repo.marcar_pendente_identificacao_ambigua(pool, nick_norm)
+    else:
+        await entrada_repo.vincular_retroativamente(pool, nick_norm, user_id)
+
+
+async def verificar_e_reivindicar_nick(pool, nick: str, nick_norm: str, user_id: str | None) -> None:
     """
     Modelo de claim, escopo plataforma inteira:
-      - Sem sessão (user_id=None): bloqueia só se o nick já tiver dono.
-        Nicks livres continuam funcionando exatamente como antes de a
-        autenticação existir.
+      - Sem sessão (user_id=None): bloqueia só se o nick já tiver dono
+        ATIVO. Nicks livres (nunca reivindicados, ou liberados)
+        continuam funcionando exatamente como antes de a autenticação
+        existir.
       - Com sessão: nick livre -> reivindica pro user_id atual.
                     nick já é do user_id atual -> segue normal.
                     nick é de outro usuário -> bloqueia (409).
@@ -257,7 +282,9 @@ async def verificar_e_reivindicar_nick(pool, nick_norm: str, user_id: str | None
         return
 
     if claim is None:
-        await auth_repo.criar_nick_claim(pool, nick_norm, user_id)
+        ja_teve_dono = await auth_repo.nick_ja_foi_reivindicado_alguma_vez(pool, nick_norm)
+        await auth_repo.criar_nick_claim(pool, nick, nick_norm, user_id)
+        await _processar_novo_claim(pool, nick_norm, user_id, ja_teve_dono)
         return
 
     if claim["user_id"] != user_id:
@@ -265,3 +292,44 @@ async def verificar_e_reivindicar_nick(pool, nick_norm: str, user_id: str | None
             "Esse nick já tem dono — faça login com a conta certa, ou escolha outro nick."
         )
     # claim["user_id"] == user_id -> já é do próprio usuário, segue normal
+
+
+# ── Troca de nick pelo perfil (NICKNAME_SPEC.md) ───────────────────────
+
+async def trocar_nick(pool, user_id: str, novo_nick: str, *, ignorar_cooldown: bool = False) -> dict:
+    """
+    Troca deliberada de nick, iniciada no perfil — distinta do claim
+    implícito de upload. Libera o nick atual (se houver) e reivindica
+    o novo, respeitando cooldown de 30 dias (decisão #6) — exceto a
+    primeira reivindicação de uma conta nova, que nunca conta como
+    troca (sem claim atual = nada a liberar, nada de cooldown).
+
+    ignorar_cooldown=True é usado só pela troca forçada por
+    admin/moderador (decisão #9) — nunca exposto ao próprio usuário.
+    """
+    novo_nick_norm = nick_svc.normalizar_nick(novo_nick)
+    claim_atual = await auth_repo.buscar_claim_ativo_do_usuario(pool, user_id)
+
+    if claim_atual and claim_atual["nick_norm"] == novo_nick_norm:
+        return claim_atual  # já é o nick atual — no-op
+
+    if claim_atual and claim_atual["em_cooldown"] and not ignorar_cooldown:
+        raise NickTrocaEmCooldownError(
+            "Você só pode trocar de nick a cada 30 dias — sua última troca foi recente."
+        )
+
+    colisao = await auth_repo.buscar_nick_claim(pool, novo_nick_norm)
+    if colisao and colisao["user_id"] != user_id:
+        raise NickJaReivindicadoError(
+            "Esse nick já tem dono — escolha outro."
+        )
+
+    ja_teve_dono = await auth_repo.nick_ja_foi_reivindicado_alguma_vez(pool, novo_nick_norm)
+
+    if claim_atual:
+        await auth_repo.liberar_claim(pool, claim_atual["id"])
+
+    nova_claim = await auth_repo.criar_nick_claim(pool, novo_nick, novo_nick_norm, user_id)
+    await _processar_novo_claim(pool, novo_nick_norm, user_id, ja_teve_dono)
+
+    return nova_claim

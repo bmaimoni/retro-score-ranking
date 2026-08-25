@@ -7,6 +7,8 @@ import repositories.entrada as entrada_repo
 import repositories.jogo as jogo_repo
 import repositories.admin_vinculo as admin_vinculo_repo
 import repositories.evento_jogo as evento_jogo_repo
+import auth.repository as auth_repo
+import auth.service as auth_svc
 import structlog
 
 log = structlog.get_logger()
@@ -30,6 +32,9 @@ class CriarJogo(BaseModel):
 class AtualizarJogo(BaseModel):
     ativo: bool | None = None
     score_max: int | None = None
+
+class ForcarTrocaNick(BaseModel):
+    novo_nick: str
 
 
 async def _resolver_evento_ids_admin(
@@ -492,3 +497,56 @@ async def restaurar_ranking(
 
     log.info("ranking_restaurado", jogo_id=body.jogo_id, total=count, moderador=moderador.identificador)
     return {"ok": True, "total_restauradas": count}
+
+
+# ── MODERAÇÃO DE NICK (NICKNAME_SPEC.md decisões #4/#9/#10) ────────────────────
+
+@router.get("/usuarios/{user_id}/nicks")
+async def historico_nicks(
+    user_id: str,
+    pool=Depends(get_pool),
+    _: AdminContext = Depends(require_admin),
+):
+    """Histórico de nicks do usuário — decisão #4: painel de moderação
+    mostra o histórico completo, não só o nick da entrada isolada
+    sendo revisada."""
+    return await auth_repo.listar_historico_nicks(pool, user_id)
+
+
+@router.post("/usuarios/{user_id}/trocar-nick")
+async def forcar_troca_nick(
+    user_id: str,
+    body: ForcarTrocaNick,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """
+    Admin/moderador troca o nick de qualquer jogador, sem respeitar o
+    cooldown de 30 dias — uso previsto: nick ofensivo/impróprio,
+    especialmente relevante por exibição pública em telão (decisão #9).
+    Toda troca forçada fica auditada (decisão #10) — nome antigo, nome
+    novo, quem forçou, quando.
+    """
+    claim_atual = await auth_repo.buscar_claim_ativo_do_usuario(pool, user_id)
+
+    try:
+        nova_claim = await auth_svc.trocar_nick(pool, user_id, body.novo_nick, ignorar_cooldown=True)
+    except auth_svc.NickJaReivindicadoError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+    if claim_atual and nova_claim["id"] == claim_atual["id"]:
+        return nova_claim  # no-op — já era esse nick, nada a auditar
+
+    await auth_repo.registrar_troca_forcada(
+        pool, user_id=user_id,
+        nick_anterior=claim_atual["nick"] if claim_atual else None,
+        nick_novo=body.novo_nick, realizado_por=admin.identificador,
+    )
+
+    log.info(
+        "nick_trocado_forcado", user_id=user_id,
+        nick_anterior=claim_atual["nick"] if claim_atual else None,
+        nick_novo=body.novo_nick, admin=admin.identificador,
+    )
+
+    return nova_claim

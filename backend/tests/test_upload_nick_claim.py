@@ -168,7 +168,9 @@ async def test_logado_nick_livre_e_reivindicado(client):
         patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")),
         patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)),
         patch("auth.repository.buscar_nick_claim", AsyncMock(return_value=None)),
+        patch("auth.repository.nick_ja_foi_reivindicado_alguma_vez", AsyncMock(return_value=False)),
         patch("auth.repository.criar_nick_claim", AsyncMock()),
+        patch("repositories.entrada.vincular_retroativamente", AsyncMock()),
     ]
     with _apply(patches):
         resp = await client.post(URL,

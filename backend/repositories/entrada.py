@@ -97,6 +97,28 @@ async def contar_feed_admin(pool: Pool, evento_ids: list[str] | None = None) -> 
     )
 
 
+async def _arquivar_identificacao_ambigua_expirada(pool: Pool) -> None:
+    """
+    Decisão #8 do docs/NICKNAME_SPEC.md, resolvida sem job agendado
+    (NICKNAME_SPEC.md §4, mesmo princípio da decisão #15 — o projeto
+    nunca teve cron): checagem preguiçosa, embutida toda vez que a fila
+    de pendentes é consultada. Arquiva na hora qualquer entrada
+    pendente_motivo='identificacao_ambigua' com mais de 30 dias — só
+    "expira" de fato quando alguém abre o painel admin, não por relógio.
+    Entradas pendente_motivo='rate_limit' não têm prazo, não são tocadas.
+    """
+    await pool.execute(
+        """
+        UPDATE entradas
+        SET arquivado = true, arquivado_em = now(),
+            arquivado_por = 'sistema (prazo de 30 dias expirado)'
+        WHERE pendente = true AND pendente_motivo = 'identificacao_ambigua'
+          AND criado_em < now() - interval '30 days'
+          AND arquivado = false
+        """
+    )
+
+
 async def listar_pendentes(
     pool: Pool,
     limit: int = 50,
@@ -104,6 +126,7 @@ async def listar_pendentes(
     evento_ids: list[str] | None = None,
 ) -> list[dict]:
     """evento_ids: mesmo filtro opcional de listar_feed_admin."""
+    await _arquivar_identificacao_ambigua_expirada(pool)
     rows = await pool.fetch(
         """
         SELECT
@@ -155,6 +178,7 @@ async def listar_pendentes(
 
 async def contar_pendentes(pool: Pool, evento_ids: list[str] | None = None) -> int:
     """Total de entradas pendentes — para paginação."""
+    await _arquivar_identificacao_ambigua_expirada(pool)
     return await pool.fetchval(
         """
         SELECT COUNT(*) FROM entradas e
@@ -224,6 +248,41 @@ async def buscar_por_id(pool: Pool, entrada_id: str) -> dict | None:
         entrada_id,
     )
     return dict(row) if row else None
+
+
+async def vincular_retroativamente(pool: Pool, nick_norm: str, user_id: str) -> int:
+    """
+    Decisão #11 do docs/NICKNAME_SPEC.md: reivindicar um nick pela
+    primeira vez (nunca teve dono antes) vincula automaticamente
+    qualquer pontuação antiga com esse nick_norm que ainda não tinha
+    user_id — sem fila de revisão, sem mecanismo novo. Retorna quantas
+    entradas foram vinculadas.
+    """
+    result = await pool.execute(
+        "UPDATE entradas SET user_id = $2 WHERE nick_norm = $1 AND user_id IS NULL",
+        nick_norm, user_id,
+    )
+    return int(result.split()[-1])
+
+
+async def marcar_pendente_identificacao_ambigua(pool: Pool, nick_norm: str) -> int:
+    """
+    Decisão #7 do docs/NICKNAME_SPEC.md: um nick liberado sendo
+    reivindicado de novo não vincula ninguém automaticamente — só as
+    entradas antigas SEM user_id e SEM nome (nenhuma identificação)
+    entram em fila de revisão do moderador. Entradas já pendentes ou
+    arquivadas não são reabertas. Retorna quantas foram marcadas.
+    """
+    result = await pool.execute(
+        """
+        UPDATE entradas
+        SET pendente = true, pendente_motivo = 'identificacao_ambigua'
+        WHERE nick_norm = $1 AND user_id IS NULL AND nome IS NULL
+          AND pendente = false AND arquivado = false
+        """,
+        nick_norm,
+    )
+    return int(result.split()[-1])
 
 
 async def historico_nick(pool: Pool, jogo_id: str, nick_norm: str) -> list[dict]:

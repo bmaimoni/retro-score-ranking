@@ -97,31 +97,104 @@ async def criar_identity(
     return dict(row)
 
 
-# ── nick_claims ────────────────────────────────────────────────
+# ── nick_claims (ver docs/NICKNAME_SPEC.md — troca com soft-release) ────
 
 async def buscar_nick_claim(pool: Pool, nick_norm: str) -> dict | None:
+    """Só o claim ATIVO — um nick liberado (ativo=false) não bloqueia
+    mais ninguém (decisão #5 do NICKNAME_SPEC.md). Índice único parcial
+    (migration 020) já garante isso no banco; esta query espelha a
+    mesma regra pra checagem em aplicação."""
     row = await pool.fetchrow(
-        "SELECT id, nick_norm, user_id, criado_em FROM nick_claims WHERE nick_norm = $1",
+        "SELECT id, nick, nick_norm, user_id, ativo, criado_em FROM nick_claims "
+        "WHERE nick_norm = $1 AND ativo = true",
         nick_norm,
     )
     return dict(row) if row else None
 
 
-async def criar_nick_claim(pool: Pool, nick_norm: str, user_id: str) -> dict:
+async def nick_ja_foi_reivindicado_alguma_vez(pool: Pool, nick_norm: str) -> bool:
+    """True se já existe QUALQUER linha (ativa ou não) pra este
+    nick_norm — distingue 'primeira reivindicação de sempre' (decisão
+    #11: vincula retroativamente) de 'nick liberado sendo reivindicado
+    de novo' (decisão #7: fila de identificação ambígua)."""
+    return await pool.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM nick_claims WHERE nick_norm = $1)",
+        nick_norm,
+    )
+
+
+async def buscar_claim_ativo_do_usuario(pool: Pool, user_id: str) -> dict | None:
+    """O 'nick atual do perfil' — claim ativo mais recente do usuário
+    (decisão #2 do NICKNAME_SPEC.md). em_cooldown = true se foi criado
+    há menos de 30 dias (decisão #6) — calculado no banco pra evitar
+    diferença de fuso entre app e Postgres."""
+    row = await pool.fetchrow(
+        """
+        SELECT id, nick, nick_norm, user_id, ativo, criado_em,
+               (criado_em > now() - interval '30 days') AS em_cooldown
+        FROM nick_claims
+        WHERE user_id = $1 AND ativo = true
+        ORDER BY criado_em DESC
+        LIMIT 1
+        """,
+        user_id,
+    )
+    return dict(row) if row else None
+
+
+async def criar_nick_claim(pool: Pool, nick: str, nick_norm: str, user_id: str) -> dict:
     """
     Reivindica um nick. Levanta erro de unique constraint se outro
-    user_id já tiver reivindicado — o service decide o que fazer com
-    isso (ver services/nick_claim.py).
+    user_id já tiver um claim ATIVO desse nick_norm — o service decide
+    o que fazer com isso.
     """
     row = await pool.fetchrow(
         """
-        INSERT INTO nick_claims (nick_norm, user_id)
-        VALUES ($1, $2)
-        RETURNING id, nick_norm, user_id, criado_em
+        INSERT INTO nick_claims (nick, nick_norm, user_id)
+        VALUES ($1, $2, $3)
+        RETURNING id, nick, nick_norm, user_id, ativo, criado_em
         """,
-        nick_norm, user_id,
+        nick, nick_norm, user_id,
     )
     return dict(row)
+
+
+async def liberar_claim(pool: Pool, claim_id: str) -> None:
+    """Libera um claim (ativo=false) — nunca DELETE (decisão #5)."""
+    await pool.execute(
+        "UPDATE nick_claims SET ativo = false WHERE id = $1", claim_id
+    )
+
+
+async def listar_historico_nicks(pool: Pool, user_id: str) -> list[dict]:
+    """Histórico completo de nicks do usuário (ativos e liberados),
+    mais recente primeiro — decisão #4 do docs/NICKNAME_SPEC.md: painel
+    de moderação mostra o histórico, não só o nick da entrada isolada."""
+    rows = await pool.fetch(
+        """
+        SELECT id, nick, nick_norm, ativo, criado_em
+        FROM nick_claims
+        WHERE user_id = $1
+        ORDER BY criado_em DESC
+        """,
+        user_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def registrar_troca_forcada(
+    pool: Pool, user_id: str, nick_anterior: str | None, nick_novo: str, realizado_por: str
+) -> None:
+    """Auditoria de troca de nick forçada por admin/moderador (decisão
+    #10 do docs/NICKNAME_SPEC.md) — log append-only, nunca editável."""
+    await pool.execute(
+        """
+        INSERT INTO nick_troca_forcada_auditoria
+            (user_id, nick_anterior, nick_novo, realizado_por)
+        VALUES ($1, $2, $3, $4)
+        """,
+        user_id, nick_anterior, nick_novo, realizado_por,
+    )
 
 
 # ── sessions ───────────────────────────────────────────────────

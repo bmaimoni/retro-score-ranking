@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from main import app
 from utils.db import get_pool
+import auth.service as auth_svc
 
 SESSION_COOKIE = "canal3_session"
 
@@ -50,14 +51,34 @@ async def test_ver_perfil_com_sessao(client):
     app.dependency_overrides[get_pool] = lambda: pool
     usuario = _usuario_sessao()
     perfil = _perfil(id=usuario["id"])
+    claim = {"id": make_uuid(), "nick": "Campeao", "nick_norm": "campeao", "user_id": usuario["id"], "ativo": True, "criado_em": "2026-01-01"}
 
     client.cookies.set(SESSION_COOKIE, "sessao-valida")
     with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
-         patch("repositories.usuario.buscar_perfil", AsyncMock(return_value=perfil)):
+         patch("repositories.usuario.buscar_perfil", AsyncMock(return_value=perfil)), \
+         patch("auth.repository.buscar_claim_ativo_do_usuario", AsyncMock(return_value=claim)):
         resp = await client.get("/api/perfil")
 
     assert resp.status_code == 200
     assert resp.json()["id"] == usuario["id"]
+    assert resp.json()["nick_atual"] == "Campeao"
+
+
+@pytest.mark.asyncio
+async def test_ver_perfil_sem_nick_reivindicado(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+    perfil = _perfil(id=usuario["id"])
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.usuario.buscar_perfil", AsyncMock(return_value=perfil)), \
+         patch("auth.repository.buscar_claim_ativo_do_usuario", AsyncMock(return_value=None)):
+        resp = await client.get("/api/perfil")
+
+    assert resp.status_code == 200
+    assert resp.json()["nick_atual"] is None
 
 
 # ── PATCH /api/perfil ────────────────────────────────────────────────────────
@@ -133,5 +154,71 @@ async def test_atualizar_perfil_com_avatar_desativado_retorna_422(client):
     with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
          patch("repositories.avatar.buscar_por_id", AsyncMock(return_value=avatar_inativo)):
         resp = await client.patch("/api/perfil", json={"avatar_id": avatar_id})
+
+    assert resp.status_code == 422
+
+
+# ── POST /api/perfil/nick — troca deliberada (NICKNAME_SPEC.md) ────────────────
+
+@pytest.mark.asyncio
+async def test_trocar_nick_sem_sessao_retorna_401(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.post("/api/perfil/nick", json={"nick": "NovoNick"})
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_trocar_nick_sucesso(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+    nova_claim = {"id": make_uuid(), "nick": "NovoNick", "nick_norm": "novonick", "user_id": usuario["id"], "ativo": True, "criado_em": "2026-01-01"}
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("auth.service.trocar_nick", AsyncMock(return_value=nova_claim)) as trocar_mock:
+        resp = await client.post("/api/perfil/nick", json={"nick": "NovoNick"})
+
+    assert resp.status_code == 201
+    assert resp.json()["nick"] == "NovoNick"
+    trocar_mock.assert_called_once_with(pool, usuario["id"], "NovoNick")
+
+
+@pytest.mark.asyncio
+async def test_trocar_nick_em_cooldown_retorna_429(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("auth.service.trocar_nick", AsyncMock(side_effect=auth_svc.NickTrocaEmCooldownError("cooldown"))):
+        resp = await client.post("/api/perfil/nick", json={"nick": "NovoNick"})
+
+    assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_trocar_nick_colisao_retorna_409(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("auth.service.trocar_nick", AsyncMock(side_effect=auth_svc.NickJaReivindicadoError("já tem dono"))):
+        resp = await client.post("/api/perfil/nick", json={"nick": "Ocupado"})
+
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_trocar_nick_vazio_retorna_422(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    usuario = _usuario_sessao()
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)):
+        resp = await client.post("/api/perfil/nick", json={"nick": "   "})
 
     assert resp.status_code == 422

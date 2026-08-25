@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from main import app
 from utils.db import get_pool
 from middleware.auth import require_admin, AdminContext
+import auth.service as auth_svc
 
 ADMIN_SECRET = "test-secret-123"
 AUTH_HEADER  = {"Authorization": f"Bearer {ADMIN_SECRET}"}
@@ -816,3 +817,88 @@ async def test_mesclar_jogo_sucesso(client):
     assert resp.status_code == 200
     assert resp.json()["ativo"] is False
     mesclar_mock.assert_called_once()
+
+
+# ── Moderação de nick (NICKNAME_SPEC.md decisões #4/#9/#10) ────────────────────
+
+@pytest.mark.asyncio
+async def test_historico_nicks(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    user_id = make_uuid()
+    historico = [{"id": make_uuid(), "nick": "NickNovo", "nick_norm": "nicknovo", "ativo": True, "criado_em": "2026-02-01"}]
+
+    with patch("auth.repository.listar_historico_nicks", AsyncMock(return_value=historico)):
+        resp = await client.get(f"/api/admin/usuarios/{user_id}/nicks", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_forcar_troca_nick_grava_auditoria(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    user_id = make_uuid()
+    claim_atual = {"id": make_uuid(), "nick": "Ofensivo", "nick_norm": "ofensivo", "user_id": user_id, "ativo": True, "criado_em": "2026-01-01", "em_cooldown": True}
+    nova_claim = {"id": make_uuid(), "nick": "Corrigido", "nick_norm": "corrigido", "user_id": user_id, "ativo": True, "criado_em": "2026-02-01"}
+
+    with patch("auth.repository.buscar_claim_ativo_do_usuario", AsyncMock(return_value=claim_atual)), \
+         patch("auth.service.trocar_nick", AsyncMock(return_value=nova_claim)), \
+         patch("auth.repository.registrar_troca_forcada", AsyncMock()) as auditoria_mock:
+        resp = await client.post(f"/api/admin/usuarios/{user_id}/trocar-nick",
+            json={"novo_nick": "Corrigido"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    auditoria_mock.assert_called_once()
+    assert auditoria_mock.call_args.kwargs["nick_anterior"] == "Ofensivo"
+    assert auditoria_mock.call_args.kwargs["nick_novo"] == "Corrigido"
+    assert auditoria_mock.call_args.kwargs["realizado_por"] == "admin"
+
+
+@pytest.mark.asyncio
+async def test_forcar_troca_nick_ignora_cooldown(client):
+    """A chamada de forcar_troca_nick pra auth_svc.trocar_nick precisa
+    ir com ignorar_cooldown=True — é a diferença central da troca
+    forçada (decisão #9)."""
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    user_id = make_uuid()
+    nova_claim = {"id": make_uuid(), "nick": "Corrigido", "nick_norm": "corrigido", "user_id": user_id, "ativo": True, "criado_em": "2026-02-01"}
+
+    with patch("auth.repository.buscar_claim_ativo_do_usuario", AsyncMock(return_value=None)), \
+         patch("auth.service.trocar_nick", AsyncMock(return_value=nova_claim)) as trocar_mock, \
+         patch("auth.repository.registrar_troca_forcada", AsyncMock()):
+        resp = await client.post(f"/api/admin/usuarios/{user_id}/trocar-nick",
+            json={"novo_nick": "Corrigido"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    trocar_mock.assert_called_once()
+    assert trocar_mock.call_args.kwargs.get("ignorar_cooldown") is True
+
+
+@pytest.mark.asyncio
+async def test_forcar_troca_nick_sem_mudanca_nao_audita(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    user_id = make_uuid()
+    claim_id = make_uuid()
+    claim_atual = {"id": claim_id, "nick": "MesmoNick", "nick_norm": "mesmonick", "user_id": user_id, "ativo": True, "criado_em": "2026-01-01", "em_cooldown": True}
+
+    with patch("auth.repository.buscar_claim_ativo_do_usuario", AsyncMock(return_value=claim_atual)), \
+         patch("auth.service.trocar_nick", AsyncMock(return_value=claim_atual)), \
+         patch("auth.repository.registrar_troca_forcada", AsyncMock()) as auditoria_mock:
+        resp = await client.post(f"/api/admin/usuarios/{user_id}/trocar-nick",
+            json={"novo_nick": "MesmoNick"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    auditoria_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_forcar_troca_nick_colisao_retorna_409(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    user_id = make_uuid()
+
+    with patch("auth.repository.buscar_claim_ativo_do_usuario", AsyncMock(return_value=None)), \
+         patch("auth.service.trocar_nick", AsyncMock(side_effect=auth_svc.NickJaReivindicadoError("já tem dono"))):
+        resp = await client.post(f"/api/admin/usuarios/{user_id}/trocar-nick",
+            json={"novo_nick": "Ocupado"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 409
