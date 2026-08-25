@@ -7,12 +7,13 @@
 > produção, seguindo o mesmo processo já usado no projeto inteiro: migração
 > testada localmente → aplicada → backend → testes → frontend → validação.
 
-Próxima migração livre: **`021`**.
+Próxima migração livre: **`024`**.
 
-**Fase 1 concluída** (migração 019 aplicada em produção, backend e frontend
-prontos — ver `docs/PERMISSOES_SPEC.md` §7). **Fase 2 concluída** (migrações
-020-022, backend e frontend prontos — ver `docs/NICKNAME_SPEC.md` e
-`docs/EXCLUSAO_CONTA_SPEC.md`). Próxima: Fase 3.
+**Fase 1 concluída** (migração 019, ver `docs/PERMISSOES_SPEC.md` §7).
+**Fase 2 concluída** (migrações 020-022, ver `docs/NICKNAME_SPEC.md` e
+`docs/EXCLUSAO_CONTA_SPEC.md`). **Fase 3 concluída** (migração 023, ver
+`docs/SEGUIR_SPEC.md`). Todas aplicadas em produção, backend e frontend
+prontos. Próxima: Fase 4.
 
 ---
 
@@ -93,19 +94,29 @@ mais os itens de avatar/campos de perfil documentados direto em
 
 ---
 
-## Fase 3 — Seguir e Feed de Atividade
+## Fase 3 — Seguir e Feed de Atividade ✅ concluída
 
 **Spec**: `docs/SEGUIR_SPEC.md`
 **Depende de**: nada crítico (só precisa que a tela de perfil exista —
 pode ser feita junto com a Fase 2, na prática, mas é logicamente
 independente)
 
-- Migração: `seguidores` (nova).
-- Backend: seguir/deixar de seguir; comparação de melhor score entre
-  seguidor e seguido, compilada no login (usa `users.ultimo_login_em`,
-  já existe).
-- Frontend: perfil ganha listas "sigo" / "me seguem", e a mensagem de
-  superação ao logar.
+- [x] Migração 023: `seguidores` (nova).
+- [x] Backend: seguir/deixar de seguir (soft, `ativo=false` — achado na
+  implementação, não estava no §4 original mas segue a convenção do
+  projeto); `GET /api/perfil/atividade` compila a comparação de melhor
+  score. Achado na implementação: `users.ultimo_login_em` não podia mais
+  ser atualizado no momento do login em si (login via Google é redirect,
+  sem como devolver o feed computado nessa resposta) — a atualização foi
+  deslocada pra dentro do próprio `GET /api/perfil/atividade`, que lê o
+  valor anterior, compila, só então avança. `listar_ranking`/
+  `listar_ranking_por_evento` (públicas) passaram a expor `user_id`,
+  pré-requisito pro botão de seguir existir.
+- [x] Frontend: `perfil.html` ganha card "Seguindo" (abas Sigo/Me seguem);
+  `ranking.html` ganha botão "+ seguir" por entrada identificada (único
+  jeito de descobrir quem seguir, sem diretório de jogadores);
+  `index.html` mostra a mensagem de superação como toast ao confirmar
+  sessão.
 
 ---
 
