@@ -118,14 +118,19 @@ async def quem_sou_eu(pool=Depends(get_pool), admin: AdminContext = Depends(requ
     pelo frontend logo após o login pra saber se é super-admin (vê
     tudo, sem seletor de evento) ou admin escopado (precisa escolher
     entre os eventos que ele tem acesso). Cada evento em `eventos` já
-    carrega `nivel` (admin/moderador) — o frontend usa isso pra esconder
-    ações que o nível atual não permite (docs/PERMISSOES_SPEC.md §7 item 5).
+    carrega `nivel` (admin/moderador); `vinculos` traz o mesmo nível por
+    marca_id direto (cobre marca sem evento nenhum ainda, que não
+    apareceria em `eventos`) — o frontend usa isso pra esconder ações
+    que o nível atual não permite (docs/PERMISSOES_SPEC.md §7 item 5).
     """
     if admin.super:
-        return {"identificador": admin.identificador, "super": True, "eventos": []}
+        return {"identificador": admin.identificador, "super": True, "eventos": [], "vinculos": []}
 
     eventos = await admin_vinculo_repo.listar_eventos_acessiveis_detalhado(pool, admin.user_id)
-    return {"identificador": admin.identificador, "super": False, "eventos": eventos}
+    return {
+        "identificador": admin.identificador, "super": False,
+        "eventos": eventos, "vinculos": admin.vinculos,
+    }
 
 
 # ── MODERAÇÃO DE ENTRADAS ─────────────────────────────────────────────────────
@@ -261,9 +266,18 @@ async def atualizar_jogo(
     jogo_id: UUID4,
     body: AtualizarJogo,
     pool=Depends(get_pool),
-    _: str = Depends(require_admin),
+    admin: AdminContext = Depends(require_admin),
 ):
-    """Ativa/desativa um jogo ou atualiza seu score_max."""
+    """Ativa/desativa um jogo ou atualiza seu score_max. Mesma regra de
+    criar_jogo — moderador nunca edita jogo (decisão #1 do
+    docs/PERMISSOES_SPEC.md), achado incidental: este endpoint não
+    tinha checagem nenhuma além de estar autenticado."""
+    if not admin.super and not any(v["nivel"] == "admin" for v in admin.vinculos):
+        raise HTTPException(
+            status_code=403,
+            detail="Moderador não pode editar jogos — só admin ou super-admin",
+        )
+
     jogo = await jogo_repo.atualizar(pool, str(jogo_id), body.ativo, body.score_max)
     if not jogo:
         raise HTTPException(status_code=404, detail="Jogo não encontrado ou nada para atualizar")

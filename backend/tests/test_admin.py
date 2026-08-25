@@ -203,6 +203,61 @@ async def test_criar_jogo_slug_duplicado_retorna_409(client):
     assert resp.status_code == 409
 
 
+@pytest.mark.asyncio
+async def test_atualizar_jogo_super(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.jogo.atualizar", AsyncMock(return_value=make_jogo())):
+        resp = await client.patch(f"/api/admin/jogos/{make_uuid()}",
+                                  json={"ativo": False}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_atualizar_jogo_admin_escopado(client):
+    """Admin (não só super) também edita jogo — a régua é 'não é
+    moderador', não 'é super' (decisão #1 do PERMISSOES_SPEC.md)."""
+    admin_de_marca = AdminContext(
+        identificador="admin@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": make_uuid(), "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_marca
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.jogo.atualizar", AsyncMock(return_value=make_jogo())):
+        resp = await client.patch(f"/api/admin/jogos/{make_uuid()}", json={"ativo": False})
+
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_atualizar_jogo_moderador_retorna_403(client):
+    """Achado incidental: este endpoint não tinha checagem nenhuma além
+    de estar autenticado — moderador editava/desativava qualquer jogo."""
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": make_uuid(), "nivel": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.patch(f"/api/admin/jogos/{make_uuid()}", json={"ativo": False})
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_atualizar_jogo_inexistente_retorna_404(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.jogo.atualizar", AsyncMock(return_value=None)):
+        resp = await client.patch(f"/api/admin/jogos/{make_uuid()}",
+                                  json={"ativo": False}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 404
+
+
 # ── Config ────────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -515,6 +570,25 @@ async def test_me_super_admin(client):
     assert data["super"] is True
     assert data["identificador"] == "admin"
     assert data["eventos"] == []
+    assert data["vinculos"] == []
+
+
+@pytest.mark.asyncio
+async def test_me_admin_escopado_expoe_vinculos_por_marca(client):
+    """vinculos cobre marca sem evento nenhum ainda (que não apareceria
+    em eventos) — frontend usa isso pra esconder ações por nível."""
+    escopado = AdminContext(
+        identificador="pessoa@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": "m1", "nivel": "admin"}, {"marca_id": "m2", "nivel": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: escopado
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.admin_vinculo.listar_eventos_acessiveis_detalhado", AsyncMock(return_value=[])):
+        resp = await client.get("/api/admin/me")
+
+    assert resp.status_code == 200
+    assert resp.json()["vinculos"] == [{"marca_id": "m1", "nivel": "admin"}, {"marca_id": "m2", "nivel": "moderador"}]
 
 
 @pytest.mark.asyncio
