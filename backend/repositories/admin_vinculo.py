@@ -1,18 +1,21 @@
 """
 Repository de admin_vinculos — vincula um usuário a um escopo de
-administração (super/marca/evento).
+administração (super/marca) e, quando escopo='marca', a um nível
+(admin/moderador) que cascateia pra todos os eventos daquela marca.
 
-Ver docs/MARCAS_SPEC.md §6 para o desenho completo.
+Ver docs/PERMISSOES_SPEC.md para o desenho completo (migration 019 —
+substitui o modelo anterior de docs/MARCAS_SPEC.md §6, que incluía
+escopo='evento').
 """
 from asyncpg import Pool
 
 
 async def listar_por_usuario(pool: Pool, user_id: str) -> list[dict]:
     """Vínculos ativos de um usuário — usado pelo middleware de auth
-    pra decidir o que ele pode administrar."""
+    pra montar o AdminContext (super + nível por marca)."""
     rows = await pool.fetch(
         """
-        SELECT id, user_id, escopo, marca_id, evento_id, ativo, criado_em
+        SELECT id, user_id, escopo, marca_id, nivel, ativo, criado_em
         FROM admin_vinculos
         WHERE user_id = $1 AND ativo = true
         """,
@@ -28,12 +31,10 @@ async def listar_todos(pool: Pool) -> list[dict]:
         """
         SELECT av.id, av.user_id, u.email, u.nome,
                av.escopo, av.marca_id, m.nome AS marca_nome,
-               av.evento_id, e.nome AS evento_nome,
-               av.ativo, av.criado_em
+               av.nivel, av.ativo, av.criado_em
         FROM admin_vinculos av
         JOIN users u ON u.id = av.user_id
         LEFT JOIN marcas  m ON m.id = av.marca_id
-        LEFT JOIN eventos e ON e.id = av.evento_id
         ORDER BY av.criado_em DESC
         """
     )
@@ -44,25 +45,23 @@ async def criar(
     pool: Pool,
     user_id: str,
     escopo: str,
+    nivel: str | None = None,
     marca_id: str | None = None,
-    evento_id: str | None = None,
 ) -> dict:
     """
-    Cria um vínculo. Se já existir (mesmo user_id+escopo+alvo, mesmo
-    que inativo), reativa em vez de duplicar — mesmo padrão de
-    evento_jogos/placar_eventos (idx_admin_vinculos_unico garante isso
-    no banco).
+    Cria um vínculo. Se já existir (mesmo user_id+escopo+marca, mesmo
+    que inativo), reativa em vez de duplicar — e atualiza o nível pro
+    valor informado (idx_admin_vinculos_unico garante isso no banco).
     """
     row = await pool.fetchrow(
         """
-        INSERT INTO admin_vinculos (user_id, escopo, marca_id, evento_id)
+        INSERT INTO admin_vinculos (user_id, escopo, marca_id, nivel)
         VALUES ($1, $2, $3, $4)
-        ON CONFLICT (user_id, escopo, COALESCE(marca_id, '00000000-0000-0000-0000-000000000000'),
-                                       COALESCE(evento_id, '00000000-0000-0000-0000-000000000000'))
-        DO UPDATE SET ativo = true
-        RETURNING id, user_id, escopo, marca_id, evento_id, ativo, criado_em
+        ON CONFLICT (user_id, escopo, COALESCE(marca_id, '00000000-0000-0000-0000-000000000000'))
+        DO UPDATE SET ativo = true, nivel = $4
+        RETURNING id, user_id, escopo, marca_id, nivel, ativo, criado_em
         """,
-        user_id, escopo, marca_id, evento_id,
+        user_id, escopo, marca_id, nivel,
     )
     return dict(row)
 
@@ -74,9 +73,23 @@ async def atualizar_ativo(pool: Pool, vinculo_id: str, ativo: bool) -> dict | No
         """
         UPDATE admin_vinculos SET ativo = $2
         WHERE id = $1
-        RETURNING id, user_id, escopo, marca_id, evento_id, ativo, criado_em
+        RETURNING id, user_id, escopo, marca_id, nivel, ativo, criado_em
         """,
         vinculo_id, ativo,
+    )
+    return dict(row) if row else None
+
+
+async def buscar_por_id(pool: Pool, vinculo_id: str) -> dict | None:
+    """Um vínculo específico — usado pelas checagens de revogação
+    (precisa saber marca_id/user_id/nivel antes de decidir se quem
+    está revogando pode)."""
+    row = await pool.fetchrow(
+        """
+        SELECT id, user_id, escopo, marca_id, nivel, ativo, criado_em
+        FROM admin_vinculos WHERE id = $1
+        """,
+        vinculo_id,
     )
     return dict(row) if row else None
 
@@ -84,8 +97,10 @@ async def atualizar_ativo(pool: Pool, vinculo_id: str, ativo: bool) -> dict | No
 async def tem_acesso_evento(pool: Pool, user_id: str, evento_id: str) -> bool:
     """
     True se o usuário tem QUALQUER vínculo que autorize agir sobre este
-    evento: super, ou marca (cujo marca_id bate com a marca do evento),
-    ou evento (direto). Uma única query cobre os 3 casos.
+    evento: super, ou marca (cujo marca_id bate com a marca do evento).
+    Não distingue nível aqui — moderador também "tem acesso" (modera o
+    feed); checagem de nível (admin vs. moderador) é feita à parte, pra
+    ações que exigem admin.
     """
     row = await pool.fetchrow(
         """
@@ -96,8 +111,7 @@ async def tem_acesso_evento(pool: Pool, user_id: str, evento_id: str) -> bool:
           AND av.ativo   = true
           AND (
                 av.escopo = 'super'
-             OR (av.escopo = 'marca'  AND av.marca_id  = e.marca_id)
-             OR (av.escopo = 'evento' AND av.evento_id = e.id)
+             OR (av.escopo = 'marca' AND av.marca_id = e.marca_id)
           )
         LIMIT 1
         """,
@@ -109,17 +123,14 @@ async def tem_acesso_evento(pool: Pool, user_id: str, evento_id: str) -> bool:
 async def listar_eventos_acessiveis(pool: Pool, user_id: str) -> list[str]:
     """
     IDs de todos os eventos que o usuário pode administrar — usado pra
-    filtrar feed/pendentes quando o admin não é super (ver
-    docs/MARCAS_SPEC.md §6, efeito colateral em feed/pendentes).
+    filtrar feed/pendentes quando o admin não é super.
     """
     rows = await pool.fetch(
         """
         SELECT DISTINCT e.id
         FROM eventos e
-        JOIN admin_vinculos av ON (
-             av.escopo = 'evento' AND av.evento_id = e.id
-          OR av.escopo = 'marca'  AND av.marca_id  = e.marca_id
-        )
+        JOIN admin_vinculos av
+          ON av.escopo = 'marca' AND av.marca_id = e.marca_id
         WHERE av.user_id = $1 AND av.ativo = true
         """,
         user_id,
@@ -136,13 +147,39 @@ async def listar_eventos_acessiveis_detalhado(pool: Pool, user_id: str) -> list[
         """
         SELECT DISTINCT e.id, e.nome, e.slug
         FROM eventos e
-        JOIN admin_vinculos av ON (
-             av.escopo = 'evento' AND av.evento_id = e.id
-          OR av.escopo = 'marca'  AND av.marca_id  = e.marca_id
-        )
+        JOIN admin_vinculos av
+          ON av.escopo = 'marca' AND av.marca_id = e.marca_id
         WHERE av.user_id = $1 AND av.ativo = true
         ORDER BY e.nome
         """,
         user_id,
     )
     return [dict(r) for r in rows]
+
+
+async def registrar_auditoria(
+    pool: Pool,
+    acao: str,
+    user_alvo_id: str,
+    realizado_por: str,
+    marca_id: str | None = None,
+    nivel: str | None = None,
+    detalhes: dict | None = None,
+) -> None:
+    """
+    Grava uma linha em admin_vinculos_auditoria — toda concessão,
+    revogação ou transferência de titularidade passa por aqui (decisão
+    #12 do PERMISSOES_SPEC.md). Log append-only: sem retorno, sem
+    UPDATE/DELETE possível pelo app_user.
+    """
+    import json
+
+    await pool.execute(
+        """
+        INSERT INTO admin_vinculos_auditoria
+            (acao, marca_id, user_alvo_id, realizado_por, nivel, detalhes)
+        VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+        """,
+        acao, marca_id, user_alvo_id, realizado_por, nivel,
+        json.dumps(detalhes) if detalhes is not None else None,
+    )

@@ -2,6 +2,9 @@
 Testes de routers/admin_vinculos.py — só super-admin gerencia vínculos
 de outros administradores. Criação é por e-mail (não user_id) — a
 pessoa precisa já ter logado alguma vez.
+
+Ver docs/PERMISSOES_SPEC.md (migration 019 — nivel por marca no lugar
+de evento_id/escopo='evento').
 """
 import uuid
 import pytest
@@ -11,7 +14,10 @@ from utils.db import get_pool
 from middleware.auth import require_admin, AdminContext
 
 SUPER_CTX  = AdminContext(identificador="admin", user_id=None, super=True)
-ESCOPADO_CTX = AdminContext(identificador="pessoa@x.com", user_id="u-escopado", super=False)
+ESCOPADO_CTX = AdminContext(
+    identificador="pessoa@x.com", user_id="u-escopado", super=False,
+    vinculos=[{"marca_id": "m1", "nivel": "admin"}],
+)
 
 
 def make_uuid():
@@ -25,8 +31,8 @@ def _usuario(email="pessoa@x.com"):
 
 def _vinculo(**overrides):
     base = {
-        "id": make_uuid(), "user_id": make_uuid(), "escopo": "evento",
-        "marca_id": None, "evento_id": make_uuid(), "ativo": True,
+        "id": make_uuid(), "user_id": make_uuid(), "escopo": "marca",
+        "marca_id": make_uuid(), "nivel": "admin", "ativo": True,
         "criado_em": "2026-01-01T00:00:00",
     }
     base.update(overrides)
@@ -84,12 +90,31 @@ async def test_criar_vinculo_super(client):
     usuario = _usuario()
 
     with patch("auth.repository.buscar_usuario_por_email", AsyncMock(return_value=usuario)), \
-         patch("repositories.admin_vinculo.criar", AsyncMock(return_value=_vinculo(escopo="super", evento_id=None))):
+         patch("repositories.admin_vinculo.criar", AsyncMock(return_value=_vinculo(escopo="super", marca_id=None, nivel=None))):
         resp = await client.post("/api/admin/vinculos",
             json={"email": usuario["email"], "escopo": "super"})
 
     assert resp.status_code == 201
     assert resp.json()["escopo"] == "super"
+
+
+@pytest.mark.asyncio
+async def test_criar_vinculo_marca_com_nivel(client):
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario()
+    marca_id = make_uuid()
+
+    criar_mock = AsyncMock(return_value=_vinculo(escopo="marca", marca_id=marca_id, nivel="moderador"))
+    with patch("auth.repository.buscar_usuario_por_email", AsyncMock(return_value=usuario)), \
+         patch("repositories.admin_vinculo.criar", criar_mock):
+        resp = await client.post("/api/admin/vinculos",
+            json={"email": usuario["email"], "escopo": "marca", "marca_id": marca_id, "nivel": "moderador"})
+
+    assert resp.status_code == 201
+    assert resp.json()["nivel"] == "moderador"
+    criar_mock.assert_called_once_with(pool, usuario["id"], "marca", "moderador", marca_id)
 
 
 @pytest.mark.asyncio
@@ -103,7 +128,7 @@ async def test_criar_vinculo_email_normalizado_antes_da_busca(client):
     buscar_mock = AsyncMock(return_value=usuario)
 
     with patch("auth.repository.buscar_usuario_por_email", buscar_mock), \
-         patch("repositories.admin_vinculo.criar", AsyncMock(return_value=_vinculo(escopo="super", evento_id=None))):
+         patch("repositories.admin_vinculo.criar", AsyncMock(return_value=_vinculo(escopo="super", marca_id=None, nivel=None))):
         await client.post("/api/admin/vinculos",
             json={"email": "  Pessoa@X.com  ", "escopo": "super"})
 
@@ -132,30 +157,30 @@ async def test_criar_vinculo_marca_sem_marca_id_retorna_422(client):
     app.dependency_overrides[get_pool] = lambda: MagicMock()
 
     resp = await client.post("/api/admin/vinculos",
-        json={"email": "x@x.com", "escopo": "marca"})
+        json={"email": "x@x.com", "escopo": "marca", "nivel": "admin"})
 
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_criar_vinculo_evento_sem_evento_id_retorna_422(client):
+async def test_criar_vinculo_marca_sem_nivel_retorna_422(client):
     app.dependency_overrides[require_admin] = lambda: SUPER_CTX
     app.dependency_overrides[get_pool] = lambda: MagicMock()
 
     resp = await client.post("/api/admin/vinculos",
-        json={"email": "x@x.com", "escopo": "evento"})
+        json={"email": "x@x.com", "escopo": "marca", "marca_id": make_uuid()})
 
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_criar_vinculo_super_com_evento_id_retorna_422(client):
-    """super não aceita marca_id/evento_id junto — inconsistência clara."""
+async def test_criar_vinculo_super_com_nivel_retorna_422(client):
+    """super não aceita marca_id/nivel junto — inconsistência clara."""
     app.dependency_overrides[require_admin] = lambda: SUPER_CTX
     app.dependency_overrides[get_pool] = lambda: MagicMock()
 
     resp = await client.post("/api/admin/vinculos",
-        json={"email": "x@x.com", "escopo": "super", "evento_id": make_uuid()})
+        json={"email": "x@x.com", "escopo": "super", "nivel": "admin"})
 
     assert resp.status_code == 422
 
@@ -172,6 +197,30 @@ async def test_criar_vinculo_escopo_invalido_retorna_422(client):
 
 
 @pytest.mark.asyncio
+async def test_criar_vinculo_escopo_evento_nao_existe_mais_retorna_422(client):
+    """escopo='evento' foi eliminado na migration 019 — não é mais um
+    valor aceito (era válido antes)."""
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/vinculos",
+        json={"email": "x@x.com", "escopo": "evento", "marca_id": make_uuid()})
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_criar_vinculo_nivel_invalido_retorna_422(client):
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/vinculos",
+        json={"email": "x@x.com", "escopo": "marca", "marca_id": make_uuid(), "nivel": "super-moderador"})
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_criar_vinculo_email_invalido_retorna_422(client):
     app.dependency_overrides[require_admin] = lambda: SUPER_CTX
     app.dependency_overrides[get_pool] = lambda: MagicMock()
@@ -183,8 +232,8 @@ async def test_criar_vinculo_email_invalido_retorna_422(client):
 
 
 @pytest.mark.asyncio
-async def test_criar_vinculo_evento_inexistente_retorna_404(client):
-    """Usuário existe, mas o evento_id apontado não — FK falha no banco."""
+async def test_criar_vinculo_marca_inexistente_retorna_404(client):
+    """Usuário existe, mas o marca_id apontado não — FK falha no banco."""
     app.dependency_overrides[require_admin] = lambda: SUPER_CTX
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
@@ -194,7 +243,7 @@ async def test_criar_vinculo_evento_inexistente_retorna_404(client):
          patch("repositories.admin_vinculo.criar",
                AsyncMock(side_effect=Exception("violates foreign key constraint"))):
         resp = await client.post("/api/admin/vinculos",
-            json={"email": usuario["email"], "escopo": "evento", "evento_id": make_uuid()})
+            json={"email": usuario["email"], "escopo": "marca", "marca_id": make_uuid(), "nivel": "admin"})
 
     assert resp.status_code == 404
 

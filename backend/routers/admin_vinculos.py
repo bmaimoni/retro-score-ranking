@@ -1,10 +1,12 @@
 """
-Router admin de admin_vinculos — requer super-admin.
+Router admin de admin_vinculos — hoje requer super-admin em toda rota.
 Prefixo: /api/admin/vinculos
 
-Ver docs/MARCAS_SPEC.md §6: só super-admin cria/remove vínculo de
-administração de outra pessoa. Um admin escopado (marca/evento) não
-pode conceder acesso a mais ninguém.
+NOTA: docs/PERMISSOES_SPEC.md decisão #5 prevê admin conceder/revogar
+vínculo dentro da própria marca (não só super) — ainda não implementado
+aqui, é o próximo incremento sobre este router. Por ora o comportamento
+é o herdado de MARCAS_SPEC.md §6 (só super), só com o schema atualizado
+pra migration 019 (nivel no lugar de evento_id/escopo='evento').
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, field_validator
@@ -15,20 +17,28 @@ import auth.repository as auth_repo
 
 router = APIRouter(prefix="/api/admin/vinculos", tags=["admin-vinculos"])
 
-ESCOPOS_VALIDOS = {"super", "marca", "evento"}
+ESCOPOS_VALIDOS = {"super", "marca"}
+NIVEIS_VALIDOS = {"admin", "moderador"}
 
 
 class VinculoCreate(BaseModel):
-    email:     EmailStr  # a pessoa precisa já ter logado alguma vez com este e-mail
-    escopo:    str
-    marca_id:  str | None = None
-    evento_id: str | None = None
+    email:    EmailStr  # a pessoa precisa já ter logado alguma vez com este e-mail
+    escopo:   str
+    marca_id: str | None = None
+    nivel:    str | None = None
 
     @field_validator("escopo")
     @classmethod
     def valida_escopo(cls, v):
         if v not in ESCOPOS_VALIDOS:
             raise ValueError(f"escopo deve ser um de {sorted(ESCOPOS_VALIDOS)}")
+        return v
+
+    @field_validator("nivel")
+    @classmethod
+    def valida_nivel(cls, v):
+        if v is not None and v not in NIVEIS_VALIDOS:
+            raise ValueError(f"nivel deve ser um de {sorted(NIVEIS_VALIDOS)}")
         return v
 
 
@@ -60,10 +70,10 @@ async def criar_vinculo(
 
     if dados.escopo == "marca" and not dados.marca_id:
         raise HTTPException(status_code=422, detail="escopo='marca' exige marca_id")
-    if dados.escopo == "evento" and not dados.evento_id:
-        raise HTTPException(status_code=422, detail="escopo='evento' exige evento_id")
-    if dados.escopo == "super" and (dados.marca_id or dados.evento_id):
-        raise HTTPException(status_code=422, detail="escopo='super' não aceita marca_id nem evento_id")
+    if dados.escopo == "marca" and not dados.nivel:
+        raise HTTPException(status_code=422, detail="escopo='marca' exige nivel")
+    if dados.escopo == "super" and (dados.marca_id or dados.nivel):
+        raise HTTPException(status_code=422, detail="escopo='super' não aceita marca_id nem nivel")
 
     usuario = await auth_repo.buscar_usuario_por_email(pool, dados.email.lower().strip())
     if not usuario:
@@ -75,11 +85,11 @@ async def criar_vinculo(
 
     try:
         return await admin_vinculo_repo.criar(
-            pool, usuario["id"], dados.escopo, dados.marca_id, dados.evento_id,
+            pool, usuario["id"], dados.escopo, dados.nivel, dados.marca_id,
         )
     except Exception as exc:
         if "foreign key" in str(exc).lower():
-            raise HTTPException(status_code=404, detail="Marca ou evento não encontrado")
+            raise HTTPException(status_code=404, detail="Marca não encontrada")
         raise
 
 

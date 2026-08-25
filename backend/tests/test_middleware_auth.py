@@ -1,8 +1,9 @@
 """
 Testes de middleware/auth.py — require_admin aceita dois caminhos
-(ver docs/MARCAS_SPEC.md §6):
+(ver docs/PERMISSOES_SPEC.md):
   1. Bearer <ADMIN_SECRET> — sempre super-admin (bootstrap).
-  2. Sessão de visitante com admin_vinculo — escopo conforme o vínculo.
+  2. Sessão de visitante com admin_vinculo — nível por marca (não mais
+     por evento — escopo='evento' foi eliminado na migration 019).
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -75,12 +76,12 @@ async def test_sessao_sem_vinculo_retorna_401(client):
 
 
 @pytest.mark.asyncio
-async def test_sessao_com_vinculo_evento_funciona_escopado(client):
+async def test_sessao_com_vinculo_marca_funciona_escopado(client):
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
-    usuario = {"id": "u1", "email": "admin-evento@x.com"}
-    vinculo = {"id": "v1", "user_id": "u1", "escopo": "evento",
-               "marca_id": None, "evento_id": "ev1", "ativo": True, "criado_em": "2026-01-01"}
+    usuario = {"id": "u1", "email": "admin-marca@x.com"}
+    vinculo = {"id": "v1", "user_id": "u1", "escopo": "marca",
+               "marca_id": "m1", "nivel": "admin", "ativo": True, "criado_em": "2026-01-01"}
 
     client.cookies.set("canal3_session", "sessao-valida")
     with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
@@ -100,7 +101,7 @@ async def test_sessao_com_vinculo_super(client):
     app.dependency_overrides[get_pool] = lambda: pool
     usuario = {"id": "u1", "email": "super@x.com"}
     vinculo = {"id": "v1", "user_id": "u1", "escopo": "super",
-               "marca_id": None, "evento_id": None, "ativo": True, "criado_em": "2026-01-01"}
+               "marca_id": None, "nivel": None, "ativo": True, "criado_em": "2026-01-01"}
 
     client.cookies.set("canal3_session", "sessao-valida")
     with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
@@ -126,3 +127,83 @@ async def test_sem_bearer_e_sem_cookie_retorna_401(client):
 def test_admin_context_str_e_o_identificador():
     ctx = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
     assert str(ctx) == "pessoa@x.com"
+
+
+# ── AdminContext: nível por marca (docs/PERMISSOES_SPEC.md) ──────────────────
+
+def test_super_e_admin_em_qualquer_marca():
+    ctx = AdminContext(identificador="admin", user_id=None, super=True)
+    assert ctx.nivel_na_marca("m-qualquer") == "admin"
+    assert ctx.eh_admin_na_marca("m-qualquer") is True
+    assert ctx.tem_acesso_na_marca("m-qualquer") is True
+
+
+def test_nivel_na_marca_bate_com_vinculo_do_usuario():
+    ctx = AdminContext(
+        identificador="pessoa@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": "m1", "nivel": "moderador"}],
+    )
+    assert ctx.nivel_na_marca("m1") == "moderador"
+    assert ctx.eh_admin_na_marca("m1") is False
+    assert ctx.tem_acesso_na_marca("m1") is True
+
+
+def test_nivel_na_marca_fora_do_vinculo_e_none():
+    """Admin de uma marca não tem nível nenhum noutra — isolamento
+    cross-marca é a garantia central deste modelo."""
+    ctx = AdminContext(
+        identificador="pessoa@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": "m1", "nivel": "admin"}],
+    )
+    assert ctx.nivel_na_marca("m2") is None
+    assert ctx.eh_admin_na_marca("m2") is False
+    assert ctx.tem_acesso_na_marca("m2") is False
+
+
+def test_admin_pode_ter_niveis_diferentes_em_marcas_diferentes():
+    """Mesma pessoa: admin numa marca, moderador noutra — granularidade
+    é por vínculo, não global (decisão #2 do PERMISSOES_SPEC.md)."""
+    ctx = AdminContext(
+        identificador="pessoa@x.com", user_id="u1", super=False,
+        vinculos=[
+            {"marca_id": "m1", "nivel": "admin"},
+            {"marca_id": "m2", "nivel": "moderador"},
+        ],
+    )
+    assert ctx.eh_admin_na_marca("m1") is True
+    assert ctx.eh_admin_na_marca("m2") is False
+    assert ctx.nivel_na_marca("m2") == "moderador"
+
+
+@pytest.mark.asyncio
+async def test_require_admin_monta_vinculos_so_com_escopo_marca(client):
+    """super via sessão não entra na lista de vinculos (nível por marca
+    não se aplica a super) — só os vínculos escopo='marca' viram
+    entradas em AdminContext.vinculos."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = {"id": "u1", "email": "pessoa@x.com"}
+    vinculos = [
+        {"id": "v1", "user_id": "u1", "escopo": "marca",
+         "marca_id": "m1", "nivel": "admin", "ativo": True, "criado_em": "2026-01-01"},
+        {"id": "v2", "user_id": "u1", "escopo": "marca",
+         "marca_id": "m2", "nivel": "moderador", "ativo": True, "criado_em": "2026-01-01"},
+    ]
+
+    from middleware.auth import require_admin as _require_admin
+
+    async def _fake_request():
+        class FakeRequest:
+            cookies = {"canal3_session": "sessao-valida"}
+            headers = {}
+        return FakeRequest()
+
+    request = await _fake_request()
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.admin_vinculo.listar_por_usuario", AsyncMock(return_value=vinculos)):
+        ctx = await _require_admin(request, pool)
+
+    assert ctx.super is False
+    assert ctx.eh_admin_na_marca("m1") is True
+    assert ctx.eh_admin_na_marca("m2") is False
+    assert ctx.nivel_na_marca("m2") == "moderador"

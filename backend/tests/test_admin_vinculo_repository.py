@@ -2,7 +2,8 @@
 Testes de repositories/admin_vinculo.py — CRUD e a função de checagem
 de acesso, que é o coração da autorização escopada.
 
-Ver docs/MARCAS_SPEC.md §6.
+Ver docs/PERMISSOES_SPEC.md (migration 019 — nivel por marca,
+escopo='evento' eliminado).
 """
 import uuid
 import pytest
@@ -18,7 +19,7 @@ async def test_listar_por_usuario_filtra_por_ativo(fake_pool):
     """Só vínculos ativos — inativos não devem contar pra autorização."""
     fake_pool.set_fetch([
         {"id": make_uuid(), "user_id": "u1", "escopo": "super",
-         "marca_id": None, "evento_id": None, "ativo": True, "criado_em": "2026-01-01"},
+         "marca_id": None, "nivel": None, "ativo": True, "criado_em": "2026-01-01"},
     ])
 
     resultado = await admin_vinculo_repo.listar_por_usuario(fake_pool, "u1")
@@ -32,7 +33,7 @@ async def test_listar_por_usuario_filtra_por_ativo(fake_pool):
 async def test_criar_vinculo_super(fake_pool):
     fake_pool.set_fetchrow({
         "id": make_uuid(), "user_id": "u1", "escopo": "super",
-        "marca_id": None, "evento_id": None, "ativo": True, "criado_em": "2026-01-01",
+        "marca_id": None, "nivel": None, "ativo": True, "criado_em": "2026-01-01",
     })
 
     resultado = await admin_vinculo_repo.criar(fake_pool, "u1", "super")
@@ -43,26 +44,40 @@ async def test_criar_vinculo_super(fake_pool):
 
 
 @pytest.mark.asyncio
-async def test_criar_vinculo_e_idempotente_via_on_conflict(fake_pool):
-    """A query usa ON CONFLICT ... DO UPDATE SET ativo=true — reativa em
-    vez de duplicar (mesmo padrão de evento_jogos/placar_eventos)."""
+async def test_criar_vinculo_marca_com_nivel(fake_pool):
     fake_pool.set_fetchrow({
-        "id": make_uuid(), "user_id": "u1", "escopo": "evento",
-        "marca_id": None, "evento_id": "ev1", "ativo": True, "criado_em": "2026-01-01",
+        "id": make_uuid(), "user_id": "u1", "escopo": "marca",
+        "marca_id": "m1", "nivel": "moderador", "ativo": True, "criado_em": "2026-01-01",
     })
 
-    await admin_vinculo_repo.criar(fake_pool, "u1", "evento", evento_id="ev1")
+    resultado = await admin_vinculo_repo.criar(fake_pool, "u1", "marca", nivel="moderador", marca_id="m1")
+
+    assert resultado["nivel"] == "moderador"
+    args = fake_pool.fetchrow.call_args[0]
+    assert args[1:] == ("u1", "marca", "m1", "moderador")
+
+
+@pytest.mark.asyncio
+async def test_criar_vinculo_e_idempotente_via_on_conflict(fake_pool):
+    """A query usa ON CONFLICT ... DO UPDATE SET ativo=true, nivel=$4 —
+    reativa (e atualiza nível) em vez de duplicar."""
+    fake_pool.set_fetchrow({
+        "id": make_uuid(), "user_id": "u1", "escopo": "marca",
+        "marca_id": "m1", "nivel": "admin", "ativo": True, "criado_em": "2026-01-01",
+    })
+
+    await admin_vinculo_repo.criar(fake_pool, "u1", "marca", nivel="admin", marca_id="m1")
 
     sql = " ".join(fake_pool.fetchrow.call_args[0][0].split())
     assert "ON CONFLICT" in sql
-    assert "DO UPDATE SET ativo = true" in sql
+    assert "DO UPDATE SET ativo = true, nivel = $4" in sql
 
 
 @pytest.mark.asyncio
 async def test_atualizar_ativo_desativa_sem_delete(fake_pool):
     fake_pool.set_fetchrow({
-        "id": "v1", "user_id": "u1", "escopo": "evento",
-        "marca_id": None, "evento_id": "ev1", "ativo": False, "criado_em": "2026-01-01",
+        "id": "v1", "user_id": "u1", "escopo": "marca",
+        "marca_id": "m1", "nivel": "admin", "ativo": False, "criado_em": "2026-01-01",
     })
 
     resultado = await admin_vinculo_repo.atualizar_ativo(fake_pool, "v1", False)
@@ -80,14 +95,33 @@ async def test_atualizar_ativo_vinculo_inexistente_retorna_none(fake_pool):
     assert resultado is None
 
 
+@pytest.mark.asyncio
+async def test_buscar_por_id(fake_pool):
+    fake_pool.set_fetchrow({
+        "id": "v1", "user_id": "u1", "escopo": "marca",
+        "marca_id": "m1", "nivel": "admin", "ativo": True, "criado_em": "2026-01-01",
+    })
+
+    resultado = await admin_vinculo_repo.buscar_por_id(fake_pool, "v1")
+
+    assert resultado["nivel"] == "admin"
+
+
+@pytest.mark.asyncio
+async def test_buscar_por_id_inexistente_retorna_none(fake_pool):
+    fake_pool.set_fetchrow(None)
+    resultado = await admin_vinculo_repo.buscar_por_id(fake_pool, "nao-existe")
+    assert resultado is None
+
+
 # ── tem_acesso_evento: a query central de autorização ──────────────────────────
 
 @pytest.mark.asyncio
-async def test_tem_acesso_evento_cobre_os_3_escopos_na_mesma_query(fake_pool):
+async def test_tem_acesso_evento_cobre_super_e_marca_na_mesma_query(fake_pool):
     """
-    Confirma que a query cobre super OR marca-bate OR evento-bate numa
-    query só, sem N+1 (uma checagem por request administrativo, não uma
-    por vínculo do usuário).
+    Confirma que a query cobre super OR marca-bate numa query só, sem
+    N+1. escopo='evento' foi eliminado (migration 019) — não deve mais
+    aparecer na query.
     """
     fake_pool.set_fetchrow({"?column?": 1})
 
@@ -96,7 +130,7 @@ async def test_tem_acesso_evento_cobre_os_3_escopos_na_mesma_query(fake_pool):
     sql = " ".join(fake_pool.fetchrow.call_args[0][0].split())
     assert "escopo = 'super'" in sql
     assert "escopo = 'marca'" in sql
-    assert "escopo = 'evento'" in sql
+    assert "escopo = 'evento'" not in sql
     assert "av.ativo   = true" in sql or "av.ativo = true" in sql
     assert resultado is True
 
@@ -117,3 +151,31 @@ async def test_listar_eventos_acessiveis(fake_pool):
 
     assert resultado == [id1, id2]
     assert all(isinstance(x, str) for x in resultado)
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "escopo = 'evento'" not in sql
+
+
+# ── auditoria ────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_registrar_auditoria_grava_insert_append_only(fake_pool):
+    await admin_vinculo_repo.registrar_auditoria(
+        fake_pool, "concedido", user_alvo_id="u1", realizado_por="dono@x.com",
+        marca_id="m1", nivel="admin", detalhes={"origem": "teste"},
+    )
+
+    sql = " ".join(fake_pool.execute.call_args[0][0].split())
+    args = fake_pool.execute.call_args[0]
+    assert "INSERT INTO admin_vinculos_auditoria" in sql
+    assert "UPDATE" not in sql and "DELETE" not in sql
+    assert args[1:5] == ("concedido", "m1", "u1", "dono@x.com")
+
+
+@pytest.mark.asyncio
+async def test_registrar_auditoria_detalhes_none_nao_serializa(fake_pool):
+    await admin_vinculo_repo.registrar_auditoria(
+        fake_pool, "revogado", user_alvo_id="u1", realizado_por="dono@x.com",
+    )
+
+    args = fake_pool.execute.call_args[0]
+    assert args[-1] is None
