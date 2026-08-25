@@ -66,24 +66,37 @@ colidir com ninguém.
 
 ---
 
-## 4. Modelo de dados (visão preliminar — detalhar na implementação)
+## 4. Modelo de dados (finalizado — migração 020)
 
 - `nick_claims.ativo boolean DEFAULT true` — soft-release em vez de
   `DELETE`. Índice único de `nick_norm` passa a ser parcial
   (`WHERE ativo = true`), permitindo o mesmo nick ter múltiplas linhas
   históricas (uma por dono ao longo do tempo), mas só uma ativa por vez.
-- `nick_claims` precisa de campo de "quando foi trocado" pra calcular a
-  janela de 30 dias (provavelmente `criado_em` já resolve, calculando a
-  partir da reivindicação ativa mais recente do `user_id`).
-- Nova tabela (ou extensão de `admin_vinculos_auditoria` com uma coluna de
-  tipo de ação, a definir na implementação) pra auditoria de troca forçada
-  por moderador: quem forçou, `user_id` afetado, nick antigo, nick novo,
-  quando.
-- Entradas que caem em fila de revisão por identificação ambígua
-  provavelmente reaproveitam `entradas.pendente` (mesmo mecanismo já usado
-  pro rate limit) — ou precisam de um motivo distinto (`pendente_motivo`)
-  se o painel de moderação precisar diferenciar "pendente por rate limit"
-  de "pendente por identificação ambígua". A definir na implementação.
+  `criado_em` já resolve o cálculo da janela de 30 dias — não precisa de
+  campo novo, é a reivindicação ativa mais recente do `user_id`.
+- Tabela nova `nick_troca_forcada_auditoria` (não reaproveita
+  `admin_vinculos_auditoria` — domínios diferentes, forçaria `marca_id`
+  e `nivel` a existirem sem sentido nenhum pra essa ação): `id`,
+  `user_id` (afetado), `nick_anterior`, `nick_novo`, `realizado_por`,
+  `criado_em`. Append-only, mesmo padrão de `admin_vinculos_auditoria`
+  (RLS + policy `app_user_all` desde a migração, só `INSERT`/`SELECT`
+  liberado pro `app_user`).
+- `entradas.pendente_motivo text CHECK (pendente_motivo IN ('rate_limit',
+  'identificacao_ambigua'))`, nullable. Backfill: toda `entradas` com
+  `pendente=true` hoje é `'rate_limit'` (único motivo que existia até
+  aqui — `SPEC.md` §5.2). Fila de identificação ambígua (decisão #7)
+  usa o mesmo campo `pendente`/`pendente_motivo`, sem tabela nova.
+- **Decisão adicional, resolvendo a decisão #8 sem infraestrutura de job
+  agendado** (o projeto nunca teve cron — toda ação até hoje é disparada
+  por clique humano, mesmo princípio da decisão #15): o prazo de 30 dias
+  sem resposta na fila de `identificacao_ambigua` é aplicado por
+  **checagem preguiçosa**, embutida na query que lista a fila de
+  pendentes no painel admin — toda vez que alguém abre o painel, entradas
+  daquela fila com mais de 30 dias (`criado_em`) são arquivadas ali,
+  na hora. Não roda por relógio; só "expira" de fato quando o painel é
+  aberto. Zero infraestrutura nova, ao custo de o arquivamento não ser
+  pontual se ninguém abrir o painel — aceitável dado que a fila em si já
+  é de baixo volume (só nicks liberados e reivindicados de novo).
 
 ---
 
