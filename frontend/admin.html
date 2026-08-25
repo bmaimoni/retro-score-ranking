@@ -151,7 +151,6 @@
     }
     .vinculo-escopo-tag.super  { background: var(--color-primary); color: var(--color-bg, #0b1331); }
     .vinculo-escopo-tag.marca  { background: var(--color-accent, #2a9d8f); color: #fff; }
-    .vinculo-escopo-tag.evento { background: var(--color-border); color: var(--color-text); }
     .vinculo-toggle-btn {
       font-size: var(--text-xs);
       background: none; border: 1px solid var(--color-border);
@@ -753,7 +752,7 @@
     </div>
     <div class="jogos-grid" id="jogos-list"></div>
 
-    <div class="criar-jogo-form">
+    <div class="criar-jogo-form" id="criar-jogo-form">
       <p class="form-title">+ Novo jogo</p>
       <div class="form-row">
         <div class="field">
@@ -832,15 +831,15 @@
       </p>
       <div id="eventos-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:var(--space-md)"></div>
 
-      <details style="margin-top:var(--space-md)">
+      <details style="margin-top:var(--space-md)" id="evento-form-details">
         <summary style="cursor:pointer;font-size:var(--text-xs);color:var(--color-text-muted);letter-spacing:0.08em">CRIAR NOVO EVENTO</summary>
         <div style="margin-top:var(--space-sm);display:flex;flex-direction:column;gap:var(--space-sm)">
           <input class="field-input" id="novo-evento-nome" placeholder="Nome do evento (ex: Canal3 Expo 2026)" maxlength="80">
           <input class="field-input" id="novo-evento-slug" placeholder="Slug (ex: canal3-expo-2026)" maxlength="40">
           <div class="field">
-            <label class="field-label" for="novo-evento-marca">Marca (opcional — herda cor/tipografia/logo)</label>
+            <label class="field-label" for="novo-evento-marca">Marca (obrigatório — herda cor/tipografia/logo)</label>
             <select class="field-input" id="novo-evento-marca">
-              <option value="">Nenhuma</option>
+              <option value="">Selecione…</option>
             </select>
           </div>
           <div style="display:flex;gap:var(--space-sm)">
@@ -967,18 +966,20 @@
       <div class="field" style="max-width:140px">
         <label class="field-label" for="vinculo-escopo">Escopo</label>
         <select class="field-input" id="vinculo-escopo" onchange="atualizarCamposVinculo()">
-          <option value="evento">Evento</option>
           <option value="marca">Marca</option>
           <option value="super">Super-admin</option>
         </select>
       </div>
-      <div class="field" id="vinculo-campo-evento" style="max-width:220px">
-        <label class="field-label" for="vinculo-evento">Evento</label>
-        <select class="field-input" id="vinculo-evento"></select>
-      </div>
-      <div class="field" id="vinculo-campo-marca" style="max-width:220px;display:none">
+      <div class="field" id="vinculo-campo-marca" style="max-width:220px">
         <label class="field-label" for="vinculo-marca">Marca</label>
         <select class="field-input" id="vinculo-marca"></select>
+      </div>
+      <div class="field" id="vinculo-campo-nivel" style="max-width:160px">
+        <label class="field-label" for="vinculo-nivel">Nível</label>
+        <select class="field-input" id="vinculo-nivel">
+          <option value="admin">Admin</option>
+          <option value="moderador">Moderador</option>
+        </select>
       </div>
       <button class="btn-primary" type="submit" style="width:auto;padding:0 var(--space-lg)">Adicionar</button>
     </form>
@@ -1016,8 +1017,49 @@ let configCarregada = false;
 // ── ESTADO ────────────────────────────────────────────────────────────────────
 let adminSecret = '';
 let authMode    = null;  // 'token' | 'session'
-let meInfo      = null;  // { identificador, super, eventos }
+let meInfo      = null;  // { identificador, super, eventos, vinculos }
 let eventoAtual = null;  // evento_id selecionado (admin escopado)
+
+// ── NÍVEL (docs/PERMISSOES_SPEC.md) ────────────────────────────────────────────
+// nível é por marca, não global — as funções abaixo resolvem o nível
+// certo pro contexto certo (evento selecionado, ou uma marca específica).
+
+function ehAdminEmAlgumaMarca() {
+  if (!meInfo) return false;
+  if (meInfo.super) return true;
+  return (meInfo.vinculos || []).some(v => v.nivel === 'admin');
+}
+
+function nivelDaMarca(marcaId) {
+  if (!meInfo) return null;
+  if (meInfo.super) return 'admin';
+  const v = (meInfo.vinculos || []).find(v => v.marca_id === marcaId);
+  return v ? v.nivel : null;
+}
+
+// Esconde (não só bloqueia depois do clique) ações que o nível atual
+// não permite — docs/PERMISSOES_SPEC.md §7 item 5. Cobre só os blocos
+// estáticos do HTML; listas renderizadas dinamicamente (jogos, eventos,
+// marcas) já checam nível linha a linha na hora de montar o HTML.
+function aplicarVisibilidadePorNivel() {
+  const super_ = !!(meInfo && meInfo.super);
+
+  const criarJogo = document.getElementById('criar-jogo-form');
+  if (criarJogo) criarJogo.style.display = ehAdminEmAlgumaMarca() ? '' : 'none';
+
+  const criarMarca = document.getElementById('marca-form-details');
+  if (criarMarca) criarMarca.style.display = super_ ? '' : 'none';
+
+  const criarEvento = document.getElementById('evento-form-details');
+  if (criarEvento) criarEvento.style.display = ehAdminEmAlgumaMarca() ? '' : 'none';
+
+  const manutPorJogo = document.getElementById('manut-por-jogo');
+  if (manutPorJogo) manutPorJogo.style.display = super_ ? '' : 'none';
+
+  const manutGeral = document.getElementById('manut-geral');
+  if (manutGeral) manutGeral.style.display = super_ ? '' : 'none';
+}
+
 let feedFilter  = 'todos';
 let feedData    = [];
 let pollTimer   = null;
@@ -1190,6 +1232,8 @@ function configurarIdentidadeEEscopo() {
     ? `<strong>${escapar(meInfo.identificador)}</strong><span class="badge-super">SUPER</span>`
     : `<strong>${escapar(meInfo.identificador)}</strong>`;
 
+  aplicarVisibilidadePorNivel();
+
   // Super-admin: sem seletor (vê tudo por padrão, igual sempre foi),
   // aba de Administradores visível.
   if (meInfo.super) {
@@ -1357,14 +1401,16 @@ function renderJogos(jogos) {
       </div>
       <div class="jogo-actions">
         <div style="display:flex;align-items:center;gap:var(--space-sm)">
+          ${meInfo && meInfo.super ? `
           <button class="btn-action btn-rejeitar btn-arquivar-jogo" data-id="${j.id}" data-nome="${j.nome}"
                   title="Arquivar ranking deste jogo" style="padding:4px 10px;font-size:10px">
             ⬇ Arquivar
-          </button>
+          </button>` : ''}
+          ${ehAdminEmAlgumaMarca() ? `
           <div class="toggle-ativo ${j.ativo !== false ? 'on' : ''}"
                data-id="${j.id}" data-ativo="${j.ativo !== false}"
                title="${j.ativo !== false ? 'Ativo — clique para desativar' : 'Inativo — clique para ativar'}">
-          </div>
+          </div>` : ''}
         </div>
       </div>
     </div>
@@ -1915,10 +1961,11 @@ async function carregarMarcas() {
             ${m.logo_url ? ` · logo definido` : ' · sem logo'}
           </div>
         </div>
+        ${(meInfo && meInfo.super) || nivelDaMarca(m.id) === 'admin' ? `
         <button class="btn-action btn-reativar" style="padding:4px 10px;font-size:10px"
                 onclick='editarMarca(${JSON.stringify(m).replace(/'/g, "&apos;")})'>
           Editar
-        </button>
+        </button>` : ''}
       </div>
     `).join('');
   } catch {
@@ -2015,10 +2062,15 @@ async function carregarEventos() {
     const eventos = await rEventos.json();
     marcasCacheEventos = rMarcas.ok ? await rMarcas.json() : [];
 
-    // Popula o <select> de marca no formulário de criação
+    // Popula o <select> de marca no formulário de criação — só com as
+    // marcas onde a pessoa é admin (moderador nunca cria evento; admin
+    // só na própria marca — docs/PERMISSOES_SPEC.md §4)
+    const marcasCriaveis = meInfo && meInfo.super
+      ? marcasCacheEventos
+      : marcasCacheEventos.filter(m => nivelDaMarca(m.id) === 'admin');
     const selectMarca = document.getElementById('novo-evento-marca');
-    selectMarca.innerHTML = '<option value="">Nenhuma</option>' +
-      marcasCacheEventos.map(m => `<option value="${m.id}">${escapar(m.nome)}</option>`).join('');
+    selectMarca.innerHTML = '<option value="">Selecione…</option>' +
+      marcasCriaveis.map(m => `<option value="${m.id}">${escapar(m.nome)}</option>`).join('');
 
     const lista = document.getElementById('eventos-lista');
     if (eventos.length === 0) {
@@ -2045,10 +2097,14 @@ async function carregarEventos() {
             <span style="font-size:10px;color:var(--color-text-muted);padding:4px 10px">
               ${e.ativo ? '● Ativo' : '○ Arquivado'}
             </span>
+            ${(meInfo && meInfo.super) || nivelDaMarca(e.marca_id) === 'admin' ? `
             <button class="btn-action ${e.publico ? 'btn-reativar' : 'btn-rejeitar'}" style="padding:4px 10px;font-size:10px"
                     onclick="togglePublicoEvento('${e.id}', ${!e.publico})">
               ${e.publico ? '👁 Público' : '🚫 Inacessível'} — clique pra ${e.publico ? 'ocultar' : 'tornar público'}
-            </button>
+            </button>` : `
+            <span style="font-size:10px;color:var(--color-text-muted);padding:4px 10px">
+              ${e.publico ? '👁 Público' : '🚫 Inacessível'}
+            </span>`}
           </div>
         </div>
       `;
@@ -2070,6 +2126,7 @@ async function criarEvento() {
   const fimEl    = document.getElementById('novo-evento-fim').value;
 
   if (!nome || !slug) { showToast('Nome e slug são obrigatórios', 'error'); return; }
+  if (!marcaId) { showToast('Marca é obrigatória — todo evento precisa de uma', 'error'); return; }
   if (!inicioEl || !fimEl) { showToast('Início e fim da janela de envio são obrigatórios', 'error'); return; }
 
   const dados = {
@@ -2094,25 +2151,19 @@ async function criarEvento() {
   }
 }
 
-// ── ADMINISTRADORES (só super-admin — ver docs/MARCAS_SPEC.md §6) ─────────────
+// ── ADMINISTRADORES (ver docs/PERMISSOES_SPEC.md — nível por marca) ───────────
+// Escopo 'evento' foi eliminado na migration 019 — só restam 'super' e
+// 'marca', e 'marca' sempre exige um nível (admin/moderador).
 
 window.atualizarCamposVinculo = function() {
   const escopo = document.getElementById('vinculo-escopo').value;
-  document.getElementById('vinculo-campo-evento').style.display = escopo === 'evento' ? 'block' : 'none';
-  document.getElementById('vinculo-campo-marca').style.display  = escopo === 'marca'  ? 'block' : 'none';
+  document.getElementById('vinculo-campo-marca').style.display = escopo === 'marca' ? 'block' : 'none';
+  document.getElementById('vinculo-campo-nivel').style.display = escopo === 'marca' ? 'block' : 'none';
 };
 
 async function popularSelectsVinculo() {
   try {
-    const [rEventos, rMarcas] = await Promise.all([
-      apiFetch('/api/admin/eventos'),
-      apiFetch('/api/admin/marcas'),
-    ]);
-    if (rEventos.ok) {
-      const eventos = await rEventos.json();
-      document.getElementById('vinculo-evento').innerHTML =
-        eventos.map(e => `<option value="${e.id}">${escapar(e.nome)}</option>`).join('');
-    }
+    const rMarcas = await apiFetch('/api/admin/marcas');
     if (rMarcas.ok) {
       const marcas = await rMarcas.json();
       document.getElementById('vinculo-marca').innerHTML =
@@ -2136,13 +2187,11 @@ async function carregarVinculos() {
       return;
     }
     tbody.innerHTML = vinculos.map(v => {
-      const alvo = v.escopo === 'super' ? '—'
-        : v.escopo === 'marca' ? escapar(v.marca_nome || v.marca_id)
-        : escapar(v.evento_nome || v.evento_id);
+      const alvo = v.escopo === 'super' ? '—' : escapar(v.marca_nome || v.marca_id);
       return `
         <tr class="${v.ativo ? '' : 'inativo'}">
           <td>${escapar(v.email || v.user_id)}${v.nome ? ` <span style="color:var(--color-text-muted)">(${escapar(v.nome)})</span>` : ''}</td>
-          <td><span class="vinculo-escopo-tag ${v.escopo}">${v.escopo}</span></td>
+          <td><span class="vinculo-escopo-tag ${v.escopo}">${v.escopo}${v.nivel ? ` · ${v.nivel}` : ''}</span></td>
           <td>${alvo}</td>
           <td>${v.ativo ? 'Ativo' : 'Inativo'}</td>
           <td>
@@ -2163,8 +2212,10 @@ window.criarVinculo = async function(event) {
   const email  = document.getElementById('vinculo-email').value.trim();
   const escopo = document.getElementById('vinculo-escopo').value;
   const dados  = { email, escopo };
-  if (escopo === 'evento') dados.evento_id = document.getElementById('vinculo-evento').value;
-  if (escopo === 'marca')  dados.marca_id  = document.getElementById('vinculo-marca').value;
+  if (escopo === 'marca') {
+    dados.marca_id = document.getElementById('vinculo-marca').value;
+    dados.nivel    = document.getElementById('vinculo-nivel').value;
+  }
 
   const resp = await apiFetch('/api/admin/vinculos', 'POST', dados);
   if (resp.ok) {
