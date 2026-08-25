@@ -176,6 +176,198 @@ async def test_atualizar_marca_tipografia_invalida_retorna_422(client):
     assert resp.status_code == 422
 
 
+# ── Transferência de titularidade (decisão #11) ─────────────────────────────────
+
+def _usuario(email="novo-dono@x.com", user_id=None):
+    return {"id": user_id or make_uuid(), "email": email, "email_verified": True,
+            "nome": "Pessoa", "foto_url": None, "status": "ativo"}
+
+
+@pytest.mark.asyncio
+async def test_super_transfere_titularidade(client):
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    marca_id = make_uuid()
+    dono_atual_id = make_uuid()
+    usuario = _usuario()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_id))), \
+         patch("repositories.marca.buscar_dono_user_id", AsyncMock(return_value=dono_atual_id)), \
+         patch("auth.repository.buscar_usuario_por_email", AsyncMock(return_value=usuario)), \
+         patch("repositories.admin_vinculo.tem_vinculo_admin_ativo", AsyncMock(return_value=True)), \
+         patch("repositories.marca.transferir_titularidade",
+               AsyncMock(return_value=_marca(id=marca_id, dono_user_id=usuario["id"]))), \
+         patch("repositories.admin_vinculo.registrar_auditoria", AsyncMock()) as auditoria_mock:
+        resp = await client.patch(f"/api/admin/marcas/{marca_id}/titularidade",
+            json={"email": usuario["email"]})
+
+    assert resp.status_code == 200
+    assert resp.json()["dono_user_id"] == usuario["id"]
+    auditoria_mock.assert_called_once_with(
+        pool, acao="titularidade_transferida", user_alvo_id=usuario["id"],
+        realizado_por="admin", marca_id=marca_id, nivel=None,
+        detalhes={"dono_anterior": dono_atual_id},
+    )
+
+
+@pytest.mark.asyncio
+async def test_dono_atual_transfere_titularidade(client):
+    dono_atual_id = make_uuid()
+    marca_id = make_uuid()
+    dono_ctx = AdminContext(
+        identificador="dono@x.com", user_id=dono_atual_id, super=False,
+        vinculos=[{"marca_id": marca_id, "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: dono_ctx
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_id))), \
+         patch("repositories.marca.buscar_dono_user_id", AsyncMock(return_value=dono_atual_id)), \
+         patch("auth.repository.buscar_usuario_por_email", AsyncMock(return_value=usuario)), \
+         patch("repositories.admin_vinculo.tem_vinculo_admin_ativo", AsyncMock(return_value=True)), \
+         patch("repositories.marca.transferir_titularidade",
+               AsyncMock(return_value=_marca(id=marca_id, dono_user_id=usuario["id"]))), \
+         patch("repositories.admin_vinculo.registrar_auditoria", AsyncMock()):
+        resp = await client.patch(f"/api/admin/marcas/{marca_id}/titularidade",
+            json={"email": usuario["email"]})
+
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_admin_comum_nao_transfere_titularidade(client):
+    """Adversarial: admin da marca que NÃO é o titular não pode
+    transferir — só o titular atual ou super (decisão #11)."""
+    marca_id = make_uuid()
+    dono_atual_id = make_uuid()
+    admin_comum_ctx = AdminContext(
+        identificador="outro-admin@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"marca_id": marca_id, "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_comum_ctx
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_id))), \
+         patch("repositories.marca.buscar_dono_user_id", AsyncMock(return_value=dono_atual_id)):
+        resp = await client.patch(f"/api/admin/marcas/{marca_id}/titularidade",
+            json={"email": "novo-dono@x.com"})
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_de_outra_marca_nao_transfere_titularidade(client):
+    """Adversarial: ser dono da marca A não dá poder nenhum sobre a
+    titularidade da marca B."""
+    marca_a, marca_b = make_uuid(), make_uuid()
+    dono_de_a = make_uuid()
+    ctx = AdminContext(
+        identificador="dono-a@x.com", user_id=dono_de_a, super=False,
+        vinculos=[{"marca_id": marca_a, "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: ctx
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_b))), \
+         patch("repositories.marca.buscar_dono_user_id", AsyncMock(return_value=make_uuid())):
+        resp = await client.patch(f"/api/admin/marcas/{marca_b}/titularidade",
+            json={"email": "novo-dono@x.com"})
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_transferir_titularidade_marca_sem_titular_bloqueia_nao_super(client):
+    """Marca recém-migrada (dono_user_id NULL) — só super pode atribuir
+    a primeira titularidade, ninguém é 'titular atual' ainda."""
+    marca_id = make_uuid()
+    ctx = AdminContext(
+        identificador="admin@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"marca_id": marca_id, "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: ctx
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_id))), \
+         patch("repositories.marca.buscar_dono_user_id", AsyncMock(return_value=None)):
+        resp = await client.patch(f"/api/admin/marcas/{marca_id}/titularidade",
+            json={"email": "novo-dono@x.com"})
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_transferir_titularidade_marca_inexistente_retorna_404(client):
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=None)):
+        resp = await client.patch(f"/api/admin/marcas/{make_uuid()}/titularidade",
+            json={"email": "x@x.com"})
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_transferir_titularidade_pessoa_nunca_logou_retorna_404(client):
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    marca_id = make_uuid()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_id))), \
+         patch("repositories.marca.buscar_dono_user_id", AsyncMock(return_value=make_uuid())), \
+         patch("auth.repository.buscar_usuario_por_email", AsyncMock(return_value=None)):
+        resp = await client.patch(f"/api/admin/marcas/{marca_id}/titularidade",
+            json={"email": "nunca-logou@x.com"})
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_transferir_titularidade_sem_vinculo_admin_ativo_retorna_422(client):
+    """Decisão #11: nunca pra um e-mail arbitrário — a pessoa precisa
+    já ter vínculo admin ativo nesta marca."""
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    marca_id = make_uuid()
+    usuario = _usuario()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_id))), \
+         patch("repositories.marca.buscar_dono_user_id", AsyncMock(return_value=make_uuid())), \
+         patch("auth.repository.buscar_usuario_por_email", AsyncMock(return_value=usuario)), \
+         patch("repositories.admin_vinculo.tem_vinculo_admin_ativo", AsyncMock(return_value=False)):
+        resp = await client.patch(f"/api/admin/marcas/{marca_id}/titularidade",
+            json={"email": usuario["email"]})
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_transferir_titularidade_para_ja_titular_retorna_422(client):
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    marca_id = make_uuid()
+    dono_id = make_uuid()
+    usuario = _usuario(user_id=dono_id)
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_id))), \
+         patch("repositories.marca.buscar_dono_user_id", AsyncMock(return_value=dono_id)), \
+         patch("auth.repository.buscar_usuario_por_email", AsyncMock(return_value=usuario)):
+        resp = await client.patch(f"/api/admin/marcas/{marca_id}/titularidade",
+            json={"email": usuario["email"]})
+
+    assert resp.status_code == 422
+
+
 # ── Eventos da marca ───────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

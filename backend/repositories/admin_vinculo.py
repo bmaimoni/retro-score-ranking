@@ -94,6 +94,25 @@ async def buscar_por_id(pool: Pool, vinculo_id: str) -> dict | None:
     return dict(row) if row else None
 
 
+async def tem_vinculo_admin_ativo(pool: Pool, user_id: str, marca_id: str) -> bool:
+    """
+    True se o usuário tem vínculo escopo='marca', nivel='admin', ativo,
+    exatamente nesta marca. Usado pela transferência de titularidade —
+    decisão #11 do docs/PERMISSOES_SPEC.md: só pode virar titular quem
+    já é admin vinculado ali, nunca um e-mail arbitrário.
+    """
+    row = await pool.fetchrow(
+        """
+        SELECT 1 FROM admin_vinculos
+        WHERE user_id = $1 AND marca_id = $2
+          AND escopo = 'marca' AND nivel = 'admin' AND ativo = true
+        LIMIT 1
+        """,
+        user_id, marca_id,
+    )
+    return row is not None
+
+
 async def tem_acesso_evento(pool: Pool, user_id: str, evento_id: str) -> bool:
     """
     True se o usuário tem QUALQUER vínculo que autorize agir sobre este

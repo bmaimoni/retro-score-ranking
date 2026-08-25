@@ -95,6 +95,24 @@ async def buscar_dono_user_id(pool: Pool, marca_id: str) -> str | None:
     return str(row["dono_user_id"])
 
 
+async def transferir_titularidade(pool: Pool, marca_id: str, novo_dono_user_id: str) -> dict | None:
+    """
+    Atualiza marcas.dono_user_id. Não mexe em admin_vinculos — o dono
+    antigo mantém o vínculo admin (transferir titularidade ≠ revogar
+    acesso, decisão #11 do docs/PERMISSOES_SPEC.md). Quem chama já
+    validou que novo_dono_user_id tem vínculo admin ativo na marca.
+    """
+    row = await pool.fetchrow(
+        """
+        UPDATE marcas SET dono_user_id = $2
+        WHERE id = $1
+        RETURNING id, nome, slug, cor_primaria, tipografia, logo_url, dono_user_id, criado_em
+        """,
+        marca_id, novo_dono_user_id,
+    )
+    return dict(row) if row else None
+
+
 async def listar_eventos_da_marca(pool: Pool, marca_id: str) -> list[dict]:
     """Eventos vinculados a uma marca — para o painel admin."""
     rows = await pool.fetch(

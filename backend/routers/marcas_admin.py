@@ -7,8 +7,10 @@ primária, tipografia e logo herdam pra evento quando o evento não
 define os seus (evento → marca → default da plataforma).
 """
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, EmailStr, field_validator
 import repositories.marca as marca_repo
+import repositories.admin_vinculo as admin_vinculo_repo
+import auth.repository as auth_repo
 from utils.db import get_pool
 from middleware.auth import require_admin, AdminContext
 
@@ -51,6 +53,10 @@ class MarcaUpdate(BaseModel):
     _valida_tipografia = field_validator("tipografia")(_validar_tipografia)
 
 
+class TransferirTitularidade(BaseModel):
+    email: EmailStr  # precisa já ter vínculo admin ativo nesta marca
+
+
 # ── CRUD de marcas ─────────────────────────────────────────────
 
 @router.get("")
@@ -87,6 +93,62 @@ async def atualizar_marca(
     if not marca:
         raise HTTPException(status_code=404, detail="Marca não encontrada")
     return marca
+
+
+@router.patch("/{marca_id}/titularidade")
+async def transferir_titularidade(
+    marca_id: str,
+    dados: TransferirTitularidade,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """
+    Transfere marcas.dono_user_id — endpoint dedicado, não reaproveita
+    PATCH /{marca_id} (docs/PERMISSOES_SPEC.md §7). Regras (decisão #11):
+    só o titular atual ou super iniciam; só pra alguém que já tenha
+    vínculo admin ativo nesta marca; o titular antigo mantém o vínculo
+    admin (isto não revoga acesso, só muda quem é o titular).
+    """
+    marca = await marca_repo.buscar_por_id(pool, marca_id)
+    if not marca:
+        raise HTTPException(status_code=404, detail="Marca não encontrada")
+
+    dono_atual_id = await marca_repo.buscar_dono_user_id(pool, marca_id)
+
+    if not admin.super:
+        if admin.user_id is None or dono_atual_id is None or str(admin.user_id) != str(dono_atual_id):
+            raise HTTPException(
+                status_code=403,
+                detail="Só o titular atual da marca ou super-admin pode transferir a titularidade",
+            )
+
+    usuario = await auth_repo.buscar_usuario_por_email(pool, dados.email.lower().strip())
+    if not usuario:
+        raise HTTPException(
+            status_code=404,
+            detail="Essa pessoa ainda não tem conta — ela precisa logar pelo menos uma vez "
+                   "(Google ou Magic Link) com esse e-mail antes de virar titular.",
+        )
+
+    if dono_atual_id and str(usuario["id"]) == str(dono_atual_id):
+        raise HTTPException(status_code=422, detail="Essa pessoa já é a titular da marca")
+
+    tem_vinculo = await admin_vinculo_repo.tem_vinculo_admin_ativo(pool, usuario["id"], marca_id)
+    if not tem_vinculo:
+        raise HTTPException(
+            status_code=422,
+            detail="A nova titular precisa já ter vínculo admin ativo nesta marca — "
+                   "conceda o vínculo antes de transferir a titularidade.",
+        )
+
+    atualizada = await marca_repo.transferir_titularidade(pool, marca_id, usuario["id"])
+
+    await admin_vinculo_repo.registrar_auditoria(
+        pool, acao="titularidade_transferida", user_alvo_id=usuario["id"],
+        realizado_por=admin.identificador, marca_id=marca_id, nivel=None,
+        detalhes={"dono_anterior": dono_atual_id},
+    )
+    return atualizada
 
 
 @router.get("/{marca_id}/eventos")

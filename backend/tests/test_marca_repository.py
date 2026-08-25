@@ -104,3 +104,30 @@ async def test_buscar_dono_user_id_marca_inexistente_retorna_none(fake_pool):
     resultado = await marca_repo.buscar_dono_user_id(fake_pool, "nao-existe")
 
     assert resultado is None
+
+
+# ── transferir_titularidade (decisão #11) ───────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_transferir_titularidade_atualiza_dono(fake_pool):
+    novo_dono_id = "novo-dono"
+    fake_pool.set_fetchrow({
+        "id": "marca-1", "nome": "Canal3", "slug": "canal3",
+        "cor_primaria": "#5e2b82", "tipografia": "arcade", "logo_url": None,
+        "dono_user_id": novo_dono_id, "criado_em": "2026-01-01",
+    })
+
+    resultado = await marca_repo.transferir_titularidade(fake_pool, "marca-1", novo_dono_id)
+
+    assert resultado["dono_user_id"] == novo_dono_id
+    sql = " ".join(fake_pool.fetchrow.call_args[0][0].split())
+    assert "UPDATE marcas SET dono_user_id" in sql
+    args = fake_pool.fetchrow.call_args[0]
+    assert args[1:] == ("marca-1", novo_dono_id)
+
+
+@pytest.mark.asyncio
+async def test_transferir_titularidade_marca_inexistente_retorna_none(fake_pool):
+    fake_pool.set_fetchrow(None)
+    resultado = await marca_repo.transferir_titularidade(fake_pool, "nao-existe", "u1")
+    assert resultado is None

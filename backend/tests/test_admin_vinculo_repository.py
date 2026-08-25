@@ -114,6 +114,28 @@ async def test_buscar_por_id_inexistente_retorna_none(fake_pool):
     assert resultado is None
 
 
+# ── tem_vinculo_admin_ativo: pré-requisito da transferência de titularidade ────
+
+@pytest.mark.asyncio
+async def test_tem_vinculo_admin_ativo_true(fake_pool):
+    fake_pool.set_fetchrow({"?column?": 1})
+    resultado = await admin_vinculo_repo.tem_vinculo_admin_ativo(fake_pool, "u1", "m1")
+
+    sql = " ".join(fake_pool.fetchrow.call_args[0][0].split())
+    assert "nivel = 'admin'" in sql
+    assert "ativo = true" in sql
+    assert resultado is True
+
+
+@pytest.mark.asyncio
+async def test_tem_vinculo_admin_ativo_false_quando_so_moderador(fake_pool):
+    """A query já filtra nivel='admin' — um vínculo moderador não conta
+    (moderador nunca vira titular sem antes virar admin)."""
+    fake_pool.set_fetchrow(None)
+    resultado = await admin_vinculo_repo.tem_vinculo_admin_ativo(fake_pool, "u1", "m1")
+    assert resultado is False
+
+
 # ── tem_acesso_evento: a query central de autorização ──────────────────────────
 
 @pytest.mark.asyncio
