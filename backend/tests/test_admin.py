@@ -312,6 +312,50 @@ async def test_restaurar_ranking_sem_confirmar_retorna_400(client):
     assert resp.status_code == 400
 
 
+@pytest.mark.asyncio
+async def test_limpar_ranking_admin_nao_super_retorna_403(client):
+    """Sem filtro de marca/evento no corpo, limpar afeta a plataforma
+    inteira — mesmo um admin comum (não só moderador) fica de fora."""
+    admin_de_marca = AdminContext(
+        identificador="admin@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": make_uuid(), "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_marca
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/manutencao/limpar-ranking",
+                             json={"permanente": False, "confirmar": "CONFIRMAR"})
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_limpar_ranking_moderador_retorna_403(client):
+    moderador_ctx = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": make_uuid(), "nivel": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/manutencao/limpar-ranking",
+                             json={"permanente": True, "confirmar": "CONFIRMAR"})
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_restaurar_ranking_moderador_retorna_403(client):
+    moderador_ctx = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": make_uuid(), "nivel": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/manutencao/restaurar-ranking",
+                             json={"confirmar": "CONFIRMAR"})
+    assert resp.status_code == 403
+
+
 # ── Paginação real: feed e pendentes (EVENTOS_SPEC.md §5) ─────────────────────
 
 @pytest.mark.asyncio

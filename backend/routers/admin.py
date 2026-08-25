@@ -383,6 +383,20 @@ class LimparRankingBody(BaseModel):
     confirmar: str = ""               # deve ser "CONFIRMAR" para prosseguir
 
 
+def _exigir_super_manutencao(admin: AdminContext):
+    """Limpar/restaurar ranking não tem filtro de marca/evento no corpo
+    da requisição — afeta um jogo (ou TODOS os jogos, de TODAS as
+    marcas) de uma vez. Sem um redesenho que escope por marca, é
+    ação exclusiva de super-admin (achado incidental, não coberto pela
+    tabela de decisões do docs/PERMISSOES_SPEC.md — 'manutenção' não é
+    'moderar feed')."""
+    if not admin.super:
+        raise HTTPException(
+            status_code=403,
+            detail="Só super-admin pode limpar ou restaurar ranking — afeta todas as marcas de uma vez",
+        )
+
+
 @router.post("/manutencao/limpar-ranking")
 async def limpar_ranking(
     body: LimparRankingBody,
@@ -395,6 +409,7 @@ async def limpar_ranking(
     - permanente=True  → DELETE físico, irreversível
     Exige confirmar="CONFIRMAR" para prosseguir.
     """
+    _exigir_super_manutencao(moderador)
     if body.confirmar != "CONFIRMAR":
         raise HTTPException(status_code=400, detail="Envie confirmar='CONFIRMAR' para prosseguir")
 
@@ -440,6 +455,7 @@ async def restaurar_ranking(
     moderador: AdminContext = Depends(require_admin),
 ):
     """Restaura entradas arquivadas de um jogo ou de todos."""
+    _exigir_super_manutencao(moderador)
     if body.confirmar != "CONFIRMAR":
         raise HTTPException(status_code=400, detail="Envie confirmar='CONFIRMAR' para prosseguir")
 
