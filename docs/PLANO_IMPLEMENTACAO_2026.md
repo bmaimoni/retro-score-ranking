@@ -7,10 +7,13 @@
 > produção, seguindo o mesmo processo já usado no projeto inteiro: migração
 > testada localmente → aplicada → backend → testes → frontend → validação.
 
-Próxima migração livre: **`020`**.
+Próxima migração livre: **`021`**.
 
 **Fase 1 concluída** (migração 019 aplicada em produção, backend e frontend
-prontos — ver `docs/PERMISSOES_SPEC.md` §7). Próxima: Fase 2.
+prontos — ver `docs/PERMISSOES_SPEC.md` §7). **Fase 2 em andamento**:
+migração 020 aplicada em produção (avatares, campos de perfil em `users`,
+`nick_claims.ativo`, `nick_troca_forcada_auditoria`,
+`entradas.pendente_motivo`) — falta backend e frontend.
 
 ---
 
