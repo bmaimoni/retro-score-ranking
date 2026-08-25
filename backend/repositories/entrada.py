@@ -73,7 +73,7 @@ async def listar_feed_admin(
     rows = await pool.fetch(
         """
         SELECT e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.evento_id, e.no_ranking,
-               e.superado, e.pendente, e.criado_em, e.moderado_em,
+               e.superado, e.pendente, e.user_id, e.criado_em, e.moderado_em,
                e.moderado_por, j.nome AS jogo_nome, j.slug AS jogo_slug
         FROM entradas e
         JOIN jogos j ON j.id = e.jogo_id
@@ -131,7 +131,7 @@ async def listar_pendentes(
         """
         SELECT
             e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.criado_em,
-            e.pendente_motivo,
+            e.pendente_motivo, e.user_id,
             j.nome AS jogo_nome, j.slug AS jogo_slug,
             -- Melhor score atual deste nick neste jogo (no ranking)
             (

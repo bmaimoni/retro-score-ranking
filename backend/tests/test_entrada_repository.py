@@ -54,6 +54,26 @@ async def test_listar_pendentes_expoe_pendente_motivo(fake_pool):
     assert "e.pendente_motivo" in sql
 
 
+@pytest.mark.asyncio
+async def test_listar_pendentes_expoe_user_id(fake_pool):
+    """Painel de moderação precisa do user_id pra oferecer 'ver
+    histórico de nicks' (decisão #4 do NICKNAME_SPEC.md)."""
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_pendentes(fake_pool)
+
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.user_id" in sql
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_expoe_user_id(fake_pool):
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool)
+
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.user_id" in sql
+
+
 # ── lazy-archive embutido em listar_pendentes/contar_pendentes (decisão #8) ─
 
 @pytest.mark.asyncio
