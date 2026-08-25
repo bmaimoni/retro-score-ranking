@@ -67,8 +67,10 @@ async def _resolver_evento_ids_admin(
     pool, admin: AdminContext, evento_id: str | None,
 ) -> list[str] | None:
     """
-    Resolve a lista de evento_ids pra filtrar feed/pendentes, conforme o
-    escopo do admin (docs/MARCAS_SPEC.md §6, "efeito colateral necessário"):
+    Resolve a lista de evento_ids pra filtrar o feed (pendentes é só
+    mais um status dentro dele, não uma rota separada — ver /feed),
+    conforme o escopo do admin (docs/MARCAS_SPEC.md §6, "efeito
+    colateral necessário"):
       - super-admin: evento_id é opcional. Informado → filtra só nele;
         ausente → vê tudo (comportamento de sempre, sem quebra pra quem
         já usa o token ADMIN_SECRET hoje).
@@ -131,28 +133,6 @@ async def feed_entradas(
     total = await entrada_repo.contar_feed_admin(pool, **filtros)
     response.headers["X-Total-Count"] = str(total)
     return await entrada_repo.listar_feed_admin(pool, limit=limit, offset=offset, **filtros)
-
-
-@router.get("/pendentes")
-async def listar_pendentes(
-    response: Response,
-    limit: int = Query(default=50, le=200),
-    offset: int = Query(default=0, ge=0),
-    evento_id: str | None = Query(default=None),
-    pool=Depends(get_pool),
-    admin: AdminContext = Depends(require_admin),
-):
-    """
-    Entradas aguardando decisão do moderador (vieram pelo rate limit).
-    Total de registros disponível no header X-Total-Count.
-
-    evento_id: mesma regra de /feed (opcional pra super-admin,
-    obrigatório e checado por escopo pra admin restrito).
-    """
-    evento_ids = await _resolver_evento_ids_admin(pool, admin, evento_id)
-    total = await entrada_repo.contar_pendentes(pool, evento_ids=evento_ids)
-    response.headers["X-Total-Count"] = str(total)
-    return await entrada_repo.listar_pendentes(pool, limit=limit, offset=offset, evento_ids=evento_ids)
 
 
 # ── IDENTIDADE DO ADMIN LOGADO ─────────────────────────────────────────────────

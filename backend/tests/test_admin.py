@@ -533,38 +533,13 @@ async def test_feed_sem_filtros_novos_usa_defaults(client):
 
 
 @pytest.mark.asyncio
-async def test_pendentes_expoe_total_no_header(client):
-    """GET /api/admin/pendentes também ganhou paginação real (antes não tinha)."""
-    pool = MagicMock()
-    app.dependency_overrides[get_pool] = lambda: pool
-
-    with patch("repositories.entrada.listar_pendentes", AsyncMock(return_value=[])), \
-         patch("repositories.entrada.contar_pendentes",  AsyncMock(return_value=9)):
-        resp = await client.get("/api/admin/pendentes?limit=5&offset=0", headers=AUTH_HEADER)
-
-    assert resp.status_code == 200
-    assert resp.headers["X-Total-Count"] == "9"
-
-
-@pytest.mark.asyncio
-async def test_pendentes_repassa_limit_e_offset_ao_repository(client):
-    pool = MagicMock()
-    app.dependency_overrides[get_pool] = lambda: pool
-    listar_mock = AsyncMock(return_value=[])
-
-    with patch("repositories.entrada.listar_pendentes", listar_mock), \
-         patch("repositories.entrada.contar_pendentes",  AsyncMock(return_value=0)):
-        await client.get("/api/admin/pendentes?limit=10&offset=20", headers=AUTH_HEADER)
-
-    listar_mock.assert_called_once_with(pool, limit=10, offset=20, evento_ids=None)
-
-
-@pytest.mark.asyncio
-async def test_pendentes_limit_acima_de_200_retorna_422(client):
-    """Mesmo teto do feed (le=200) — protege contra páginas gigantes."""
+async def test_pendentes_endpoint_nao_existe_mais(client):
+    """GET /api/admin/pendentes foi consolidado em GET /api/admin/feed
+    ?status=pendentes (Fase 5) — a rota dedicada foi removida de vez,
+    não só esquecida sem uso. Ver smoke_admin.py, que já assumia isso."""
     app.dependency_overrides[get_pool] = lambda: MagicMock()
-    resp = await client.get("/api/admin/pendentes?limit=500", headers=AUTH_HEADER)
-    assert resp.status_code == 422
+    resp = await client.get("/api/admin/pendentes", headers=AUTH_HEADER)
+    assert resp.status_code == 404
 
 
 # ── Escopo de admin em feed/pendentes (MARCAS_SPEC.md §6) ──────────────────────
@@ -634,16 +609,6 @@ async def test_super_admin_pode_filtrar_por_evento_id_tambem(client):
     contar_mock.assert_called_once_with(pool, evento_ids=["algum-evento"], **FILTROS_FEED_VAZIOS)
 
 
-@pytest.mark.asyncio
-async def test_pendentes_tambem_exige_evento_id_pra_admin_escopado(client):
-    """Mesma regra de /feed aplicada em /pendentes."""
-    escopado = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
-    app.dependency_overrides[require_admin] = lambda: escopado
-    app.dependency_overrides[get_pool] = lambda: MagicMock()
-
-    resp = await client.get("/api/admin/pendentes")
-
-    assert resp.status_code == 400
 
 
 # ── GET /api/admin/me ────────────────────────────────────────────────────────

@@ -92,7 +92,12 @@ def _filtros_feed_sql(
     elif status == "ocultos":
         condicoes.append("e.pendente = false AND e.no_ranking = false")
     elif status == "pendentes":
-        condicoes.append("e.pendente = true")
+        # arquivado = false é obrigatório aqui: uma entrada
+        # identificacao_ambigua que já expirou (30 dias, arquivamento
+        # preguiçoso — ver _arquivar_identificacao_ambigua_expirada)
+        # continua com pendente=true pra sempre; sem essa exclusão ela
+        # nunca sai da fila "aguardando decisão", mesmo já resolvida.
+        condicoes.append("e.pendente = true AND e.arquivado = false")
     # None/'todos' — sem filtro adicional, mesmo comportamento de sempre.
 
     if data_de is not None:
@@ -134,16 +139,47 @@ async def listar_feed_admin(
     usado quando o admin não é super-admin (ver docs/MARCAS_SPEC.md §6,
     "efeito colateral necessário: feed e pendentes precisam saber o evento").
     None = sem filtro (comportamento de sempre, usado por super-admin).
+
+    e.pendente_motivo sempre vem junto (coluna simples, sem custo) — é
+    o que o painel usa pra distinguir "identificação ambígua" de outros
+    motivos (NICKNAME_SPEC.md decisão #7). Quando status='pendentes', a
+    query também traz o contexto de ranking (melhor_score_atual/
+    lider_pontuacao/posicao_se_aprovado, ex-listar_pendentes) — 3
+    subqueries correlacionadas por linha, só valem o custo quando é
+    literalmente essa fila que está sendo vista, não em "Todos".
     """
+    await _arquivar_identificacao_ambigua_expirada(pool)
+
     where_sql, filtro_params = _filtros_feed_sql(
         3, evento_ids, status, data_de, data_ate, jogo_id, sem_foto, sem_identificacao, busca,
     )
+
+    contexto_pendente_sql = ""
+    if status == "pendentes":
+        contexto_pendente_sql = """,
+               (
+                   SELECT MAX(e2.pontuacao) FROM entradas e2
+                   WHERE e2.jogo_id = e.jogo_id AND e2.nick_norm = e.nick_norm
+                     AND e2.no_ranking = true AND e2.pendente = false AND e2.arquivado = false
+               ) AS melhor_score_atual,
+               (
+                   SELECT MAX(e3.pontuacao) FROM entradas e3
+                   WHERE e3.jogo_id = e.jogo_id AND e3.no_ranking = true
+                     AND e3.pendente = false AND e3.superado = false AND e3.arquivado = false
+               ) AS lider_pontuacao,
+               (
+                   SELECT COUNT(*) + 1 FROM entradas e4
+                   WHERE e4.jogo_id = e.jogo_id AND e4.no_ranking = true
+                     AND e4.pendente = false AND e4.superado = false AND e4.arquivado = false
+                     AND e4.pontuacao > e.pontuacao
+               ) AS posicao_se_aprovado"""
+
     rows = await pool.fetch(
         f"""
         SELECT e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.evento_id, e.no_ranking,
-               e.superado, e.pendente, e.user_id, e.criado_em, e.moderado_em,
+               e.superado, e.pendente, e.pendente_motivo, e.user_id, e.criado_em, e.moderado_em,
                e.moderado_por, j.nome AS jogo_nome, j.slug AS jogo_slug,
-               ev.nome AS evento_nome, ev.slug AS evento_slug
+               ev.nome AS evento_nome, ev.slug AS evento_slug{contexto_pendente_sql}
         FROM entradas e
         JOIN jogos j ON j.id = e.jogo_id
         JOIN eventos ev ON ev.id = e.evento_id
@@ -169,6 +205,8 @@ async def contar_feed_admin(
 ) -> int:
     """Total de entradas no feed do admin sob os mesmos filtros de
     listar_feed_admin — para paginação (X-Total-Count)."""
+    await _arquivar_identificacao_ambigua_expirada(pool)
+
     where_sql, filtro_params = _filtros_feed_sql(
         1, evento_ids, status, data_de, data_ate, jogo_id, sem_foto, sem_identificacao, busca,
     )
@@ -187,9 +225,11 @@ async def _arquivar_identificacao_ambigua_expirada(pool: Pool) -> None:
     """
     Decisão #8 do docs/NICKNAME_SPEC.md, resolvida sem job agendado
     (NICKNAME_SPEC.md §4, mesmo princípio da decisão #15 — o projeto
-    nunca teve cron): checagem preguiçosa, embutida toda vez que a fila
-    de pendentes é consultada. Arquiva na hora qualquer entrada
-    pendente_motivo='identificacao_ambigua' com mais de 30 dias — só
+    nunca teve cron): checagem preguiçosa, embutida toda vez que o feed
+    admin é consultado (listar_feed_admin/contar_feed_admin — a fila de
+    pendentes é só um status dentro dele desde a Fase 5). Arquiva na
+    hora qualquer entrada pendente_motivo='identificacao_ambigua' com
+    mais de 30 dias — só
     "expira" de fato quando alguém abre o painel admin, não por relógio.
     Entradas pendente_motivo='rate_limit' não têm prazo, não são tocadas.
     """
@@ -202,78 +242,6 @@ async def _arquivar_identificacao_ambigua_expirada(pool: Pool) -> None:
           AND criado_em < now() - interval '30 days'
           AND arquivado = false
         """
-    )
-
-
-async def listar_pendentes(
-    pool: Pool,
-    limit: int = 50,
-    offset: int = 0,
-    evento_ids: list[str] | None = None,
-) -> list[dict]:
-    """evento_ids: mesmo filtro opcional de listar_feed_admin."""
-    await _arquivar_identificacao_ambigua_expirada(pool)
-    rows = await pool.fetch(
-        """
-        SELECT
-            e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.criado_em,
-            e.pendente_motivo, e.user_id,
-            j.nome AS jogo_nome, j.slug AS jogo_slug,
-            -- Melhor score atual deste nick neste jogo (no ranking)
-            (
-                SELECT MAX(e2.pontuacao)
-                FROM entradas e2
-                WHERE e2.jogo_id   = e.jogo_id
-                  AND e2.nick_norm = e.nick_norm
-                  AND e2.no_ranking = true
-                  AND e2.pendente   = false
-                  AND e2.arquivado  = false
-            ) AS melhor_score_atual,
-            -- Lider atual do jogo
-            (
-                SELECT MAX(e3.pontuacao)
-                FROM entradas e3
-                WHERE e3.jogo_id   = e.jogo_id
-                  AND e3.no_ranking = true
-                  AND e3.pendente   = false
-                  AND e3.superado   = false
-                  AND e3.arquivado  = false
-            ) AS lider_pontuacao,
-            -- Posição que ocuparia se aprovado
-            (
-                SELECT COUNT(*) + 1
-                FROM entradas e4
-                WHERE e4.jogo_id   = e.jogo_id
-                  AND e4.no_ranking = true
-                  AND e4.pendente   = false
-                  AND e4.superado   = false
-                  AND e4.arquivado  = false
-                  AND e4.pontuacao  > e.pontuacao
-            ) AS posicao_se_aprovado
-        FROM entradas e
-        JOIN jogos j ON j.id = e.jogo_id
-        WHERE e.pendente = true
-          AND e.arquivado = false
-          AND ($3::uuid[] IS NULL OR e.evento_id = ANY($3::uuid[]))
-        ORDER BY e.criado_em ASC
-        LIMIT $1 OFFSET $2
-        """,
-        limit, offset, evento_ids,
-    )
-    return [dict(r) for r in rows]
-
-
-async def contar_pendentes(pool: Pool, evento_ids: list[str] | None = None) -> int:
-    """Total de entradas pendentes — para paginação."""
-    await _arquivar_identificacao_ambigua_expirada(pool)
-    return await pool.fetchval(
-        """
-        SELECT COUNT(*) FROM entradas e
-        WHERE e.pendente = true
-          AND e.arquivado = false
-          AND ($1::uuid[] IS NULL OR e.evento_id = ANY($1::uuid[]))
-        """,
-        evento_ids,
     )
 
 

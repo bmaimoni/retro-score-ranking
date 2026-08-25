@@ -198,8 +198,11 @@ Conflito de `nick_ativo_unico` (dois envios simultâneos do mesmo nick) retorna
 
 ### 5.2 Moderação (admin)
 - **Feed** (`GET /api/admin/feed`): todas as entradas recentes, incluindo
-  ocultas/pendentes — paginado.
-- **Pendentes** (`GET /api/admin/pendentes`): fila de decisão.
+  ocultas/pendentes — paginado, com filtros combináveis (`status`,
+  `data_de`/`data_ate`, `jogo_id`, `sem_foto`, `sem_identificacao`) e busca
+  (`busca`) sobre nick/jogo/evento (docs/BACKLOG_2026.md §4). `status=pendentes`
+  é a fila de decisão — endpoint dedicado `GET /api/admin/pendentes` foi
+  removido na Fase 5, consolidado aqui.
 - **Ocultar/reativar** (`PATCH /api/admin/entradas/{id}`): alterna
   `no_ranking`. A foto nunca é deletada. Emite `ocultar`/`reativar` via SSE.
 - **Resolver pendente** (`PATCH /api/admin/entradas/{id}/pendente`): aprova

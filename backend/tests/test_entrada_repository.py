@@ -44,25 +44,21 @@ async def test_marcar_pendente_identificacao_ambigua(fake_pool):
 
 
 @pytest.mark.asyncio
-async def test_listar_pendentes_expoe_pendente_motivo(fake_pool):
+async def test_listar_feed_admin_expoe_pendente_motivo_sempre(fake_pool):
     """Sem isso o painel admin não consegue distinguir 'rate_limit' de
-    'identificacao_ambigua' (decisão #7 do NICKNAME_SPEC.md)."""
+    'identificacao_ambigua' (decisão #7 do NICKNAME_SPEC.md) — coluna
+    simples, sempre selecionada, não só quando status='pendentes'
+    (pendente=true também aparece misturado em 'todos').
+
+    Achado (Fase 5 -> feed admin): a migração de listar_pendentes/
+    contar_pendentes (endpoint dedicado, removido) pro feed unificado
+    esqueceu de levar e.pendente_motivo junto, deixando o painel sem
+    conseguir mostrar o motivo real da pendência."""
     fake_pool.set_fetch([])
-    await entrada_repo.listar_pendentes(fake_pool)
+    await entrada_repo.listar_feed_admin(fake_pool)
 
     sql = " ".join(fake_pool.fetch.call_args[0][0].split())
     assert "e.pendente_motivo" in sql
-
-
-@pytest.mark.asyncio
-async def test_listar_pendentes_expoe_user_id(fake_pool):
-    """Painel de moderação precisa do user_id pra oferecer 'ver
-    histórico de nicks' (decisão #4 do NICKNAME_SPEC.md)."""
-    fake_pool.set_fetch([])
-    await entrada_repo.listar_pendentes(fake_pool)
-
-    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
-    assert "e.user_id" in sql
 
 
 @pytest.mark.asyncio
@@ -74,15 +70,67 @@ async def test_listar_feed_admin_expoe_user_id(fake_pool):
     assert "e.user_id" in sql
 
 
-# ── lazy-archive embutido em listar_pendentes/contar_pendentes (decisão #8) ─
+# ── Contexto de ranking só em status='pendentes' (ex-listar_pendentes) ─────────
 
 @pytest.mark.asyncio
-async def test_listar_pendentes_arquiva_identificacao_ambigua_expirada_antes_de_listar(fake_pool):
+async def test_listar_feed_admin_status_pendentes_traz_contexto_de_ranking(fake_pool):
+    """melhor_score_atual/lider_pontuacao/posicao_se_aprovado — o
+    painel usa isso pra mostrar "ficaria em Nº lugar" na fila de
+    moderação (frontend/admin.html:cardEntrada). Achado (Fase 5): a
+    migração pro feed unificado nunca levou essas 3 subqueries junto,
+    deixando esse bloco da UI sempre invisível desde então."""
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, status="pendentes")
+
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "AS melhor_score_atual" in sql
+    assert "AS lider_pontuacao" in sql
+    assert "AS posicao_se_aprovado" in sql
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_status_todos_nao_paga_custo_do_contexto(fake_pool):
+    """Fora da fila de pendentes essas 3 subqueries correlacionadas não
+    servem pra nada (frontend só lê quando e.pendente é true) — não
+    faz sentido pagar o custo em toda página do feed."""
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, status="todos")
+
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "melhor_score_atual" not in sql
+    assert "lider_pontuacao" not in sql
+    assert "posicao_se_aprovado" not in sql
+
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_status_pendentes_exclui_arquivado(fake_pool):
+    """Achado (Fase 5): sem essa exclusão, uma entrada
+    identificacao_ambigua já auto-arquivada (30 dias expirados)
+    continuava aparecendo pra sempre como 'aguardando decisão' — o
+    antigo listar_pendentes excluía arquivado=true, o filtro novo do
+    feed não excluía."""
+    fake_pool.set_fetch([])
+    await entrada_repo.listar_feed_admin(fake_pool, status="pendentes")
+
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.pendente = true AND e.arquivado = false" in sql
+
+
+# ── lazy-archive embutido no feed admin (decisão #8 do NICKNAME_SPEC.md) ───────
+# Achado (Fase 5): o gatilho só existia dentro de listar_pendentes/
+# contar_pendentes — como nada mais chamava essas funções depois da
+# migração pro feed unificado, o arquivamento automático de 30 dias
+# parou de disparar de verdade. Movido pra dentro de
+# listar_feed_admin/contar_feed_admin, que são as funções realmente
+# chamadas a cada carregamento do painel agora.
+
+@pytest.mark.asyncio
+async def test_listar_feed_admin_arquiva_identificacao_ambigua_expirada_antes_de_listar(fake_pool):
     """Sem job agendado (NICKNAME_SPEC.md §4) — a checagem de 30 dias
-    roda embutida toda vez que a fila é consultada."""
+    roda embutida toda vez que o feed é consultado."""
     fake_pool.set_fetch([])
 
-    await entrada_repo.listar_pendentes(fake_pool)
+    await entrada_repo.listar_feed_admin(fake_pool)
 
     # execute (o UPDATE de arquivamento) roda antes do fetch (SELECT)
     assert fake_pool.execute.called
@@ -93,12 +141,12 @@ async def test_listar_pendentes_arquiva_identificacao_ambigua_expirada_antes_de_
 
 
 @pytest.mark.asyncio
-async def test_contar_pendentes_tambem_arquiva_antes_de_contar(fake_pool):
+async def test_contar_feed_admin_tambem_arquiva_antes_de_contar(fake_pool):
     """X-Total-Count precisa refletir o mesmo estado pós-arquivamento
     que a listagem — senão o header e as linhas retornadas divergem."""
     fake_pool.set_fetchval(0)
 
-    await entrada_repo.contar_pendentes(fake_pool)
+    await entrada_repo.contar_feed_admin(fake_pool)
 
     assert fake_pool.execute.called
 
@@ -108,7 +156,7 @@ async def test_arquivamento_nao_toca_rate_limit(fake_pool):
     """rate_limit não tem prazo — só identificacao_ambigua é elegível
     ao arquivamento automático."""
     fake_pool.set_fetch([])
-    await entrada_repo.listar_pendentes(fake_pool)
+    await entrada_repo.listar_feed_admin(fake_pool)
 
     sql = " ".join(fake_pool.execute.call_args[0][0].split())
     assert "rate_limit" not in sql
