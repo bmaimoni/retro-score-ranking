@@ -9,7 +9,7 @@ import secrets
 import urllib.parse
 import httpx
 import structlog
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 
 from config import get_settings
 from utils.db import get_pool
@@ -225,6 +225,14 @@ async def sessao_opcional(request: Request, pool=Depends(get_pool)) -> dict | No
     if not session_id:
         return None
     return await obter_usuario_da_sessao(pool, session_id)
+
+
+async def sessao_obrigatoria(usuario: dict | None = Depends(sessao_opcional)) -> dict:
+    """Dependency FastAPI pra rotas onde login é obrigatório (perfil,
+    exclusão de conta) — 401 sem sessão válida."""
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Autenticação necessária")
+    return usuario
 
 
 # ── Reivindicação de nick (AUTH_SPEC.md §3, §4.3) ──────────────────

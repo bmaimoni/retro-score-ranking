@@ -211,3 +211,20 @@ def test_token_magic_link_e_aleatorio_a_cada_chamada():
     token1, _ = auth_svc.gerar_token_magic_link()
     token2, _ = auth_svc.gerar_token_magic_link()
     assert token1 != token2
+
+
+# ── sessao_obrigatoria — dependency pra rotas que exigem login ─────────────────
+
+@pytest.mark.asyncio
+async def test_sessao_obrigatoria_com_usuario_retorna_o_usuario():
+    usuario = {"id": "u1", "email": "p@x.com"}
+    resultado = await auth_svc.sessao_obrigatoria(usuario=usuario)
+    assert resultado == usuario
+
+
+@pytest.mark.asyncio
+async def test_sessao_obrigatoria_sem_usuario_levanta_401():
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        await auth_svc.sessao_obrigatoria(usuario=None)
+    assert exc.value.status_code == 401
