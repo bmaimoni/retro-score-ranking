@@ -7,7 +7,10 @@
 > produção, seguindo o mesmo processo já usado no projeto inteiro: migração
 > testada localmente → aplicada → backend → testes → frontend → validação.
 
-Próxima migração livre: **`019`**.
+Próxima migração livre: **`020`**.
+
+**Fase 1 concluída** (migração 019 aplicada em produção, backend e frontend
+prontos — ver `docs/PERMISSOES_SPEC.md` §7). Próxima: Fase 2.
 
 ---
 
@@ -28,7 +31,7 @@ depende de nada.
 
 ---
 
-## Fase 1 — Permissões e Marca Obrigatória
+## Fase 1 — Permissões e Marca Obrigatória ✅ concluída
 
 **Spec**: `docs/PERMISSOES_SPEC.md`
 **Bloqueia**: Fases 2, 4, 6 (parcialmente)

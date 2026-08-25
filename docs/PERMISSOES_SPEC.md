@@ -1,6 +1,7 @@
 # Permissões: Nível Admin/Moderador, Marca Obrigatória, Titularidade
 
-> Status: **decisões fechadas, pronto para virar código**. Complementa e
+> Status: **implementado** (migração 019, backend e frontend — ver §7).
+> Complementa e
 > **revisa** `MARCAS_SPEC.md` §6 (administração escopada) — o modelo de
 > autorização daquele documento fica mais rico aqui: ganha uma dimensão de
 > nível (admin/moderador), perde a dimensão de evento (marca vira
@@ -166,22 +167,33 @@ buracos numa refatoração futura sem lembrar da razão original.
 
 ---
 
-## 7. Próximos passos (implementação — não iniciada)
+## 7. Próximos passos (implementação — concluída)
 
-1. Consultar produção: confirmar zero eventos sem `marca_id`.
-2. Migração: `admin_vinculos` (remove `escopo='evento'`, adiciona
-   `nivel`), `eventos.marca_id NOT NULL`, `marcas.dono_user_id`,
-   `admin_vinculos_auditoria` — com RLS/policy desde o início.
-3. Backend: reescrever a lógica de autorização em `middleware/auth.py` e
-   `repositories/admin_vinculo.py` pra resolver nível por marca (não mais
-   por evento); endpoint de transferência de titularidade dedicado (não
-   reaproveitar `PATCH /marcas/{id}`); corrigir `POST /api/admin/marcas`
-   pra exigir `super`; toda concessão/revogação grava em
-   `admin_vinculos_auditoria`.
-4. Testes: cobertura adversarial explícita de isolamento cross-marca (não
-   só "consegue no próprio escopo", mas "não consegue fora dele" em cada
-   endpoint que toca dado escopado) — categoria de teste tratada como
-   obrigatória, não opcional, dado o risco de negócio envolvido.
-5. Frontend: `admin.html` fica condicional por nível (hoje não existe esse
-   conceito na UI) — esconder, não só bloquear depois do clique, ações que
-   o nível atual não permite.
+1. [x] Consultar produção: confirmar zero eventos sem `marca_id` — 0 de 2,
+   confirmado antes da migração.
+2. [x] Migração `019_permissoes_nivel_marca_obrigatoria.sql`: `admin_vinculos`
+   (remove `escopo='evento'`, adiciona `nivel`), `eventos.marca_id NOT NULL`,
+   `marcas.dono_user_id`, `admin_vinculos_auditoria` — com RLS/policy desde
+   o início. Aplicada em produção.
+3. [x] Backend: `middleware/auth.py` (`AdminContext.vinculos` + nível por
+   marca) e `repositories/admin_vinculo.py` reescritos; endpoint dedicado de
+   transferência de titularidade (`PATCH /api/admin/marcas/{id}/titularidade`);
+   `POST /api/admin/marcas` exige `super`; toda concessão/revogação/
+   transferência grava em `admin_vinculos_auditoria`. Achados corrigidos no
+   caminho (fora da tabela de decisões original, mas mesma régua): escopo
+   de marca em `eventos.py` e `teloes_admin.py` (nenhum dos dois checava
+   vínculo antes), `limpar/restaurar-ranking` e `atualizar_jogo` sem
+   checagem de nível nenhuma.
+4. [x] Testes: cobertura adversarial de isolamento cross-marca em cada
+   endpoint escopado (vínculos, eventos, jogos, marcas, telões, titularidade).
+5. [x] Frontend: `admin.html` corrigido (formulário de vínculos ainda usava
+   `escopo='evento'`, quebrado desde a migração) e condicional por nível —
+   esconde formulários/botões que o nível atual não permite, em vez de só
+   bloquear depois do clique.
+
+**Gaps conhecidos, não bloqueantes:** `GET /api/admin/marcas` e
+`GET /api/admin/vinculos` continuam sem escopo por marca (listam tudo pra
+qualquer admin autenticado — só a escrita foi travada); resolução de marca
+via placar customizado em telões é uma simplificação provisória (ver
+`routers/teloes_admin.py`), a revisitar quando `RANKINGS_CONFIGURAVEIS_SPEC.md`
+(Fase 4) tratar placar↔marca de verdade.
