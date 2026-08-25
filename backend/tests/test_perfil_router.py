@@ -224,6 +224,32 @@ async def test_trocar_nick_vazio_retorna_422(client):
     assert resp.status_code == 422
 
 
+# ── GET /api/perfil/pontuacoes ───────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_minhas_pontuacoes_sem_sessao_retorna_401(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.get("/api/perfil/pontuacoes")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_minhas_pontuacoes_sucesso(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+    pontuacoes = [{"id": "e1", "nick": "Campeao", "pontuacao": 5000, "jogo_nome": "Pac-Man", "marca_nome": "Canal3"}]
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.entrada.listar_por_usuario", AsyncMock(return_value=pontuacoes)) as mock:
+        resp = await client.get("/api/perfil/pontuacoes")
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    mock.assert_called_once_with(pool, usuario["id"])
+
+
 # ── POST /api/perfil/desativar-pontuacoes ───────────────────────────────────────
 
 @pytest.mark.asyncio

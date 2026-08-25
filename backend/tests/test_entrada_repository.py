@@ -92,3 +92,33 @@ async def test_arquivamento_nao_toca_rate_limit(fake_pool):
 
     sql = " ".join(fake_pool.execute.call_args[0][0].split())
     assert "rate_limit" not in sql
+
+
+# ── listar_por_usuario (BACKLOG_2026.md item 1.4) ───────────────────────────────
+
+@pytest.mark.asyncio
+async def test_listar_por_usuario_junta_jogo_evento_marca(fake_pool):
+    fake_pool.set_fetch([{
+        "id": "e1", "nick": "Campeao", "pontuacao": 5000, "foto_url": None,
+        "no_ranking": True, "superado": False, "pendente": False, "arquivado": False,
+        "criado_em": "2026-01-01",
+        "jogo_id": "j1", "jogo_nome": "Pac-Man", "jogo_slug": "pac-man",
+        "evento_id": "ev1", "evento_nome": "Canal3 Expo", "evento_slug": "canal3expo",
+        "marca_id": "m1", "marca_nome": "Canal3",
+    }])
+
+    resultado = await entrada_repo.listar_por_usuario(fake_pool, "u1")
+
+    assert len(resultado) == 1
+    assert resultado[0]["marca_nome"] == "Canal3"
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "JOIN eventos ev" in sql
+    assert "JOIN marcas m" in sql
+    assert "e.user_id = $1" in sql
+
+
+@pytest.mark.asyncio
+async def test_listar_por_usuario_sem_pontuacoes_retorna_vazio(fake_pool):
+    fake_pool.set_fetch([])
+    resultado = await entrada_repo.listar_por_usuario(fake_pool, "u1")
+    assert resultado == []

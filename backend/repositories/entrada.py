@@ -286,6 +286,33 @@ async def marcar_pendente_identificacao_ambigua(pool: Pool, nick_norm: str) -> i
     return int(result.split()[-1])
 
 
+async def listar_por_usuario(pool: Pool, user_id: str) -> list[dict]:
+    """
+    Todas as pontuações do usuário logado, com jogo/evento/marca — pra
+    tela de perfil (BACKLOG_2026.md item 1.4: 'ver detalhamento de
+    todas as próprias pontuações, evento e marca de cada uma, link
+    rápido pro jogo'). eventos.marca_id e entradas.evento_id são
+    NOT NULL desde as migrations 019/011 — JOIN direto, sem LEFT.
+    """
+    rows = await pool.fetch(
+        """
+        SELECT e.id, e.nick, e.pontuacao, e.foto_url, e.no_ranking,
+               e.superado, e.pendente, e.arquivado, e.criado_em,
+               j.id AS jogo_id, j.nome AS jogo_nome, j.slug AS jogo_slug,
+               ev.id AS evento_id, ev.nome AS evento_nome, ev.slug AS evento_slug,
+               m.id AS marca_id, m.nome AS marca_nome
+        FROM entradas e
+        JOIN jogos j ON j.id = e.jogo_id
+        JOIN eventos ev ON ev.id = e.evento_id
+        JOIN marcas m ON m.id = ev.marca_id
+        WHERE e.user_id = $1
+        ORDER BY e.criado_em DESC
+        """,
+        user_id,
+    )
+    return [dict(r) for r in rows]
+
+
 async def historico_nick(pool: Pool, jogo_id: str, nick_norm: str) -> list[dict]:
     """
     Histórico de todas as entradas de um nick em um jogo,

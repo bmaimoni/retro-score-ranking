@@ -2,7 +2,7 @@
 Router de perfil de usuário — requer login (sessão de visitante comum,
 não admin). Prefixo: /api/perfil
 
-Ver docs/BACKLOG_2026.md §1 (itens 1.3/1.5/1.8) e docs/EXCLUSAO_CONTA_SPEC.md.
+Ver docs/BACKLOG_2026.md §1 (itens 1.3/1.4/1.5/1.8) e docs/EXCLUSAO_CONTA_SPEC.md.
 """
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,6 +12,7 @@ import auth.service as auth_svc
 import auth.repository as auth_repo
 import repositories.usuario as usuario_repo
 import repositories.avatar as avatar_repo
+import repositories.entrada as entrada_repo
 import services.exclusao_conta as exclusao_svc
 
 router = APIRouter(prefix="/api/perfil", tags=["perfil"])
@@ -82,6 +83,18 @@ async def trocar_nick(
         raise HTTPException(status_code=429, detail=str(exc))
     except auth_svc.NickJaReivindicadoError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+
+
+# ── Minhas pontuações (BACKLOG_2026.md item 1.4) ────────────────────────────────
+
+@router.get("/pontuacoes")
+async def minhas_pontuacoes(
+    pool=Depends(get_pool),
+    usuario: dict = Depends(auth_svc.sessao_obrigatoria),
+):
+    """Detalhamento de todas as próprias pontuações — jogo, evento e
+    marca de cada uma, pra tela de perfil linkar direto pro jogo."""
+    return await entrada_repo.listar_por_usuario(pool, usuario["id"])
 
 
 # ── Desativar pontuações — leve, reversível (BACKLOG_2026.md item 1.5) ─────────
