@@ -221,12 +221,20 @@ async def criar_jogo(
     admin: AdminContext = Depends(require_admin),
 ):
     """
-    Cria um novo jogo. Admin não-super: nasce pendente_aprovacao=true
+    Cria um novo jogo. Moderador nunca cria jogo — decisão #1 do
+    docs/PERMISSOES_SPEC.md (a primeira versão do backlog dizia o
+    contrário; corrigido). Admin não-super: nasce pendente_aprovacao=true
     (fora do catálogo/placar geral até um super-admin aprovar), mas já
     é auto-vinculado aos eventos que esse admin tem acesso — utilizável
     imediatamente ali. Super-admin: comportamento de sempre, aprovado
     direto. Ver docs/SPEC.md §10 / migration 018.
     """
+    if not admin.super and not any(v["nivel"] == "admin" for v in admin.vinculos):
+        raise HTTPException(
+            status_code=403,
+            detail="Moderador não pode criar jogos — só admin ou super-admin",
+        )
+
     try:
         jogo = await jogo_repo.criar(
             pool, body.nome, body.slug, body.score_max,

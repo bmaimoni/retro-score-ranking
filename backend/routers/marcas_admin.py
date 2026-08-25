@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 import repositories.marca as marca_repo
 from utils.db import get_pool
-from middleware.auth import require_admin
+from middleware.auth import require_admin, AdminContext
 
 router = APIRouter(prefix="/api/admin/marcas", tags=["admin-marcas"])
 
@@ -21,6 +21,15 @@ def _validar_tipografia(v):
     if v is not None and v not in TIPOGRAFIAS_VALIDAS:
         raise ValueError(f"tipografia deve ser uma de {sorted(TIPOGRAFIAS_VALIDAS)}")
     return v
+
+
+def _exigir_super(admin: AdminContext):
+    """Só super cria marca — decisão #7 do docs/PERMISSOES_SPEC.md:
+    nem o dono de uma marca pode criar outra. Achado #5 da mesma spec:
+    esse endpoint aceitava qualquer admin autenticado antes desta
+    correção, bug pré-existente."""
+    if not admin.super:
+        raise HTTPException(status_code=403, detail="Só super-admin pode criar marca")
 
 
 class MarcaCreate(BaseModel):
@@ -53,8 +62,9 @@ async def listar_marcas(pool=Depends(get_pool), _=Depends(require_admin)):
 async def criar_marca(
     dados: MarcaCreate,
     pool=Depends(get_pool),
-    _=Depends(require_admin),
+    admin: AdminContext = Depends(require_admin),
 ):
+    _exigir_super(admin)
     try:
         return await marca_repo.criar(
             pool, dados.nome, dados.slug,

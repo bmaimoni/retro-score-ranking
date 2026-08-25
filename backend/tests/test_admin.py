@@ -498,7 +498,10 @@ async def test_criar_jogo_admin_escopado_fica_pendente_e_auto_vinculado(client):
     """Admin não-super: jogo nasce pendente_aprovacao=True e é
     auto-vinculado a todos os eventos que ele tem acesso — utilizável
     de imediato, mas fora do catálogo geral até aprovação."""
-    escopado = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
+    escopado = AdminContext(
+        identificador="pessoa@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": "m1", "nivel": "admin"}],
+    )
     app.dependency_overrides[require_admin] = lambda: escopado
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
@@ -539,6 +542,36 @@ async def test_criar_jogo_super_admin_nasce_aprovado(client):
         pendente_aprovacao=False, criado_por="admin",
     )
     adicionar_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_criar_jogo_moderador_retorna_403(client):
+    """Moderador não cria jogo — decisão #1 do PERMISSOES_SPEC.md
+    (revertia a versão anterior do backlog, que dizia o contrário)."""
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": "m1", "nivel": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/jogos", json={"nome": "Frogger", "slug": "frogger"})
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_criar_jogo_sem_vinculo_nenhum_retorna_403(client):
+    """AdminContext sem vinculos (nunca deveria chegar aqui via
+    require_admin, mas a checagem não deve confiar em super=False +
+    lista vazia como 'liberado')."""
+    sem_vinculo = AdminContext(identificador="pessoa@x.com", user_id="u1", super=False)
+    app.dependency_overrides[require_admin] = lambda: sem_vinculo
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/jogos", json={"nome": "Frogger", "slug": "frogger"})
+
+    assert resp.status_code == 403
 
 
 @pytest.mark.asyncio

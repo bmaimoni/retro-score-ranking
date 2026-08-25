@@ -1,16 +1,19 @@
 """
 Testes do router admin de marcas — /api/admin/marcas.
-Ver docs/MARCAS_SPEC.md §3.
+Ver docs/MARCAS_SPEC.md §3 e docs/PERMISSOES_SPEC.md decisão #7
+(criar marca é exclusivo de super — achado #5 da mesma spec, corrigido
+aqui: o endpoint aceitava qualquer admin autenticado antes).
 """
 import uuid
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from main import app
 from utils.db import get_pool
-from middleware.auth import require_admin
+from middleware.auth import require_admin, AdminContext
 
 ADMIN_SECRET = "test-secret"
 AUTH_HEADER  = {"Authorization": f"Bearer {ADMIN_SECRET}"}
+SUPER_CTX    = AdminContext(identificador="admin", user_id=None, super=True)
 
 
 def make_uuid():
@@ -29,7 +32,7 @@ def _marca(**overrides):
 
 @pytest.fixture(autouse=True)
 def clear_overrides():
-    app.dependency_overrides[require_admin] = lambda: ADMIN_SECRET
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
     yield
     app.dependency_overrides.pop(get_pool, None)
     app.dependency_overrides.pop(require_admin, None)
@@ -101,6 +104,21 @@ async def test_criar_marca_sem_auth_retorna_401(client):
 
     resp = await client.post("/api/admin/marcas", json={"nome": "X", "slug": "x"})
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_criar_marca_admin_nao_super_retorna_403(client):
+    """Nem dono de marca cria marca nova — decisão #7 do
+    docs/PERMISSOES_SPEC.md, exclusivo de super."""
+    admin_de_marca = AdminContext(
+        identificador="dono@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": make_uuid(), "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_marca
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/marcas", json={"nome": "X", "slug": "x"})
+    assert resp.status_code == 403
 
 
 # ── Listar marcas ──────────────────────────────────────────────────────────────
