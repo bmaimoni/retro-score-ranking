@@ -117,7 +117,9 @@ async def quem_sou_eu(pool=Depends(get_pool), admin: AdminContext = Depends(requ
     Identidade e escopo do admin autenticado nesta requisição — usado
     pelo frontend logo após o login pra saber se é super-admin (vê
     tudo, sem seletor de evento) ou admin escopado (precisa escolher
-    entre os eventos que ele tem acesso). Ver docs/MARCAS_SPEC.md §6.
+    entre os eventos que ele tem acesso). Cada evento em `eventos` já
+    carrega `nivel` (admin/moderador) — o frontend usa isso pra esconder
+    ações que o nível atual não permite (docs/PERMISSOES_SPEC.md §7 item 5).
     """
     if admin.super:
         return {"identificador": admin.identificador, "super": True, "eventos": []}

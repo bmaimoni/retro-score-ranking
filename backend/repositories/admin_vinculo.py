@@ -159,12 +159,15 @@ async def listar_eventos_acessiveis(pool: Pool, user_id: str) -> list[str]:
 
 async def listar_eventos_acessiveis_detalhado(pool: Pool, user_id: str) -> list[dict]:
     """
-    Igual a listar_eventos_acessiveis, mas com nome/slug — usado pelo
-    frontend do admin pra montar um seletor de evento (GET /api/admin/me).
+    Igual a listar_eventos_acessiveis, mas com nome/slug/nivel — usado
+    pelo frontend do admin pra montar um seletor de evento e decidir o
+    que esconder (GET /api/admin/me). nivel vem do vínculo na marca
+    daquele evento — cada evento carrega o nível efetivo da pessoa ali,
+    já resolvido, sem o frontend precisar cruzar marca_id à parte.
     """
     rows = await pool.fetch(
         """
-        SELECT DISTINCT e.id, e.nome, e.slug
+        SELECT DISTINCT e.id, e.nome, e.slug, av.nivel
         FROM eventos e
         JOIN admin_vinculos av
           ON av.escopo = 'marca' AND av.marca_id = e.marca_id

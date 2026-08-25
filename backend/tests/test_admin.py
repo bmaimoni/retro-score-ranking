@@ -524,7 +524,7 @@ async def test_me_admin_escopado_lista_eventos_acessiveis(client):
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    eventos = [{"id": "ev1", "nome": "Canal3 Expo", "slug": "canal3expo"}]
+    eventos = [{"id": "ev1", "nome": "Canal3 Expo", "slug": "canal3expo", "nivel": "moderador"}]
     with patch("repositories.admin_vinculo.listar_eventos_acessiveis_detalhado",
                AsyncMock(return_value=eventos)):
         resp = await client.get("/api/admin/me")
@@ -533,6 +533,7 @@ async def test_me_admin_escopado_lista_eventos_acessiveis(client):
     data = resp.json()
     assert data["super"] is False
     assert data["identificador"] == "pessoa@x.com"
+    assert data["eventos"][0]["nivel"] == "moderador"
     assert data["eventos"] == eventos
 
 # ── Fluxo de aprovação de jogos (migration 018) ─────────────────────────────────

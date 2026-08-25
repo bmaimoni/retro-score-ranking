@@ -177,6 +177,22 @@ async def test_listar_eventos_acessiveis(fake_pool):
     assert "escopo = 'evento'" not in sql
 
 
+@pytest.mark.asyncio
+async def test_listar_eventos_acessiveis_detalhado_inclui_nivel(fake_pool):
+    """Cada evento carrega o nível efetivo (admin/moderador) da pessoa
+    na marca dele — o frontend usa isso pra esconder ações que o nível
+    atual não permite (docs/PERMISSOES_SPEC.md §7 item 5)."""
+    fake_pool.set_fetch([
+        {"id": "ev1", "nome": "Canal3 Expo", "slug": "canal3expo", "nivel": "admin"},
+    ])
+
+    resultado = await admin_vinculo_repo.listar_eventos_acessiveis_detalhado(fake_pool, "u1")
+
+    assert resultado[0]["nivel"] == "admin"
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "av.nivel" in sql
+
+
 # ── auditoria ────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
