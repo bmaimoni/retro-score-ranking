@@ -87,8 +87,14 @@ async def atualizar_marca(
     marca_id: str,
     dados: MarcaUpdate,
     pool=Depends(get_pool),
-    _=Depends(require_admin),
+    admin: AdminContext = Depends(require_admin),
 ):
+    """Editar identidade visual da marca (nome/cor/tipografia/logo) é
+    ação de admin da própria marca — mesma régua de 'jogos, eventos,
+    telão' do docs/PERMISSOES_SPEC.md §4, moderador nunca edita."""
+    if not admin.super and not admin.eh_admin_na_marca(marca_id):
+        raise HTTPException(status_code=403, detail="Sem permissão para editar esta marca")
+
     marca = await marca_repo.atualizar(pool, marca_id, dados.model_dump(exclude_none=True))
     if not marca:
         raise HTTPException(status_code=404, detail="Marca não encontrada")

@@ -1,5 +1,7 @@
 """
 Testes do repositório e endpoints de eventos.
+Ver docs/PERMISSOES_SPEC.md §4: criar/editar evento é ação de admin,
+restrita à própria marca — moderador nunca, cross-marca sempre 403.
 """
 import uuid
 import pytest
@@ -7,10 +9,27 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 from main import app
 from utils.db import get_pool
-from middleware.auth import require_admin
+from middleware.auth import require_admin, AdminContext
 
 ADMIN_SECRET = "test-secret"
 AUTH_HEADER  = {"Authorization": f"Bearer {ADMIN_SECRET}"}
+SUPER_CTX    = AdminContext(identificador="admin", user_id=None, super=True)
+MARCA_A      = str(uuid.uuid4())
+MARCA_B      = str(uuid.uuid4())
+
+
+def admin_ctx(marca_id=MARCA_A, user_id=None):
+    return AdminContext(
+        identificador="admin-a@x.com", user_id=user_id or str(uuid.uuid4()), super=False,
+        vinculos=[{"marca_id": marca_id, "nivel": "admin"}],
+    )
+
+
+def moderador_ctx(marca_id=MARCA_A, user_id=None):
+    return AdminContext(
+        identificador="mod-a@x.com", user_id=user_id or str(uuid.uuid4()), super=False,
+        vinculos=[{"marca_id": marca_id, "nivel": "moderador"}],
+    )
 
 
 class _FakeTxn:
@@ -42,10 +61,11 @@ def make_uuid():
     return str(uuid.uuid4())
 
 
-def _evento(ativo=True, publico=True, nome="Canal3 Expo 2024", slug="canal3-expo-2024"):
+def _evento(ativo=True, publico=True, nome="Canal3 Expo 2024", slug="canal3-expo-2024", marca_id=MARCA_A):
     return {
         "id": make_uuid(), "nome": nome, "slug": slug,
         "ativo": ativo, "publico": publico,
+        "marca_id": marca_id,
         "data_inicio": datetime.now(timezone.utc) - timedelta(days=1),
         "data_fim":    datetime.now(timezone.utc) + timedelta(days=1),
         "criado_em": "2024-01-01T00:00:00",
@@ -65,7 +85,7 @@ def _evento_fora_da_janela(nome="Evento Encerrado", slug="evento-encerrado"):
 
 @pytest.fixture(autouse=True)
 def clear_overrides():
-    app.dependency_overrides[require_admin] = lambda: ADMIN_SECRET
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
     yield
     app.dependency_overrides.pop(get_pool, None)
     app.dependency_overrides.pop(require_admin, None)
@@ -109,6 +129,7 @@ async def test_criar_evento(client):
         resp = await client.post("/api/admin/eventos",
             json={
                 "nome": "Canal3 Expo 2024", "slug": "canal3-expo-2024",
+                "marca_id": MARCA_A,
                 "data_inicio": "2024-11-01T00:00:00Z",
                 "data_fim":    "2024-11-30T23:59:59Z",
             },
@@ -116,6 +137,23 @@ async def test_criar_evento(client):
 
     assert resp.status_code == 201
     assert resp.json()["slug"] == "canal3-expo-2024"
+
+
+@pytest.mark.asyncio
+async def test_criar_evento_sem_marca_id_retorna_422(client):
+    """marca_id é obrigatório desde a migration 019 (decisão #6 do
+    PERMISSOES_SPEC.md) — não existe mais evento sem marca."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    resp = await client.post("/api/admin/eventos",
+        json={
+            "nome": "Sem Marca", "slug": "sem-marca",
+            "data_inicio": "2024-11-01T00:00:00Z",
+            "data_fim":    "2024-11-30T23:59:59Z",
+        })
+
+    assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -165,6 +203,7 @@ async def test_criar_evento_slug_duplicado_retorna_409(client):
         resp = await client.post("/api/admin/eventos",
             json={
                 "nome": "Dup", "slug": "dup",
+                "marca_id": MARCA_A,
                 "data_inicio": "2024-11-01T00:00:00Z",
                 "data_fim":    "2024-11-30T23:59:59Z",
             },
@@ -173,15 +212,68 @@ async def test_criar_evento_slug_duplicado_retorna_409(client):
     assert resp.status_code == 409
 
 
+# ── Criar evento — escopo por marca (decisão #5/#6) ─────────────
+
+@pytest.mark.asyncio
+async def test_admin_cria_evento_na_propria_marca(client):
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.criar", AsyncMock(return_value=_evento(marca_id=MARCA_A))):
+        resp = await client.post("/api/admin/eventos",
+            json={
+                "nome": "Evento A", "slug": "evento-a", "marca_id": MARCA_A,
+                "data_inicio": "2024-11-01T00:00:00Z",
+                "data_fim":    "2024-11-30T23:59:59Z",
+            })
+
+    assert resp.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_admin_nao_cria_evento_em_outra_marca(client):
+    """Adversarial: admin de A não cria evento em B, mesmo enviando
+    marca_id=B explicitamente."""
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/eventos",
+        json={
+            "nome": "Evento B", "slug": "evento-b", "marca_id": MARCA_B,
+            "data_inicio": "2024-11-01T00:00:00Z",
+            "data_fim":    "2024-11-30T23:59:59Z",
+        })
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_moderador_nao_cria_evento(client):
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx(marca_id=MARCA_A)
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/eventos",
+        json={
+            "nome": "Evento A", "slug": "evento-a", "marca_id": MARCA_A,
+            "data_inicio": "2024-11-01T00:00:00Z",
+            "data_fim":    "2024-11-30T23:59:59Z",
+        })
+
+    assert resp.status_code == 403
+
+
 # ── Atualizar evento ─────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_desativar_evento(client):
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
+    evento = _evento(marca_id=MARCA_A)
 
-    with patch("repositories.evento.atualizar", AsyncMock(return_value=_evento(ativo=False))):
-        resp = await client.patch(f"/api/admin/eventos/{make_uuid()}",
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)), \
+         patch("repositories.evento.atualizar", AsyncMock(return_value=_evento(ativo=False))):
+        resp = await client.patch(f"/api/admin/eventos/{evento['id']}",
             json={"ativo": False},
             headers=AUTH_HEADER)
 
@@ -194,12 +286,237 @@ async def test_atualizar_evento_inexistente_retorna_404(client):
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("repositories.evento.atualizar", AsyncMock(return_value=None)):
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=None)):
         resp = await client.patch(f"/api/admin/eventos/{make_uuid()}",
             json={"ativo": False},
             headers=AUTH_HEADER)
 
     assert resp.status_code == 404
+
+
+# ── Atualizar evento — escopo por marca ─────────────────────────
+
+@pytest.mark.asyncio
+async def test_admin_edita_evento_da_propria_marca(client):
+    evento = _evento(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)), \
+         patch("repositories.evento.atualizar", AsyncMock(return_value={**evento, "ativo": False})):
+        resp = await client.patch(f"/api/admin/eventos/{evento['id']}", json={"ativo": False})
+
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_admin_nao_edita_evento_de_outra_marca(client):
+    """Adversarial: admin de A não edita evento de B, mesmo sabendo o id."""
+    evento = _evento(marca_id=MARCA_B)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)):
+        resp = await client.patch(f"/api/admin/eventos/{evento['id']}", json={"ativo": False})
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_moderador_nao_edita_evento(client):
+    evento = _evento(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)):
+        resp = await client.patch(f"/api/admin/eventos/{evento['id']}", json={"ativo": False})
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_nao_pode_mover_evento_entre_marcas(client):
+    """Mover um evento pra outra marca é operação de super — mesmo o
+    admin que já edita o evento não pode reatribuir a marca dele."""
+    evento = _evento(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)):
+        resp = await client.patch(f"/api/admin/eventos/{evento['id']}", json={"marca_id": MARCA_B})
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_super_pode_mover_evento_entre_marcas(client):
+    evento = _evento(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)), \
+         patch("repositories.evento.atualizar", AsyncMock(return_value={**evento, "marca_id": MARCA_B})):
+        resp = await client.patch(f"/api/admin/eventos/{evento['id']}", json={"marca_id": MARCA_B})
+
+    assert resp.status_code == 200
+
+
+# ── Jogos do evento — escopo por marca ──────────────────────────
+
+@pytest.mark.asyncio
+async def test_listar_jogos_do_evento_moderador_com_acesso_funciona(client):
+    """Leitura é liberada pra moderador (não só admin) — só a edição é
+    restrita a admin."""
+    evento = _evento(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)), \
+         patch("repositories.evento_jogo.listar_por_evento", AsyncMock(return_value=[])):
+        resp = await client.get(f"/api/admin/eventos/{evento['id']}/jogos")
+
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_listar_jogos_do_evento_sem_acesso_a_marca_retorna_403(client):
+    evento = _evento(marca_id=MARCA_B)
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)):
+        resp = await client.get(f"/api/admin/eventos/{evento['id']}/jogos")
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_listar_jogos_do_evento_inexistente_retorna_404(client):
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=None)):
+        resp = await client.get(f"/api/admin/eventos/{make_uuid()}/jogos")
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_admin_adiciona_jogo_ao_evento_da_propria_marca(client):
+    evento = _evento(marca_id=MARCA_A)
+    jogo_id = make_uuid()
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)), \
+         patch("repositories.evento_jogo.adicionar",
+               AsyncMock(return_value={"id": make_uuid(), "evento_id": evento["id"],
+                                        "jogo_id": jogo_id, "ativo": True, "ordem": 0,
+                                        "criado_em": "2026-01-01"})):
+        resp = await client.post(f"/api/admin/eventos/{evento['id']}/jogos/{jogo_id}")
+
+    assert resp.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_moderador_nao_adiciona_jogo_ao_evento(client):
+    """Editar o catálogo de jogos do evento é ação de admin — decisão
+    #1/§4 do PERMISSOES_SPEC.md, moderador só modera pontuações."""
+    evento = _evento(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)):
+        resp = await client.post(f"/api/admin/eventos/{evento['id']}/jogos/{make_uuid()}")
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_nao_adiciona_jogo_a_evento_de_outra_marca(client):
+    """Adversarial: admin de A não mexe no catálogo de jogos de um
+    evento de B."""
+    evento = _evento(marca_id=MARCA_B)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)):
+        resp = await client.post(f"/api/admin/eventos/{evento['id']}/jogos/{make_uuid()}")
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_atualiza_jogo_do_evento_da_propria_marca(client):
+    evento = _evento(marca_id=MARCA_A)
+    jogo_id = make_uuid()
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)), \
+         patch("repositories.evento_jogo.atualizar",
+               AsyncMock(return_value={"id": make_uuid(), "evento_id": evento["id"],
+                                        "jogo_id": jogo_id, "ativo": False, "ordem": 0,
+                                        "criado_em": "2026-01-01"})):
+        resp = await client.patch(f"/api/admin/eventos/{evento['id']}/jogos/{jogo_id}", json={"ativo": False})
+
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_moderador_nao_atualiza_jogo_do_evento(client):
+    evento = _evento(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=evento)):
+        resp = await client.patch(f"/api/admin/eventos/{evento['id']}/jogos/{make_uuid()}", json={"ativo": False})
+
+    assert resp.status_code == 403
+
+
+# ── Listar eventos — filtro por marca (achado incidental) ───────
+
+@pytest.mark.asyncio
+async def test_super_lista_todos_os_eventos(client):
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    eventos = [_evento(marca_id=MARCA_A), _evento(marca_id=MARCA_B)]
+
+    with patch("repositories.evento.listar", AsyncMock(return_value=eventos)):
+        resp = await client.get("/api/admin/eventos")
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 2
+
+
+@pytest.mark.asyncio
+async def test_admin_so_ve_eventos_da_propria_marca(client):
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    eventos = [_evento(marca_id=MARCA_A, nome="Evento A"), _evento(marca_id=MARCA_B, nome="Evento B")]
+
+    with patch("repositories.evento.listar", AsyncMock(return_value=eventos)):
+        resp = await client.get("/api/admin/eventos")
+
+    assert resp.status_code == 200
+    nomes = [e["nome"] for e in resp.json()]
+    assert nomes == ["Evento A"]
 
 
 # ── Upload associa evento_id ──────────────────────────────────

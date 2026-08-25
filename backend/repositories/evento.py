@@ -28,6 +28,21 @@ async def listar_ativos(pool: Pool) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+async def buscar_por_id(pool: Pool, evento_id: str) -> dict | None:
+    """Busca evento pelo id — usado pra resolver a marca do evento
+    antes de checar permissão (ver routers/eventos.py)."""
+    row = await pool.fetchrow(
+        """
+        SELECT id, nome, slug, ativo, publico, logo_url, cor_primaria,
+               tipografia, marca_id, data_inicio, data_fim, criado_em
+        FROM eventos
+        WHERE id = $1
+        """,
+        evento_id,
+    )
+    return dict(row) if row else None
+
+
 async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
     """Busca evento pelo slug. Retorna None se não existir."""
     row = await pool.fetchrow(

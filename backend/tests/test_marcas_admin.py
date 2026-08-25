@@ -176,6 +176,54 @@ async def test_atualizar_marca_tipografia_invalida_retorna_422(client):
     assert resp.status_code == 422
 
 
+@pytest.mark.asyncio
+async def test_admin_edita_a_propria_marca(client):
+    marca_id = make_uuid()
+    admin_da_marca = AdminContext(
+        identificador="admin@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"marca_id": marca_id, "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_da_marca
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.marca.atualizar", AsyncMock(return_value=_marca(id=marca_id, cor_primaria="#ff0000"))):
+        resp = await client.patch(f"/api/admin/marcas/{marca_id}", json={"cor_primaria": "#ff0000"})
+
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_admin_nao_edita_marca_de_terceiro(client):
+    """Adversarial: admin de uma marca não edita outra, mesmo sabendo o id."""
+    marca_de_outro = make_uuid()
+    admin_de_outra_marca = AdminContext(
+        identificador="admin@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"marca_id": make_uuid(), "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_outra_marca
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.patch(f"/api/admin/marcas/{marca_de_outro}", json={"cor_primaria": "#ff0000"})
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_moderador_nao_edita_marca(client):
+    marca_id = make_uuid()
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"marca_id": marca_id, "nivel": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.patch(f"/api/admin/marcas/{marca_id}", json={"cor_primaria": "#ff0000"})
+
+    assert resp.status_code == 403
+
+
 # ── Transferência de titularidade (decisão #11) ─────────────────────────────────
 
 def _usuario(email="novo-dono@x.com", user_id=None):
