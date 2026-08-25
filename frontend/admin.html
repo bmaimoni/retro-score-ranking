@@ -809,6 +809,10 @@
             </select>
           </div>
           <input class="field-input" id="marca-logo" placeholder="Logo (ex: logo-canal3-2026.png ou URL completa)" maxlength="300">
+          <div class="field">
+            <label class="field-label" for="marca-itens-por-pagina">Itens por página no ranking (padrão: 20)</label>
+            <input class="field-input" type="number" id="marca-itens-por-pagina" placeholder="20" min="1" style="max-width:140px">
+          </div>
           <div style="display:flex;gap:var(--space-sm)">
             <button class="btn-action btn-reativar" style="flex:1" onclick="salvarMarca()" id="marca-salvar-btn">+ Criar marca</button>
             <button class="btn-action btn-rejeitar" style="flex:0 0 auto;display:none" id="marca-cancelar-btn" onclick="cancelarEdicaoMarca()">Cancelar</button>
@@ -841,6 +845,16 @@
             <label class="field-label" for="novo-evento-marca">Marca (obrigatório — herda cor/tipografia/logo)</label>
             <select class="field-input" id="novo-evento-marca">
               <option value="">Selecione…</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label" for="novo-evento-modo-ranking">Modo de ranking</label>
+            <select class="field-input" id="novo-evento-modo-ranking">
+              <option value="zerado" selected>Zerado — placar próprio, sem herdar nada</option>
+              <option value="ultimo_evento">Último evento da marca</option>
+              <option value="marca">Toda a marca (todos os eventos não-zerados)</option>
+              <option value="marca_parceiras">Marca + parceiras</option>
+              <option value="geral">Geral da plataforma</option>
             </select>
           </div>
           <div style="display:flex;gap:var(--space-sm)">
@@ -2061,28 +2075,131 @@ async function carregarMarcas() {
       return;
     }
 
-    lista.innerHTML = marcas.map(m => `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--color-bg-surface2);border-radius:6px;border:1px solid var(--color-border)">
-        <div style="width:24px;height:24px;border-radius:50%;flex-shrink:0;background:${m.cor_primaria || 'transparent'};border:1px solid var(--color-border)"></div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:var(--text-sm);font-weight:600">${escapar(m.nome)}</div>
-          <div style="font-size:var(--text-xs);color:var(--color-text-muted)">
-            ${escapar(m.slug)}
-            ${m.tipografia ? ` · ${escapar(m.tipografia)}` : ''}
-            ${m.logo_url ? ` · logo definido` : ' · sem logo'}
+    marcasCacheParcerias = marcas;
+
+    lista.innerHTML = marcas.map(m => {
+      const podeGerenciar = (meInfo && meInfo.super) || nivelDaMarca(m.id) === 'admin';
+      return `
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--color-bg-surface2);border-radius:6px;border:1px solid var(--color-border)">
+          <div style="width:24px;height:24px;border-radius:50%;flex-shrink:0;background:${m.cor_primaria || 'transparent'};border:1px solid var(--color-border)"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:var(--text-sm);font-weight:600">${escapar(m.nome)}</div>
+            <div style="font-size:var(--text-xs);color:var(--color-text-muted)">
+              ${escapar(m.slug)}
+              ${m.tipografia ? ` · ${escapar(m.tipografia)}` : ''}
+              ${m.logo_url ? ` · logo definido` : ' · sem logo'}
+              · ${m.itens_por_pagina || 20} itens/página
+            </div>
           </div>
+          ${podeGerenciar ? `
+          <button class="btn-action btn-reativar" style="padding:4px 10px;font-size:10px"
+                  onclick='editarMarca(${JSON.stringify(m).replace(/'/g, "&apos;")})'>
+            Editar
+          </button>
+          <button class="btn-action btn-ocultar" style="padding:4px 10px;font-size:10px"
+                  onclick="togglePainelParcerias('${m.id}')">
+            🤝 Parcerias
+          </button>` : ''}
         </div>
-        ${(meInfo && meInfo.super) || nivelDaMarca(m.id) === 'admin' ? `
-        <button class="btn-action btn-reativar" style="padding:4px 10px;font-size:10px"
-                onclick='editarMarca(${JSON.stringify(m).replace(/'/g, "&apos;")})'>
-          Editar
-        </button>` : ''}
+        ${podeGerenciar ? `<div id="parcerias-panel-${m.id}" style="display:none;margin:6px 0 0 10px;padding:var(--space-sm);background:var(--color-bg-surface);border:1px solid var(--color-border);border-radius:6px"></div>` : ''}
       </div>
-    `).join('');
+    `;
+    }).join('');
   } catch {
     lista.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar marcas</div>`;
   }
 }
+
+// ── Parcerias entre marcas (docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.2) ──
+// "Qualquer admin da marca" gerencia (decisão #3) — mesma régua de
+// podeGerenciar usada pro botão Editar. Painel carrega sob demanda
+// (só ao abrir), não junto com a lista — evita N+1 pra cada marca
+// visível na aba.
+let marcasCacheParcerias = [];
+
+window.togglePainelParcerias = async function(marcaId) {
+  const painel = document.getElementById(`parcerias-panel-${marcaId}`);
+  if (!painel) return;
+  const abrir = painel.style.display === 'none';
+  painel.style.display = abrir ? 'block' : 'none';
+  if (abrir) await carregarParcerias(marcaId);
+};
+
+async function carregarParcerias(marcaId) {
+  const painel = document.getElementById(`parcerias-panel-${marcaId}`);
+  painel.innerHTML = `<div style="font-size:var(--text-xs);color:var(--color-text-muted)">Carregando…</div>`;
+  try {
+    const resp = await apiFetch(`/api/admin/marcas/${marcaId}/parcerias`);
+    if (!resp.ok) { painel.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-xs)">Erro ao carregar parcerias</div>`; return; }
+    const { concedidas, recebidas } = await resp.json();
+
+    const outrasMarcas = marcasCacheParcerias.filter(m => m.id !== marcaId);
+    const jaConcedidasIds = new Set(concedidas.filter(p => p.ativo).map(p => p.marca_destino_id));
+    const disponiveis = outrasMarcas.filter(m => !jaConcedidasIds.has(m.id));
+
+    painel.innerHTML = `
+      <div style="font-size:var(--text-xs);color:var(--color-text-muted);margin-bottom:8px">
+        Liberar = esta marca deixa a outra ver o próprio placar em "marca + parceiras".
+        Aceitar fecha a mutualidade (docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.2).
+      </div>
+
+      <div style="font-size:11px;font-weight:600;color:var(--color-secondary);margin-bottom:4px">Concedidas por esta marca</div>
+      <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">
+        ${concedidas.length === 0 ? `<div style="font-size:var(--text-xs);color:var(--color-text-muted)">Nenhuma</div>` : ''}
+        ${concedidas.map(p => `
+          <div style="display:flex;align-items:center;gap:8px;font-size:var(--text-xs)">
+            <span style="flex:1">${escapar(p.marca_destino_nome)} ${p.ativo ? '' : '<span style="color:var(--color-text-muted)">(revogada)</span>'}</span>
+            ${p.ativo ? `<button class="btn-action btn-ocultar" style="padding:2px 8px;font-size:10px" onclick="revogarParceria('${marcaId}', '${p.marca_destino_id}')">Revogar</button>` : ''}
+          </div>
+        `).join('')}
+      </div>
+
+      <div style="font-size:11px;font-weight:600;color:var(--color-secondary);margin-bottom:4px">Recebidas de outras marcas</div>
+      <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">
+        ${recebidas.length === 0 ? `<div style="font-size:var(--text-xs);color:var(--color-text-muted)">Nenhuma</div>` : ''}
+        ${recebidas.map(p => `
+          <div style="display:flex;align-items:center;gap:8px;font-size:var(--text-xs)">
+            <span style="flex:1">${escapar(p.marca_origem_nome)} ${p.reciproca ? '<span style="color:var(--color-success)">· mútua</span>' : '<span style="color:var(--color-warning,#e6a23c)">· aguardando aceite</span>'}</span>
+            ${!p.reciproca ? `<button class="btn-action btn-reativar" style="padding:2px 8px;font-size:10px" onclick="aceitarParceria('${marcaId}', '${p.marca_origem_id}')">Aceitar</button>` : ''}
+          </div>
+        `).join('')}
+      </div>
+
+      ${disponiveis.length > 0 ? `
+      <div style="display:flex;gap:6px">
+        <select class="field-input" id="parceria-nova-destino-${marcaId}" style="flex:1;font-size:var(--text-xs);padding:4px 8px">
+          ${disponiveis.map(m => `<option value="${m.id}">${escapar(m.nome)}</option>`).join('')}
+        </select>
+        <button class="btn-action btn-reativar" style="padding:4px 10px;font-size:10px"
+                onclick="liberarParceria('${marcaId}', document.getElementById('parceria-nova-destino-${marcaId}').value)">
+          Liberar
+        </button>
+      </div>` : ''}
+    `;
+  } catch {
+    painel.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-xs)">Erro ao carregar parcerias</div>`;
+  }
+}
+
+window.liberarParceria = async function(marcaId, destinoId) {
+  if (!destinoId) return;
+  const resp = await apiFetch(`/api/admin/marcas/${marcaId}/parcerias/${destinoId}/liberar`, 'POST');
+  if (resp.ok) { showToast('Parceria liberada!', 'success'); carregarParcerias(marcaId); }
+  else { const d = await resp.json(); showToast(d.detail || 'Erro ao liberar parceria', 'error'); }
+};
+
+window.aceitarParceria = async function(marcaId, origemId) {
+  const resp = await apiFetch(`/api/admin/marcas/${marcaId}/parcerias/${origemId}/aceitar`, 'POST');
+  if (resp.ok) { showToast('Parceria aceita — agora é mútua!', 'success'); carregarParcerias(marcaId); }
+  else { const d = await resp.json(); showToast(d.detail || 'Erro ao aceitar parceria', 'error'); }
+};
+
+window.revogarParceria = async function(marcaId, destinoId) {
+  const resp = await apiFetch(`/api/admin/marcas/${marcaId}/parcerias/${destinoId}/revogar`, 'POST');
+  if (resp.ok) { showToast('Parceria revogada', 'success'); carregarParcerias(marcaId); }
+  else { const d = await resp.json(); showToast(d.detail || 'Erro ao revogar parceria', 'error'); }
+};
 
 // Sincroniza o color picker com o campo de texto hex, nos dois sentidos
 document.getElementById('marca-cor').addEventListener('input', (e) => {
@@ -2104,6 +2221,7 @@ window.editarMarca = function(marca) {
   document.getElementById('marca-cor-hex').value = marca.cor_primaria || '';
   document.getElementById('marca-tipografia').value = marca.tipografia || '';
   document.getElementById('marca-logo').value = marca.logo_url || '';
+  document.getElementById('marca-itens-por-pagina').value = marca.itens_por_pagina || '';
   document.getElementById('marca-salvar-btn').textContent = '✓ Salvar alterações';
   document.getElementById('marca-cancelar-btn').style.display = 'block';
   document.getElementById('marca-form-details').open = true;
@@ -2119,6 +2237,7 @@ window.cancelarEdicaoMarca = function() {
   document.getElementById('marca-cor-hex').value = '';
   document.getElementById('marca-tipografia').value = '';
   document.getElementById('marca-logo').value = '';
+  document.getElementById('marca-itens-por-pagina').value = '';
   document.getElementById('marca-salvar-btn').textContent = '+ Criar marca';
   document.getElementById('marca-cancelar-btn').style.display = 'none';
 };
@@ -2130,14 +2249,19 @@ window.salvarMarca = async function() {
   const cor      = document.getElementById('marca-cor-hex').value.trim();
   const tipo     = document.getElementById('marca-tipografia').value;
   const logo     = document.getElementById('marca-logo').value.trim();
+  const itensPag = document.getElementById('marca-itens-por-pagina').value.trim();
 
   if (!nome || (!id && !slug)) { showToast('Nome (e slug, se nova) são obrigatórios', 'error'); return; }
   if (cor && !/^#[0-9a-fA-F]{6}$/.test(cor)) { showToast('Cor precisa ser um hex válido (#rrggbb)', 'error'); return; }
+  if (itensPag && (!Number.isInteger(Number(itensPag)) || Number(itensPag) <= 0)) {
+    showToast('Itens por página precisa ser um número inteiro positivo', 'error'); return;
+  }
 
   const dados = { nome };
-  if (cor)  dados.cor_primaria = cor;
-  if (tipo) dados.tipografia   = tipo;
-  if (logo) dados.logo_url     = logo;
+  if (cor)      dados.cor_primaria     = cor;
+  if (tipo)     dados.tipografia       = tipo;
+  if (logo)     dados.logo_url         = logo;
+  if (itensPag) dados.itens_por_pagina = Number(itensPag);
 
   let resp;
   if (id) {
@@ -2222,6 +2346,14 @@ window.toggleAvatarAtivo = async function(id, novoAtivo) {
 // dimensões independentes (ver docs/EVENTOS_SPEC.md §3).
 let marcasCacheEventos = [];
 
+const MODOS_RANKING = {
+  zerado:           'Zerado',
+  ultimo_evento:    'Último evento da marca',
+  marca:            'Toda a marca',
+  marca_parceiras:  'Marca + parceiras',
+  geral:            'Geral da plataforma',
+};
+
 async function carregarEventos() {
   try {
     const [rEventos, rMarcas] = await Promise.all([
@@ -2271,9 +2403,15 @@ async function carregarEventos() {
             <button class="btn-action ${e.publico ? 'btn-reativar' : 'btn-rejeitar'}" style="padding:4px 10px;font-size:10px"
                     onclick="togglePublicoEvento('${e.id}', ${!e.publico})">
               ${e.publico ? '👁 Público' : '🚫 Inacessível'} — clique pra ${e.publico ? 'ocultar' : 'tornar público'}
-            </button>` : `
+            </button>
+            <select class="field-input" style="font-size:10px;padding:4px 8px;width:auto"
+                    onchange="atualizarModoRanking('${e.id}', this.value)">
+              ${Object.entries(MODOS_RANKING).map(([valor, label]) =>
+                `<option value="${valor}" ${e.modo_ranking === valor ? 'selected' : ''}>${label}</option>`
+              ).join('')}
+            </select>` : `
             <span style="font-size:10px;color:var(--color-text-muted);padding:4px 10px">
-              ${e.publico ? '👁 Público' : '🚫 Inacessível'}
+              ${e.publico ? '👁 Público' : '🚫 Inacessível'} · ${MODOS_RANKING[e.modo_ranking] || e.modo_ranking}
             </span>`}
           </div>
         </div>
@@ -2288,10 +2426,17 @@ async function togglePublicoEvento(id, publico) {
   else showToast('Erro ao atualizar evento', 'error');
 }
 
+async function atualizarModoRanking(id, modoRanking) {
+  const resp = await apiFetch(`/api/admin/eventos/${id}`, 'PATCH', { modo_ranking: modoRanking });
+  if (resp.ok) { showToast(`Modo de ranking: ${MODOS_RANKING[modoRanking]}`, 'success'); carregarEventos(); }
+  else { const d = await resp.json(); showToast(d.detail || 'Erro ao atualizar modo de ranking', 'error'); }
+}
+
 async function criarEvento() {
   const nome     = document.getElementById('novo-evento-nome').value.trim();
   const slug     = document.getElementById('novo-evento-slug').value.trim();
   const marcaId  = document.getElementById('novo-evento-marca').value || null;
+  const modoRanking = document.getElementById('novo-evento-modo-ranking').value;
   const inicioEl = document.getElementById('novo-evento-inicio').value;
   const fimEl    = document.getElementById('novo-evento-fim').value;
 
@@ -2302,6 +2447,7 @@ async function criarEvento() {
   const dados = {
     nome, slug,
     marca_id: marcaId,
+    modo_ranking: modoRanking,
     data_inicio: new Date(inicioEl).toISOString(),
     data_fim:    new Date(fimEl).toISOString(),
   };
@@ -2312,6 +2458,7 @@ async function criarEvento() {
     document.getElementById('novo-evento-nome').value = '';
     document.getElementById('novo-evento-slug').value = '';
     document.getElementById('novo-evento-marca').value = '';
+    document.getElementById('novo-evento-modo-ranking').value = 'zerado';
     document.getElementById('novo-evento-inicio').value = '';
     document.getElementById('novo-evento-fim').value = '';
     carregarEventos();
