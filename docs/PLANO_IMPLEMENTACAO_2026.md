@@ -68,21 +68,28 @@ mais os itens de avatar/campos de perfil documentados direto em
 **Depende de**: Fase 1 (exclusão de conta usa a trava de titularidade)
 **Bloqueia**: Fase 6 (prefill de nick/avatar na tela inicial)
 
-- Migração: `users` ganha `nome_completo`, `data_nascimento`, `cidade`,
-  `estado`, `telefone`, `avatar_id`, e `status` ganha valor `'excluido'`
-  (mais campo de "solicitado em" pra controlar a janela de 30 dias);
-  `nick_claims` ganha `ativo` (índice único parcial); `avatares` (nova,
-  curada por `super`).
-- Backend: endpoints de perfil (ver/editar); troca de nick com cooldown de
-  30 dias + liberação imediata + claim retroativo; moderador força troca
-  sem cooldown (com auditoria); fila de revisão por identificação ambígua;
-  exclusão de conta (bloqueio se `dono_user_id`, janela de 30 dias, rotina
-  de anonimização cobrindo `users` + `identities.email` +
-  `magic_link_tokens.email`); CRUD de avatares (`super`) + seleção
-  (usuário).
-- Frontend: tela de perfil nova (ver/editar dados, trocar nick, escolher
+- [x] Migração (020-022, aplicadas em produção): `users` ganha
+  `nome_completo`, `data_nascimento`, `cidade`, `estado`, `telefone`,
+  `avatar_id`, `exclusao_solicitada_em`, `status` ganha `'excluido'`;
+  `nick_claims` ganha `ativo` (índice único parcial) e `nick` (versão de
+  exibição — gap achado na implementação, migration 021); `avatares`
+  (nova, curada por `super`); `entradas.pendente_motivo`;
+  `nick_troca_forcada_auditoria` (nova).
+- [x] Backend: endpoints de perfil (ver/editar, `GET /api/perfil/pontuacoes`
+  com jogo/evento/marca); troca de nick com cooldown de 30 dias + liberação
+  imediata + claim retroativo (`POST /api/perfil/nick`); moderador força
+  troca sem cooldown com auditoria (`POST /api/admin/usuarios/{id}/trocar-nick`);
+  fila de revisão por identificação ambígua (reaproveita a fila de
+  pendentes existente, arquivamento automático depois de 30 dias via
+  checagem preguiçosa, sem cron); exclusão de conta (bloqueio se
+  `dono_user_id`, janela de 30 dias, processamento manual por `super` via
+  `GET/POST /api/admin/exclusoes-pendentes`, anonimização cobrindo `users`
+  + `identities.email` + `magic_link_tokens.email`); desativar pontuações
+  em massa; CRUD de avatares (`super`) + seleção (usuário).
+- [ ] Frontend: tela de perfil nova (ver/editar dados, trocar nick, escolher
   avatar, detalhamento de pontuações próprias com link pro jogo, desativar
-  pontuações, solicitar exclusão, logout); admin ganha CRUD de avatares.
+  pontuações, solicitar exclusão, logout); admin ganha CRUD de avatares,
+  histórico de nicks no painel de moderação, e tela de exclusões pendentes.
 
 ---
 
