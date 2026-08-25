@@ -151,3 +151,16 @@ async def test_registrar_troca_forcada_nick_anterior_none_primeira_reivindicacao
 
     args = fake_pool.execute.call_args[0]
     assert args[2] is None
+
+
+# ── revogar_todas_sessoes_usuario (EXCLUSAO_CONTA_SPEC.md decisão #3) ───────────
+
+@pytest.mark.asyncio
+async def test_revogar_todas_sessoes_usuario(fake_pool):
+    user_id = make_uuid()
+    await auth_repo.revogar_todas_sessoes_usuario(fake_pool, user_id)
+
+    sql = " ".join(fake_pool.execute.call_args[0][0].split())
+    assert "UPDATE sessions SET revogada_em = now()" in sql
+    assert "user_id = $1" in sql
+    assert "DELETE" not in sql

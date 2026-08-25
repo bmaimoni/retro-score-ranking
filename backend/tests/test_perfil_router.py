@@ -222,3 +222,102 @@ async def test_trocar_nick_vazio_retorna_422(client):
         resp = await client.post("/api/perfil/nick", json={"nick": "   "})
 
     assert resp.status_code == 422
+
+
+# ── POST /api/perfil/desativar-pontuacoes ───────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_desativar_pontuacoes_sem_sessao_retorna_401(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.post("/api/perfil/desativar-pontuacoes")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_desativar_pontuacoes_sucesso(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.usuario.desativar_pontuacoes", AsyncMock(return_value=3)) as mock:
+        resp = await client.post("/api/perfil/desativar-pontuacoes")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_afetadas"] == 3
+    mock.assert_called_once_with(pool, usuario["id"], usuario["email"])
+
+
+# ── POST /api/perfil/exclusao ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_solicitar_exclusao_sem_sessao_retorna_401(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.post("/api/perfil/exclusao")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_solicitar_exclusao_sucesso(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+    resultado = {"id": usuario["id"], "exclusao_solicitada_em": "2026-01-01T00:00:00"}
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("services.exclusao_conta.solicitar", AsyncMock(return_value=resultado)):
+        resp = await client.post("/api/perfil/exclusao")
+
+    assert resp.status_code == 201
+    assert resp.json()["exclusao_solicitada_em"] is not None
+
+
+@pytest.mark.asyncio
+async def test_solicitar_exclusao_bloqueada_por_titularidade_retorna_409(client):
+    import services.exclusao_conta as exclusao_svc
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("services.exclusao_conta.solicitar",
+               AsyncMock(side_effect=exclusao_svc.ExclusaoBloqueadaTitularidadeError([{"id": "m1", "nome": "Canal3"}]))):
+        resp = await client.post("/api/perfil/exclusao")
+
+    assert resp.status_code == 409
+    assert "Canal3" in resp.json()["detail"]
+
+
+# ── POST /api/perfil/exclusao/cancelar ───────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_cancelar_exclusao_sucesso(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+    resultado = {"id": usuario["id"], "exclusao_solicitada_em": None}
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("services.exclusao_conta.cancelar", AsyncMock(return_value=resultado)):
+        resp = await client.post("/api/perfil/exclusao/cancelar")
+
+    assert resp.status_code == 200
+    assert resp.json()["exclusao_solicitada_em"] is None
+
+
+@pytest.mark.asyncio
+async def test_cancelar_exclusao_sem_pendencia_retorna_404(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario_sessao()
+
+    client.cookies.set(SESSION_COOKIE, "sessao-valida")
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("services.exclusao_conta.cancelar", AsyncMock(return_value=None)):
+        resp = await client.post("/api/perfil/exclusao/cancelar")
+
+    assert resp.status_code == 404

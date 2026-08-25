@@ -95,6 +95,20 @@ async def buscar_dono_user_id(pool: Pool, marca_id: str) -> str | None:
     return str(row["dono_user_id"])
 
 
+async def listar_onde_e_dono(pool: Pool, user_id: str) -> list[dict]:
+    """
+    Marcas onde este user_id é dono_user_id — usado pela trava de
+    exclusão de conta (docs/EXCLUSAO_CONTA_SPEC.md decisão #5): pedido
+    de exclusão é bloqueado enquanto a pessoa for titular de qualquer
+    marca. Lista (não só bool) pra dar mensagem de erro específica.
+    """
+    rows = await pool.fetch(
+        "SELECT id, nome FROM marcas WHERE dono_user_id = $1",
+        user_id,
+    )
+    return [dict(r) for r in rows]
+
+
 async def transferir_titularidade(pool: Pool, marca_id: str, novo_dono_user_id: str) -> dict | None:
     """
     Atualiza marcas.dono_user_id. Não mexe em admin_vinculos — o dono

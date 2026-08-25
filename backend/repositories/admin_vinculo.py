@@ -80,6 +80,16 @@ async def atualizar_ativo(pool: Pool, vinculo_id: str, ativo: bool) -> dict | No
     return dict(row) if row else None
 
 
+async def revogar_todos_do_usuario(pool, user_id: str) -> None:
+    """Revoga todo admin_vinculo ativo do usuário — usado na
+    anonimização de conta (docs/EXCLUSAO_CONTA_SPEC.md decisão #3).
+    `pool` aceita tanto o Pool quanto uma conn dentro de transação."""
+    await pool.execute(
+        "UPDATE admin_vinculos SET ativo = false WHERE user_id = $1 AND ativo = true",
+        user_id,
+    )
+
+
 async def buscar_por_id(pool: Pool, vinculo_id: str) -> dict | None:
     """Um vínculo específico — usado pelas checagens de revogação
     (precisa saber marca_id/user_id/nivel antes de decidir se quem

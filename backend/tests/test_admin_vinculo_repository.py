@@ -217,3 +217,16 @@ async def test_registrar_auditoria_detalhes_none_nao_serializa(fake_pool):
 
     args = fake_pool.execute.call_args[0]
     assert args[-1] is None
+
+
+# ── revogar_todos_do_usuario (EXCLUSAO_CONTA_SPEC.md decisão #3) ────────────────
+
+@pytest.mark.asyncio
+async def test_revogar_todos_do_usuario(fake_pool):
+    user_id = make_uuid()
+    await admin_vinculo_repo.revogar_todos_do_usuario(fake_pool, user_id)
+
+    sql = " ".join(fake_pool.execute.call_args[0][0].split())
+    assert "UPDATE admin_vinculos SET ativo = false" in sql
+    assert "user_id = $1" in sql
+    assert "DELETE" not in sql

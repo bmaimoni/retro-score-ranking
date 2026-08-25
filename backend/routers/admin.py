@@ -7,8 +7,10 @@ import repositories.entrada as entrada_repo
 import repositories.jogo as jogo_repo
 import repositories.admin_vinculo as admin_vinculo_repo
 import repositories.evento_jogo as evento_jogo_repo
+import repositories.usuario as usuario_repo
 import auth.repository as auth_repo
 import auth.service as auth_svc
+import services.exclusao_conta as exclusao_svc
 import structlog
 
 log = structlog.get_logger()
@@ -550,3 +552,54 @@ async def forcar_troca_nick(
     )
 
     return nova_claim
+
+
+# ── EXCLUSÃO DE CONTA (docs/EXCLUSAO_CONTA_SPEC.md) ─────────────────────────────
+
+def _exigir_super_exclusao(admin: AdminContext):
+    """Exclusão de conta é LGPD-sensível e atravessa a plataforma
+    inteira (usuário não é escopado por marca) — exclusivo de super,
+    mesma régua de manutenção de ranking."""
+    if not admin.super:
+        raise HTTPException(status_code=403, detail="Só super-admin gerencia exclusão de conta")
+
+
+@router.get("/exclusoes-pendentes")
+async def listar_exclusoes_pendentes(
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """
+    Solicitações de exclusão em aberto — sem job agendado (ver
+    docs/EXCLUSAO_CONTA_SPEC.md §7), processar é ação manual do super
+    a partir desta lista. `elegivel=true` = já passou dos 30 dias de
+    janela de cancelamento.
+    """
+    _exigir_super_exclusao(admin)
+    return await usuario_repo.listar_exclusoes_pendentes(pool)
+
+
+@router.post("/usuarios/{user_id}/processar-exclusao")
+async def processar_exclusao(
+    user_id: str,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """
+    Dispara a anonimização de verdade — bloqueado se ainda dentro da
+    janela de 30 dias, ou se a pessoa virou dono_user_id de alguma
+    marca depois de solicitar (checagem repetida aqui, não só na
+    solicitação).
+    """
+    _exigir_super_exclusao(admin)
+    try:
+        resultado = await exclusao_svc.processar(pool, user_id)
+    except exclusao_svc.ExclusaoBloqueadaTitularidadeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except exclusao_svc.ExclusaoNaoElegivelError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except exclusao_svc.ExclusaoJanelaAbertaError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    log.warning("conta_anonimizada", user_id=user_id, admin=admin.identificador)
+    return resultado

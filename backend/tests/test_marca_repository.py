@@ -131,3 +131,23 @@ async def test_transferir_titularidade_marca_inexistente_retorna_none(fake_pool)
     fake_pool.set_fetchrow(None)
     resultado = await marca_repo.transferir_titularidade(fake_pool, "nao-existe", "u1")
     assert resultado is None
+
+
+# ── listar_onde_e_dono: trava de exclusão de conta (EXCLUSAO_CONTA_SPEC.md #5) ─
+
+@pytest.mark.asyncio
+async def test_listar_onde_e_dono_retorna_marcas(fake_pool):
+    fake_pool.set_fetch([{"id": "m1", "nome": "Canal3"}])
+
+    resultado = await marca_repo.listar_onde_e_dono(fake_pool, "u1")
+
+    assert resultado == [{"id": "m1", "nome": "Canal3"}]
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "dono_user_id = $1" in sql
+
+
+@pytest.mark.asyncio
+async def test_listar_onde_e_dono_vazio_quando_nao_e_dono_de_nada(fake_pool):
+    fake_pool.set_fetch([])
+    resultado = await marca_repo.listar_onde_e_dono(fake_pool, "u1")
+    assert resultado == []

@@ -902,3 +902,96 @@ async def test_forcar_troca_nick_colisao_retorna_409(client):
             json={"novo_nick": "Ocupado"}, headers=AUTH_HEADER)
 
     assert resp.status_code == 409
+
+
+# ── Exclusão de conta (EXCLUSAO_CONTA_SPEC.md) ─────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_admin_comum_nao_lista_exclusoes_pendentes(client):
+    escopado = AdminContext(
+        identificador="admin@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": make_uuid(), "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: escopado
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.get("/api/admin/exclusoes-pendentes")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_super_lista_exclusoes_pendentes(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    pendentes = [{"id": make_uuid(), "email": "p@x.com", "nome": "Pessoa",
+                  "exclusao_solicitada_em": "2026-01-01", "elegivel": True}]
+
+    with patch("repositories.usuario.listar_exclusoes_pendentes", AsyncMock(return_value=pendentes)):
+        resp = await client.get("/api/admin/exclusoes-pendentes", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_admin_comum_nao_processa_exclusao(client):
+    escopado = AdminContext(
+        identificador="admin@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": make_uuid(), "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: escopado
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post(f"/api/admin/usuarios/{make_uuid()}/processar-exclusao")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_super_processa_exclusao(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    user_id = make_uuid()
+    resultado = {"id": user_id, "status": "excluido"}
+
+    with patch("services.exclusao_conta.processar", AsyncMock(return_value=resultado)):
+        resp = await client.post(f"/api/admin/usuarios/{user_id}/processar-exclusao", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "excluido"
+
+
+@pytest.mark.asyncio
+async def test_processar_exclusao_dentro_da_janela_retorna_400(client):
+    import services.exclusao_conta as exclusao_svc
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    user_id = make_uuid()
+
+    with patch("services.exclusao_conta.processar",
+               AsyncMock(side_effect=exclusao_svc.ExclusaoJanelaAbertaError("faltam 5 dias"))):
+        resp = await client.post(f"/api/admin/usuarios/{user_id}/processar-exclusao", headers=AUTH_HEADER)
+
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_processar_exclusao_bloqueada_por_titularidade_retorna_409(client):
+    import services.exclusao_conta as exclusao_svc
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    user_id = make_uuid()
+
+    with patch("services.exclusao_conta.processar",
+               AsyncMock(side_effect=exclusao_svc.ExclusaoBloqueadaTitularidadeError([{"id": "m1", "nome": "Canal3"}]))):
+        resp = await client.post(f"/api/admin/usuarios/{user_id}/processar-exclusao", headers=AUTH_HEADER)
+
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_processar_exclusao_nao_elegivel_retorna_404(client):
+    import services.exclusao_conta as exclusao_svc
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    user_id = make_uuid()
+
+    with patch("services.exclusao_conta.processar",
+               AsyncMock(side_effect=exclusao_svc.ExclusaoNaoElegivelError("nada pendente"))):
+        resp = await client.post(f"/api/admin/usuarios/{user_id}/processar-exclusao", headers=AUTH_HEADER)
+
+    assert resp.status_code == 404

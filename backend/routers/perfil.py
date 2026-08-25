@@ -2,7 +2,7 @@
 Router de perfil de usuário — requer login (sessão de visitante comum,
 não admin). Prefixo: /api/perfil
 
-Ver docs/BACKLOG_2026.md §1 (itens 1.3/1.8).
+Ver docs/BACKLOG_2026.md §1 (itens 1.3/1.5/1.8) e docs/EXCLUSAO_CONTA_SPEC.md.
 """
 from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,6 +12,7 @@ import auth.service as auth_svc
 import auth.repository as auth_repo
 import repositories.usuario as usuario_repo
 import repositories.avatar as avatar_repo
+import services.exclusao_conta as exclusao_svc
 
 router = APIRouter(prefix="/api/perfil", tags=["perfil"])
 
@@ -81,3 +82,49 @@ async def trocar_nick(
         raise HTTPException(status_code=429, detail=str(exc))
     except auth_svc.NickJaReivindicadoError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+
+
+# ── Desativar pontuações — leve, reversível (BACKLOG_2026.md item 1.5) ─────────
+
+@router.post("/desativar-pontuacoes")
+async def desativar_pontuacoes(
+    pool=Depends(get_pool),
+    usuario: dict = Depends(auth_svc.sessao_obrigatoria),
+):
+    """
+    Arquiva (soft) todas as pontuações do usuário — reversível, não
+    mexe em dado pessoal. Distinto de excluir conta: nunca no mesmo
+    botão/fluxo (decisão #4 do docs/EXCLUSAO_CONTA_SPEC.md §4).
+    """
+    total = await usuario_repo.desativar_pontuacoes(pool, usuario["id"], usuario.get("email") or usuario["id"])
+    return {"ok": True, "total_afetadas": total}
+
+
+# ── Exclusão de conta — pesada, com janela de cancelamento (EXCLUSAO_CONTA_SPEC.md) ─
+
+@router.post("/exclusao", status_code=201)
+async def solicitar_exclusao(
+    pool=Depends(get_pool),
+    usuario: dict = Depends(auth_svc.sessao_obrigatoria),
+):
+    """
+    Inicia a janela de 30 dias de cancelamento — a conta continua
+    normal até lá. Bloqueado na hora se a pessoa for titular de
+    qualquer marca (decisão #5).
+    """
+    try:
+        return await exclusao_svc.solicitar(pool, usuario["id"])
+    except exclusao_svc.ExclusaoBloqueadaTitularidadeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.post("/exclusao/cancelar")
+async def cancelar_exclusao(
+    pool=Depends(get_pool),
+    usuario: dict = Depends(auth_svc.sessao_obrigatoria),
+):
+    """Desiste da exclusão dentro da janela de 30 dias (decisão #2)."""
+    resultado = await exclusao_svc.cancelar(pool, usuario["id"])
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Não há solicitação de exclusão pendente")
+    return resultado

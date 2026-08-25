@@ -248,6 +248,17 @@ async def revogar_sessao(pool: Pool, session_id: str) -> None:
     )
 
 
+async def revogar_todas_sessoes_usuario(pool, user_id: str) -> None:
+    """Revoga toda sessão ativa do usuário — usado na anonimização de
+    conta (docs/EXCLUSAO_CONTA_SPEC.md decisão #3). `pool` aceita tanto
+    o Pool quanto uma conn dentro de transação (mesma convenção de
+    repositories.entrada.inserir)."""
+    await pool.execute(
+        "UPDATE sessions SET revogada_em = now() WHERE user_id = $1 AND revogada_em IS NULL",
+        user_id,
+    )
+
+
 # ── magic_link_tokens ──────────────────────────────────────────
 
 async def criar_magic_link_token(
