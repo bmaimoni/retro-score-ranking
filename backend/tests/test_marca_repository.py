@@ -74,6 +74,23 @@ async def test_atualizar_marca_campos_parciais(fake_pool):
     assert args[4] is None          # tipografia não foi passado
 
 
+@pytest.mark.asyncio
+async def test_atualizar_marca_itens_por_pagina(fake_pool):
+    """BACKLOG_2026.md §3 item 3.2 — config única por marca, todo
+    evento dela herda, sem exceção por evento."""
+    fake_pool.set_fetchrow({
+        "id": "abc", "nome": "Canal3", "slug": "canal3",
+        "cor_primaria": None, "tipografia": None, "logo_url": None,
+        "itens_por_pagina": 50, "criado_em": "2026-01-01",
+    })
+
+    resultado = await marca_repo.atualizar(fake_pool, "abc", {"itens_por_pagina": 50})
+
+    assert resultado["itens_por_pagina"] == 50
+    args = fake_pool.fetchrow.call_args[0]
+    assert args[-1] == 50
+
+
 # ── buscar_dono_user_id: trava de revogação do titular (decisão #10) ───────────
 
 @pytest.mark.asyncio

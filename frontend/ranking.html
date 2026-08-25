@@ -85,6 +85,20 @@
       font-weight: var(--weight-bold);
     }
 
+    .jogo-metadado {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+    }
+    .jogo-metadado:empty { display: none; }
+    .jogo-metadado a {
+      color: var(--color-secondary);
+      text-decoration: none;
+    }
+    .jogo-metadado a:hover { text-decoration: underline; }
+
     /* ── Seletor de jogo ── */
     .game-tabs {
       display: flex;
@@ -156,6 +170,17 @@
     .player-card.new-entry {
       animation: newEntry 1.5s ease both;
       border-color: var(--color-secondary);
+    }
+
+    /* Destaque pra "meu score" — chegou aqui via link de perfil.html */
+    .player-card.destaque-proprio {
+      border-color: var(--color-secondary);
+      box-shadow: 0 0 0 2px var(--color-secondary);
+      animation: pulsoDestaque 1.8s ease-in-out 2;
+    }
+    @keyframes pulsoDestaque {
+      0%, 100% { box-shadow: 0 0 0 2px var(--color-secondary); }
+      50%      { box-shadow: 0 0 12px 4px var(--color-secondary); }
     }
 
     /* Pódio */
@@ -532,9 +557,13 @@
   <header>
     <a href="index.html" class="btn-back" id="link-voltar">◂ VOLTAR</a>
     <div class="ranking-header">
-      <div class="ranking-meta">
-        <span class="meta-label">Jogo atual</span>
-        <span class="meta-value" id="jogo-nome">—</span>
+      <div class="ranking-meta" style="flex-direction:row;align-items:center;gap:var(--space-sm)">
+        <img id="jogo-capa" alt="" style="display:none;width:32px;height:32px;object-fit:cover;border-radius:var(--radius-sm);border:var(--border-width) solid var(--color-border)">
+        <div style="display:flex;flex-direction:column;gap:var(--space-xs)">
+          <span class="meta-label">Jogo atual</span>
+          <span class="meta-value" id="jogo-nome">—</span>
+          <span class="jogo-metadado" id="jogo-metadado"></span>
+        </div>
       </div>
 
       <h1 class="ranking-title">HIGH<br>SCORES</h1>
@@ -602,11 +631,16 @@ import { aplicarTema } from './temas.js';
 
 // ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
 const API_URL      = 'https://retro-score-ranking-production.up.railway.app';
+const UPLOAD_URL   = 'https://retro-score-ranking.vercel.app';
 
 // Evento — opcional, SEM fallback (diferente de index.html). Ausente =
 // comportamento de sempre (placar geral, sem filtro de evento) — nenhum
 // QR/link já publicado quebra. Ver docs/MARCAS_SPEC.md §4.5.
 const EVENTO_SLUG = new URLSearchParams(location.search).get('evento');
+// id de entrada vindo de perfil.html ("ver no ranking") — navega até a
+// página certa e destaca o card, uma única vez (docs/BACKLOG_2026.md §3.6).
+const DESTAQUE_ID = new URLSearchParams(location.search).get('destaque');
+let destaqueAplicado = false;
 
 function buildRankingUrl(jogoSlug) {
   return EVENTO_SLUG
@@ -645,9 +679,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('link-participar').href = hrefComEvento;
   }
   await carregarSessaoESeguindo();
+  gerarQR();
   await carregarJogos();
   conectarControlesBuscaEPaginacao();
 });
+
+// ── QR Code ───────────────────────────────────────────────────────────────────
+// Mesmo padrão de telao.html: aponta pro fluxo de envio, escopado pro
+// evento atual quando há um (?evento=), senão cai no envio padrão da
+// plataforma — nunca ficava vazio antes por falta de geração real.
+function gerarQR() {
+  const url = EVENTO_SLUG
+    ? `${UPLOAD_URL}/index.html?evento=${EVENTO_SLUG}`
+    : `${UPLOAD_URL}/index.html`;
+
+  const el = document.getElementById('ranking-qrcode');
+  el.innerHTML = '';
+  new QRCode(el, {
+    text: url,
+    width: 120, height: 120,
+    colorDark: '#000000',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.M,
+  });
+  document.getElementById('ranking-qr-link').href = url;
+  document.getElementById('ranking-qr-url').textContent = url.replace(/^https?:\/\//, '');
+}
 
 function conectarControlesBuscaEPaginacao() {
   let buscaTimeout;
@@ -747,10 +804,54 @@ async function carregarRanking(jogo) {
     if (!resp.ok) throw new Error();
     const data = await resp.json();
     entradas = data.entradas || [];
+    renderJogoMetadado(data.jogo);
+    aplicarDestaqueSeNecessario();
     atualizarView();
   } catch {
     renderErro();
   }
+}
+
+// Metadado opcional do jogo (docs/BACKLOG_2026.md §3.1) — plataforma,
+// ano de lançamento e link de gameplay, quando o admin preencheu.
+function renderJogoMetadado(jogo) {
+  const el   = document.getElementById('jogo-metadado');
+  const capa = document.getElementById('jogo-capa');
+  if (!jogo) { el.innerHTML = ''; capa.style.display = 'none'; return; }
+
+  if (jogo.capa_url) {
+    capa.src = jogo.capa_url;
+    capa.alt = `Capa de ${jogo.nome}`;
+    capa.style.display = 'block';
+  } else {
+    capa.style.display = 'none';
+  }
+
+  const partes = [];
+  if (jogo.plataforma) partes.push(escapar(jogo.plataforma));
+  if (jogo.ano_lancamento) partes.push(String(jogo.ano_lancamento));
+  let html = partes.join(' · ');
+  if (jogo.gameplay_url) {
+    html += `${html ? ' · ' : ''}<a href="${escapar(jogo.gameplay_url)}" target="_blank" rel="noopener">▶ gameplay</a>`;
+  }
+  el.innerHTML = html;
+}
+
+// Se veio de perfil.html com ?destaque=<entrada_id>, pula pra página onde
+// aquela entrada está — só na primeira carga do jogo certo, não a cada
+// atualização de SSE (senão "puxaria" quem já está navegando de volta).
+function aplicarDestaqueSeNecessario() {
+  if (!DESTAQUE_ID || destaqueAplicado) return;
+  const idx = entradas.findIndex(e => e.id === DESTAQUE_ID);
+  if (idx === -1) return;
+  destaqueAplicado = true;
+  paginaAtual = Math.floor(idx / PAGE_SIZE) + 1;
+  setTimeout(() => {
+    const card = document.querySelector(`.player-card[data-entrada-id="${DESTAQUE_ID}"]`);
+    if (!card) return;
+    card.classList.add('destaque-proprio');
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 250);
 }
 
 // ── SSE ───────────────────────────────────────────────────────────────────────
@@ -891,6 +992,7 @@ function renderRanking(lista, novaEntradaId = null, offset = 0) {
     return `
       <div class="player-card ${posClass} ${isNew ? 'new-entry' : ''}"
            role="listitem"
+           data-entrada-id="${entry.id}"
            style="animation-delay: ${delay}ms">
         <div class="player-pos ${posClass}">${posLabel}</div>
         ${foto}

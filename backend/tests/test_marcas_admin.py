@@ -416,6 +416,34 @@ async def test_transferir_titularidade_para_ja_titular_retorna_422(client):
     assert resp.status_code == 422
 
 
+# ── itens_por_pagina (BACKLOG_2026.md §3 item 3.2) ──────────────────────────────
+
+@pytest.mark.asyncio
+async def test_atualizar_itens_por_pagina_da_marca(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    atualizada = _marca(itens_por_pagina=50)
+
+    with patch("repositories.marca.atualizar", AsyncMock(return_value=atualizada)):
+        resp = await client.patch(f"/api/admin/marcas/{make_uuid()}",
+            json={"itens_por_pagina": 50},
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json()["itens_por_pagina"] == 50
+
+
+@pytest.mark.asyncio
+async def test_atualizar_itens_por_pagina_zero_retorna_422(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.patch(f"/api/admin/marcas/{make_uuid()}",
+        json={"itens_por_pagina": 0},
+        headers=AUTH_HEADER)
+
+    assert resp.status_code == 422
+
+
 # ── Eventos da marca ───────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -433,3 +461,225 @@ async def test_listar_eventos_da_marca(client):
 
     assert resp.status_code == 200
     assert len(resp.json()) == 1
+
+
+# ── Parcerias entre marcas (docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.2) ──────────
+
+def _parceria(**overrides):
+    base = {"id": make_uuid(), "marca_origem_id": make_uuid(),
+            "marca_destino_id": make_uuid(), "ativo": True, "criado_em": "2026-01-01"}
+    base.update(overrides)
+    return base
+
+
+@pytest.mark.asyncio
+async def test_listar_parcerias(client):
+    marca_id = make_uuid()
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_id))), \
+         patch("repositories.marca_parceria.listar_concedidas", AsyncMock(return_value=[_parceria()])), \
+         patch("repositories.marca_parceria.listar_recebidas", AsyncMock(return_value=[])):
+        resp = await client.get(f"/api/admin/marcas/{marca_id}/parcerias", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["concedidas"]) == 1
+    assert data["recebidas"] == []
+
+
+@pytest.mark.asyncio
+async def test_listar_parcerias_marca_inexistente_retorna_404(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=None)):
+        resp = await client.get(f"/api/admin/marcas/{make_uuid()}/parcerias", headers=AUTH_HEADER)
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_admin_de_outra_marca_nao_lista_parcerias(client):
+    """Adversarial: admin da marca A não consulta parcerias da marca B."""
+    marca_b = make_uuid()
+    admin_de_a = AdminContext(
+        identificador="admin-a@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"marca_id": make_uuid(), "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_a
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_b))):
+        resp = await client.get(f"/api/admin/marcas/{marca_b}/parcerias", headers=AUTH_HEADER)
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_moderador_nao_lista_parcerias(client):
+    """Decisão #3: qualquer ADMIN da marca, moderador nunca."""
+    marca_id = make_uuid()
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"marca_id": marca_id, "nivel": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_id))):
+        resp = await client.get(f"/api/admin/marcas/{marca_id}/parcerias", headers=AUTH_HEADER)
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_liberar_parceria(client):
+    """Efeito imediato — origem já libera pra destino sem exigir aceite
+    antes (decisão #5). Auditoria gravada (decisão #6)."""
+    origem_id, destino_id = make_uuid(), make_uuid()
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(side_effect=[_marca(id=origem_id), _marca(id=destino_id)])), \
+         patch("repositories.marca_parceria.criar_ou_reativar",
+               AsyncMock(return_value=_parceria(marca_origem_id=origem_id, marca_destino_id=destino_id))), \
+         patch("repositories.admin_vinculo.registrar_auditoria", AsyncMock()) as auditoria_mock:
+        resp = await client.post(f"/api/admin/marcas/{origem_id}/parcerias/{destino_id}/liberar",
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 201
+    assert resp.json()["marca_destino_id"] == destino_id
+    auditoria_mock.assert_called_once_with(
+        pool, acao="parceria_liberada", user_alvo_id=None,
+        realizado_por="admin", marca_id=origem_id, nivel=None,
+        detalhes={"marca_destino_id": destino_id},
+    )
+
+
+@pytest.mark.asyncio
+async def test_liberar_parceria_para_si_mesma_retorna_422(client):
+    marca_id = make_uuid()
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post(f"/api/admin/marcas/{marca_id}/parcerias/{marca_id}/liberar",
+        headers=AUTH_HEADER)
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_moderador_nao_libera_parceria(client):
+    marca_id = make_uuid()
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"marca_id": marca_id, "nivel": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_id))):
+        resp = await client.post(f"/api/admin/marcas/{marca_id}/parcerias/{make_uuid()}/liberar",
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_aceitar_parceria_com_liberacao_ativa(client):
+    """marca_id aceita liberação de origem_id — cria a linha recíproca,
+    fechando a mutualidade (decisão #2)."""
+    marca_id, origem_id = make_uuid(), make_uuid()
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(side_effect=[_marca(id=marca_id), _marca(id=origem_id)])), \
+         patch("repositories.marca_parceria.buscar",
+               AsyncMock(return_value=_parceria(marca_origem_id=origem_id, marca_destino_id=marca_id, ativo=True))), \
+         patch("repositories.marca_parceria.criar_ou_reativar",
+               AsyncMock(return_value=_parceria(marca_origem_id=marca_id, marca_destino_id=origem_id))), \
+         patch("repositories.admin_vinculo.registrar_auditoria", AsyncMock()) as auditoria_mock:
+        resp = await client.post(f"/api/admin/marcas/{marca_id}/parcerias/{origem_id}/aceitar",
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 201
+    auditoria_mock.assert_called_once_with(
+        pool, acao="parceria_aceita", user_alvo_id=None,
+        realizado_por="admin", marca_id=marca_id, nivel=None,
+        detalhes={"marca_origem_id": origem_id},
+    )
+
+
+@pytest.mark.asyncio
+async def test_aceitar_parceria_sem_liberacao_ativa_retorna_422(client):
+    """Não há o que aceitar se a origem nunca liberou (ou já revogou)."""
+    marca_id, origem_id = make_uuid(), make_uuid()
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(side_effect=[_marca(id=marca_id), _marca(id=origem_id)])), \
+         patch("repositories.marca_parceria.buscar", AsyncMock(return_value=None)):
+        resp = await client.post(f"/api/admin/marcas/{marca_id}/parcerias/{origem_id}/aceitar",
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_aceitar_parceria_liberacao_revogada_retorna_422(client):
+    marca_id, origem_id = make_uuid(), make_uuid()
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(side_effect=[_marca(id=marca_id), _marca(id=origem_id)])), \
+         patch("repositories.marca_parceria.buscar",
+               AsyncMock(return_value=_parceria(ativo=False))):
+        resp = await client.post(f"/api/admin/marcas/{marca_id}/parcerias/{origem_id}/aceitar",
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_aceitar_parceria_para_si_mesma_retorna_422(client):
+    marca_id = make_uuid()
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post(f"/api/admin/marcas/{marca_id}/parcerias/{marca_id}/aceitar",
+        headers=AUTH_HEADER)
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_revogar_parceria(client):
+    """Só a própria concessão é revogada — a linha recíproca não é
+    tocada (decisão #5, pode ficar assimétrica)."""
+    origem_id, destino_id = make_uuid(), make_uuid()
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=origem_id))), \
+         patch("repositories.marca_parceria.revogar",
+               AsyncMock(return_value=_parceria(marca_origem_id=origem_id, marca_destino_id=destino_id, ativo=False))), \
+         patch("repositories.admin_vinculo.registrar_auditoria", AsyncMock()) as auditoria_mock:
+        resp = await client.post(f"/api/admin/marcas/{origem_id}/parcerias/{destino_id}/revogar",
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json()["ativo"] is False
+    auditoria_mock.assert_called_once_with(
+        pool, acao="parceria_revogada", user_alvo_id=None,
+        realizado_por="admin", marca_id=origem_id, nivel=None,
+        detalhes={"marca_destino_id": destino_id},
+    )
+
+
+@pytest.mark.asyncio
+async def test_revogar_parceria_inexistente_retorna_404(client):
+    marca_id = make_uuid()
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.marca.buscar_por_id", AsyncMock(return_value=_marca(id=marca_id))), \
+         patch("repositories.marca_parceria.revogar", AsyncMock(return_value=None)):
+        resp = await client.post(f"/api/admin/marcas/{marca_id}/parcerias/{make_uuid()}/revogar",
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 404

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import BaseModel, UUID4
+from pydantic import BaseModel, UUID4, field_validator
 from middleware.auth import require_admin, AdminContext
 from utils.db import get_pool
 from services.sse import broker
@@ -30,10 +30,32 @@ class CriarJogo(BaseModel):
     nome: str
     slug: str
     score_max: int | None = None
+    plataforma: str | None = None
+    ano_lancamento: int | None = None
+    capa_url: str | None = None
+    gameplay_url: str | None = None
+
+    @field_validator("ano_lancamento")
+    @classmethod
+    def _valida_ano(cls, v):
+        if v is not None and v <= 1950:
+            raise ValueError("ano_lancamento deve ser posterior a 1950")
+        return v
 
 class AtualizarJogo(BaseModel):
     ativo: bool | None = None
     score_max: int | None = None
+    plataforma: str | None = None
+    ano_lancamento: int | None = None
+    capa_url: str | None = None
+    gameplay_url: str | None = None
+
+    @field_validator("ano_lancamento")
+    @classmethod
+    def _valida_ano(cls, v):
+        if v is not None and v <= 1950:
+            raise ValueError("ano_lancamento deve ser posterior a 1950")
+        return v
 
 class ForcarTrocaNick(BaseModel):
     novo_nick: str
@@ -254,6 +276,10 @@ async def criar_jogo(
             pool, body.nome, body.slug, body.score_max,
             pendente_aprovacao=not admin.super,
             criado_por=admin.identificador,
+            plataforma=body.plataforma,
+            ano_lancamento=body.ano_lancamento,
+            capa_url=body.capa_url,
+            gameplay_url=body.gameplay_url,
         )
     except Exception as exc:
         if "unique" in str(exc).lower():
@@ -285,7 +311,11 @@ async def atualizar_jogo(
             detail="Moderador não pode editar jogos — só admin ou super-admin",
         )
 
-    jogo = await jogo_repo.atualizar(pool, str(jogo_id), body.ativo, body.score_max)
+    jogo = await jogo_repo.atualizar(
+        pool, str(jogo_id), body.ativo, body.score_max,
+        plataforma=body.plataforma, ano_lancamento=body.ano_lancamento,
+        capa_url=body.capa_url, gameplay_url=body.gameplay_url,
+    )
     if not jogo:
         raise HTTPException(status_code=404, detail="Jogo não encontrado ou nada para atualizar")
     return jogo

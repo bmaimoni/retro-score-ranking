@@ -549,7 +549,7 @@ async function carregarPontuacoes() {
       else if (p.pendente) tag = ' <span style="color:var(--color-warning)">(em moderação)</span>';
       else if (p.superado) tag = ' <span style="color:var(--color-text-muted)">(superada)</span>';
       return `
-        <a class="pontuacao-item" href="ranking.html?evento=${escapar(p.evento_slug)}&jogo=${escapar(p.jogo_slug)}">
+        <a class="pontuacao-item" href="ranking.html?evento=${escapar(p.evento_slug)}&jogo=${escapar(p.jogo_slug)}&destaque=${escapar(p.id)}">
           <div class="pontuacao-info">
             <div class="pontuacao-jogo">${escapar(p.jogo_nome)}${tag}</div>
             <div class="pontuacao-meta">${escapar(p.evento_nome)} · ${escapar(p.marca_nome)} · ${data}</div>

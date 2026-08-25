@@ -19,6 +19,13 @@ router = APIRouter(prefix="/api/admin/eventos", tags=["admin-eventos"])
 
 
 TIPOGRAFIAS_VALIDAS = {"arcade", "futurista", "terminal"}
+MODOS_RANKING_VALIDOS = {"zerado", "ultimo_evento", "marca", "marca_parceiras", "geral"}
+
+
+def _validar_modo_ranking(v):
+    if v is not None and v not in MODOS_RANKING_VALIDOS:
+        raise ValueError(f"modo_ranking deve ser um de {sorted(MODOS_RANKING_VALIDOS)}")
+    return v
 
 
 def _validar_tipografia(v):
@@ -38,8 +45,10 @@ class EventoCreate(BaseModel):
     marca_id:     str
     data_inicio:  datetime
     data_fim:     datetime
+    modo_ranking: str = "zerado"
 
     _valida_tipografia = field_validator("tipografia")(_validar_tipografia)
+    _valida_modo_ranking = field_validator("modo_ranking")(_validar_modo_ranking)
 
     @field_validator("data_fim")
     @classmethod
@@ -60,8 +69,10 @@ class EventoUpdate(BaseModel):
     marca_id:     str | None = None
     data_inicio:  datetime | None = None
     data_fim:     datetime | None = None
+    modo_ranking: str | None = None
 
     _valida_tipografia = field_validator("tipografia")(_validar_tipografia)
+    _valida_modo_ranking = field_validator("modo_ranking")(_validar_modo_ranking)
 
 
 class EventoJogoUpdate(BaseModel):

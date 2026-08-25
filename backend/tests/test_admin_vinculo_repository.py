@@ -219,6 +219,20 @@ async def test_registrar_auditoria_detalhes_none_nao_serializa(fake_pool):
     assert args[-1] is None
 
 
+@pytest.mark.asyncio
+async def test_registrar_auditoria_user_alvo_id_none(fake_pool):
+    """Migration 025: parceria acionada via bootstrap (Bearer
+    <ADMIN_SECRET>, sem user_id de sessão real) — user_alvo_id vai
+    None, realizado_por='admin' já identifica o ator."""
+    await admin_vinculo_repo.registrar_auditoria(
+        fake_pool, "parceria_liberada", user_alvo_id=None, realizado_por="admin",
+        marca_id="m1", nivel=None, detalhes={"marca_destino_id": "m2"},
+    )
+
+    args = fake_pool.execute.call_args[0]
+    assert args[1:5] == ("parceria_liberada", "m1", None, "admin")
+
+
 # ── revogar_todos_do_usuario (EXCLUSAO_CONTA_SPEC.md decisão #3) ────────────────
 
 @pytest.mark.asyncio

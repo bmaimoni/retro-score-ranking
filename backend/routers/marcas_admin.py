@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, field_validator
 import repositories.marca as marca_repo
 import repositories.admin_vinculo as admin_vinculo_repo
+import repositories.marca_parceria as parceria_repo
 import auth.repository as auth_repo
 from utils.db import get_pool
 from middleware.auth import require_admin, AdminContext
@@ -34,6 +35,17 @@ def _exigir_super(admin: AdminContext):
         raise HTTPException(status_code=403, detail="Só super-admin pode criar marca")
 
 
+def _exigir_admin_na_marca(admin: AdminContext, marca_id: str):
+    """
+    Parcerias entre marcas: 'qualquer admin da marca, não exclusivo do
+    dono' (decisão #3 do docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.2) —
+    mesma régua de nível admin usada em atualizar_marca, moderador
+    nunca opera parceria.
+    """
+    if not admin.super and not admin.eh_admin_na_marca(marca_id):
+        raise HTTPException(status_code=403, detail="Sem permissão para gerenciar parcerias desta marca")
+
+
 class MarcaCreate(BaseModel):
     nome: str
     slug: str
@@ -49,8 +61,16 @@ class MarcaUpdate(BaseModel):
     cor_primaria: str | None = None
     tipografia: str | None = None
     logo_url: str | None = None
+    itens_por_pagina: int | None = None
 
     _valida_tipografia = field_validator("tipografia")(_validar_tipografia)
+
+    @field_validator("itens_por_pagina")
+    @classmethod
+    def _valida_itens_por_pagina(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError("itens_por_pagina deve ser positivo")
+        return v
 
 
 class TransferirTitularidade(BaseModel):
@@ -166,3 +186,116 @@ async def listar_eventos_da_marca(
     """Eventos vinculados a esta marca (o vínculo em si é feito via
     PATCH /api/admin/eventos/{id}, atualizando eventos.marca_id)."""
     return await marca_repo.listar_eventos_da_marca(pool, marca_id)
+
+
+# ── Parcerias entre marcas (docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.2) ──
+
+async def _resolver_marca_ou_404(pool, marca_id: str) -> dict:
+    marca = await marca_repo.buscar_por_id(pool, marca_id)
+    if not marca:
+        raise HTTPException(status_code=404, detail="Marca não encontrada")
+    return marca
+
+
+@router.get("/{marca_id}/parcerias")
+async def listar_parcerias(
+    marca_id: str,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """concedidas: marcas pra quem esta marca libera o próprio placar.
+    recebidas: marcas que liberam o placar delas pra esta (com flag
+    'reciproca' indicando se já foi aceita de volta)."""
+    await _resolver_marca_ou_404(pool, marca_id)
+    _exigir_admin_na_marca(admin, marca_id)
+    return {
+        "concedidas": await parceria_repo.listar_concedidas(pool, marca_id),
+        "recebidas": await parceria_repo.listar_recebidas(pool, marca_id),
+    }
+
+
+@router.post("/{marca_id}/parcerias/{destino_id}/liberar", status_code=201)
+async def liberar_parceria(
+    marca_id: str,
+    destino_id: str,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """
+    marca_id (origem) libera o próprio placar pra destino_id ver em
+    modo_ranking=marca_parceiras — efeito imediato, sem exigir aceite
+    pra já valer nesse sentido (decisão #5). destino_id só reciprocar
+    (ver /aceitar) fecha a mutualidade (decisão #2).
+    """
+    if marca_id == destino_id:
+        raise HTTPException(status_code=422, detail="Uma marca não pode fazer parceria consigo mesma")
+    await _resolver_marca_ou_404(pool, marca_id)
+    await _resolver_marca_ou_404(pool, destino_id)
+    _exigir_admin_na_marca(admin, marca_id)
+
+    parceria = await parceria_repo.criar_ou_reativar(pool, marca_id, destino_id)
+    await admin_vinculo_repo.registrar_auditoria(
+        pool, acao="parceria_liberada", user_alvo_id=admin.user_id,
+        realizado_por=admin.identificador, marca_id=marca_id, nivel=None,
+        detalhes={"marca_destino_id": destino_id},
+    )
+    return parceria
+
+
+@router.post("/{marca_id}/parcerias/{origem_id}/aceitar", status_code=201)
+async def aceitar_parceria(
+    marca_id: str,
+    origem_id: str,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """
+    marca_id aceita uma liberação recebida de origem_id — cria a linha
+    recíproca marca_id→origem_id, fechando a mutualidade (decisão #2).
+    Exige que origem_id→marca_id exista e esteja ativa; senão não há
+    o que aceitar.
+    """
+    if marca_id == origem_id:
+        raise HTTPException(status_code=422, detail="Uma marca não pode fazer parceria consigo mesma")
+    await _resolver_marca_ou_404(pool, marca_id)
+    await _resolver_marca_ou_404(pool, origem_id)
+    _exigir_admin_na_marca(admin, marca_id)
+
+    liberacao = await parceria_repo.buscar(pool, origem_id, marca_id)
+    if not liberacao or not liberacao["ativo"]:
+        raise HTTPException(
+            status_code=422,
+            detail="Não há liberação ativa dessa marca pra aceitar",
+        )
+
+    parceria = await parceria_repo.criar_ou_reativar(pool, marca_id, origem_id)
+    await admin_vinculo_repo.registrar_auditoria(
+        pool, acao="parceria_aceita", user_alvo_id=admin.user_id,
+        realizado_por=admin.identificador, marca_id=marca_id, nivel=None,
+        detalhes={"marca_origem_id": origem_id},
+    )
+    return parceria
+
+
+@router.post("/{marca_id}/parcerias/{destino_id}/revogar")
+async def revogar_parceria(
+    marca_id: str,
+    destino_id: str,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """Revoga só a própria concessão marca_id→destino_id — não afeta a
+    linha recíproca, que pode ficar assimétrica (decisão #5)."""
+    await _resolver_marca_ou_404(pool, marca_id)
+    _exigir_admin_na_marca(admin, marca_id)
+
+    parceria = await parceria_repo.revogar(pool, marca_id, destino_id)
+    if not parceria:
+        raise HTTPException(status_code=404, detail="Não há liberação ativa dessa marca pra essa marca destino")
+
+    await admin_vinculo_repo.registrar_auditoria(
+        pool, acao="parceria_revogada", user_alvo_id=admin.user_id,
+        realizado_por=admin.identificador, marca_id=marca_id, nivel=None,
+        detalhes={"marca_destino_id": destino_id},
+    )
+    return parceria

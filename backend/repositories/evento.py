@@ -6,7 +6,7 @@ async def listar(pool: Pool) -> list[dict]:
     rows = await pool.fetch(
         """
         SELECT id, nome, slug, ativo, publico, logo_url, cor_primaria,
-               tipografia, marca_id, data_inicio, data_fim, criado_em
+               tipografia, marca_id, modo_ranking, data_inicio, data_fim, criado_em
         FROM eventos
         ORDER BY criado_em DESC
         """
@@ -19,7 +19,7 @@ async def listar_ativos(pool: Pool) -> list[dict]:
     rows = await pool.fetch(
         """
         SELECT id, nome, slug, ativo, publico, logo_url, cor_primaria,
-               tipografia, marca_id, data_inicio, data_fim, criado_em
+               tipografia, marca_id, modo_ranking, data_inicio, data_fim, criado_em
         FROM eventos
         WHERE ativo = true
         ORDER BY criado_em DESC
@@ -34,7 +34,7 @@ async def buscar_por_id(pool: Pool, evento_id: str) -> dict | None:
     row = await pool.fetchrow(
         """
         SELECT id, nome, slug, ativo, publico, logo_url, cor_primaria,
-               tipografia, marca_id, data_inicio, data_fim, criado_em
+               tipografia, marca_id, modo_ranking, data_inicio, data_fim, criado_em
         FROM eventos
         WHERE id = $1
         """,
@@ -48,7 +48,7 @@ async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
     row = await pool.fetchrow(
         """
         SELECT id, nome, slug, ativo, publico, logo_url, cor_primaria,
-               tipografia, marca_id, data_inicio, data_fim, criado_em
+               tipografia, marca_id, modo_ranking, data_inicio, data_fim, criado_em
         FROM eventos
         WHERE slug = $1
         """,
@@ -79,10 +79,10 @@ async def criar(pool: Pool, dados: dict) -> dict:
     row = await pool.fetchrow(
         """
         INSERT INTO eventos (nome, slug, ativo, publico, logo_url, cor_primaria,
-                             tipografia, marca_id, data_inicio, data_fim)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                             tipografia, marca_id, modo_ranking, data_inicio, data_fim)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING id, nome, slug, ativo, publico, logo_url, cor_primaria,
-                  tipografia, marca_id, data_inicio, data_fim, criado_em
+                  tipografia, marca_id, modo_ranking, data_inicio, data_fim, criado_em
         """,
         dados["nome"],
         dados["slug"],
@@ -92,6 +92,7 @@ async def criar(pool: Pool, dados: dict) -> dict:
         dados.get("cor_primaria"),
         dados.get("tipografia"),
         dados.get("marca_id"),
+        dados.get("modo_ranking", "zerado"),
         dados.get("data_inicio"),
         dados.get("data_fim"),
     )
@@ -109,11 +110,12 @@ async def atualizar(pool: Pool, evento_id: str, dados: dict) -> dict | None:
             cor_primaria = COALESCE($6, cor_primaria),
             tipografia   = COALESCE($7, tipografia),
             marca_id     = COALESCE($8, marca_id),
-            data_inicio  = COALESCE($9, data_inicio),
-            data_fim     = COALESCE($10, data_fim)
+            modo_ranking = COALESCE($9, modo_ranking),
+            data_inicio  = COALESCE($10, data_inicio),
+            data_fim     = COALESCE($11, data_fim)
         WHERE id = $1
         RETURNING id, nome, slug, ativo, publico, logo_url, cor_primaria,
-                  tipografia, marca_id, data_inicio, data_fim, criado_em
+                  tipografia, marca_id, modo_ranking, data_inicio, data_fim, criado_em
         """,
         evento_id,
         dados.get("nome"),
@@ -123,6 +125,7 @@ async def atualizar(pool: Pool, evento_id: str, dados: dict) -> dict | None:
         dados.get("cor_primaria"),
         dados.get("tipografia"),
         dados.get("marca_id"),
+        dados.get("modo_ranking"),
         dados.get("data_inicio"),
         dados.get("data_fim"),
     )

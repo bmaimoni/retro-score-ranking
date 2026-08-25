@@ -212,6 +212,75 @@ async def test_criar_evento_slug_duplicado_retorna_409(client):
     assert resp.status_code == 409
 
 
+# ── modo_ranking (docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.1) ─────
+
+@pytest.mark.asyncio
+async def test_criar_evento_sem_modo_ranking_usa_zerado_como_default(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.criar", AsyncMock(return_value=_evento())) as criar_mock:
+        resp = await client.post("/api/admin/eventos",
+            json={
+                "nome": "Canal3 Expo 2024", "slug": "canal3-expo-2024",
+                "marca_id": MARCA_A,
+                "data_inicio": "2024-11-01T00:00:00Z",
+                "data_fim":    "2024-11-30T23:59:59Z",
+            },
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 201
+    assert criar_mock.call_args[0][1]["modo_ranking"] == "zerado"
+
+
+@pytest.mark.asyncio
+async def test_criar_evento_com_modo_ranking_valido(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.evento.criar",
+               AsyncMock(return_value={**_evento(), "modo_ranking": "marca_parceiras"})) as criar_mock:
+        resp = await client.post("/api/admin/eventos",
+            json={
+                "nome": "Canal3 Expo 2024", "slug": "canal3-expo-2024",
+                "marca_id": MARCA_A, "modo_ranking": "marca_parceiras",
+                "data_inicio": "2024-11-01T00:00:00Z",
+                "data_fim":    "2024-11-30T23:59:59Z",
+            },
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 201
+    assert resp.json()["modo_ranking"] == "marca_parceiras"
+    assert criar_mock.call_args[0][1]["modo_ranking"] == "marca_parceiras"
+
+
+@pytest.mark.asyncio
+async def test_criar_evento_modo_ranking_invalido_retorna_422(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/eventos",
+        json={
+            "nome": "X", "slug": "x", "marca_id": MARCA_A,
+            "modo_ranking": "inventado",
+            "data_inicio": "2024-11-01T00:00:00Z",
+            "data_fim":    "2024-11-30T23:59:59Z",
+        },
+        headers=AUTH_HEADER)
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_atualizar_evento_modo_ranking_invalido_retorna_422(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.patch(f"/api/admin/eventos/{make_uuid()}",
+        json={"modo_ranking": "inventado"},
+        headers=AUTH_HEADER)
+
+    assert resp.status_code == 422
+
+
 # ── Criar evento — escopo por marca (decisão #5/#6) ─────────────
 
 @pytest.mark.asyncio

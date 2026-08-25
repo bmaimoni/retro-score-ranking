@@ -333,6 +333,68 @@ async def historico_nick(pool: Pool, jogo_id: str, nick_norm: str) -> list[dict]
     return [dict(r) for r in rows]
 
 
+async def listar_ranking_por_eventos(pool: Pool, jogo_id: str, evento_ids: list[str]) -> list[dict]:
+    """
+    Ranking agregado de múltiplos eventos — modos 'ultimo_evento',
+    'marca' e 'marca_parceiras' do docs/RANKINGS_CONFIGURAVEIS_SPEC.md
+    §2.1. Inclui evento_nome/evento_slug/marca_nome em cada linha:
+    decisão #1 da mesma spec exige rastreabilidade completa até
+    jogo/evento/marca de origem, sempre visível, sem exceção — mesmo
+    quando os dados vêm de vários eventos misturados numa lista só.
+    """
+    rows = await pool.fetch(
+        """
+        SELECT e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.evento_id,
+               e.user_id, e.criado_em,
+               ev.nome AS evento_nome, ev.slug AS evento_slug, m.nome AS marca_nome
+        FROM entradas e
+        JOIN eventos ev ON ev.id = e.evento_id
+        JOIN marcas  m  ON m.id  = ev.marca_id
+        WHERE e.jogo_id    = $1
+          AND e.evento_id  = ANY($2::uuid[])
+          AND e.no_ranking = true
+          AND e.superado   = false
+          AND e.pendente   = false
+          AND e.arquivado  = false
+        ORDER BY e.pontuacao DESC, e.criado_em ASC, e.id ASC
+        """,
+        jogo_id, evento_ids,
+    )
+    return [dict(r) for r in rows]
+
+
+async def listar_lideres_por_eventos(pool: Pool, evento_id_atual: str, evento_ids: list[str] | None) -> dict:
+    """
+    Top 1 de cada jogo ativo do evento atual (via evento_jogos, ativo),
+    mas com a pontuação/nick vindos do conjunto agregado evento_ids —
+    mesmo princípio de get_lideres_evento, só que a fonte dos scores é
+    resolvida por modo_ranking em vez de ficar presa ao próprio evento.
+    evento_ids=None (modo 'geral') = sem filtro de evento nenhum.
+    """
+    rows = await pool.fetch(
+        """
+        SELECT DISTINCT ON (e.jogo_id)
+            e.jogo_id, j.slug, e.nick, e.pontuacao
+        FROM entradas e
+        JOIN jogos j ON j.id = e.jogo_id
+        JOIN evento_jogos ej ON ej.jogo_id = e.jogo_id
+                             AND ej.evento_id = $1
+                             AND ej.ativo = true
+        WHERE ($2::uuid[] IS NULL OR e.evento_id = ANY($2::uuid[]))
+          AND e.no_ranking = true
+          AND e.superado   = false
+          AND e.pendente   = false
+          AND e.arquivado  = false
+        ORDER BY e.jogo_id, e.pontuacao DESC, e.criado_em ASC, e.id ASC
+        """,
+        evento_id_atual, evento_ids,
+    )
+    return {
+        str(r["jogo_id"]): {"slug": r["slug"], "nick": r["nick"], "pontuacao": r["pontuacao"]}
+        for r in rows
+    }
+
+
 async def listar_ranking_por_evento(
     pool: Pool,
     jogo_id: str,

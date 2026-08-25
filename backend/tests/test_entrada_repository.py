@@ -142,3 +142,59 @@ async def test_listar_por_usuario_sem_pontuacoes_retorna_vazio(fake_pool):
     fake_pool.set_fetch([])
     resultado = await entrada_repo.listar_por_usuario(fake_pool, "u1")
     assert resultado == []
+
+
+# ── listar_ranking_por_eventos / listar_lideres_por_eventos ────────────────────
+# Ranking agregado — docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.1, modos
+# 'ultimo_evento'/'marca'/'marca_parceiras'.
+
+@pytest.mark.asyncio
+async def test_listar_ranking_por_eventos_filtra_por_lista_e_expoe_origem(fake_pool):
+    fake_pool.set_fetch([{
+        "id": "e1", "nick": "Campeao", "nome": None, "pontuacao": 5000,
+        "foto_url": None, "evento_id": "ev1", "user_id": None, "criado_em": "2026-01-01",
+        "evento_nome": "Canal3 Expo", "evento_slug": "canal3expo", "marca_nome": "Canal3",
+    }])
+
+    resultado = await entrada_repo.listar_ranking_por_eventos(fake_pool, "j1", ["ev1", "ev2"])
+
+    assert len(resultado) == 1
+    assert resultado[0]["marca_nome"] == "Canal3"
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "e.evento_id = ANY($2::uuid[])" in sql
+    assert "JOIN eventos ev ON ev.id = e.evento_id" in sql
+    assert "JOIN marcas m ON m.id = ev.marca_id" in sql
+    assert "ORDER BY e.pontuacao DESC, e.criado_em ASC, e.id ASC" in sql
+    assert fake_pool.fetch.call_args[0][1:] == ("j1", ["ev1", "ev2"])
+
+
+@pytest.mark.asyncio
+async def test_listar_ranking_por_eventos_vazio(fake_pool):
+    fake_pool.set_fetch([])
+    resultado = await entrada_repo.listar_ranking_por_eventos(fake_pool, "j1", ["ev1"])
+    assert resultado == []
+
+
+@pytest.mark.asyncio
+async def test_listar_lideres_por_eventos_agrega_top1_por_jogo(fake_pool):
+    fake_pool.set_fetch([
+        {"jogo_id": "j1", "slug": "pac-man", "nick": "CAMPEAO", "pontuacao": 99000},
+    ])
+
+    resultado = await entrada_repo.listar_lideres_por_eventos(fake_pool, "ev-atual", ["ev1", "ev2"])
+
+    assert resultado["j1"]["nick"] == "CAMPEAO"
+    assert fake_pool.fetch.call_args[0][1:] == ("ev-atual", ["ev1", "ev2"])
+
+
+@pytest.mark.asyncio
+async def test_listar_lideres_por_eventos_none_e_modo_geral_sem_filtro(fake_pool):
+    """evento_ids=None (modo 'geral') não filtra por evento nenhum —
+    a query decide isso via ($2::uuid[] IS NULL OR ...)."""
+    fake_pool.set_fetch([])
+
+    await entrada_repo.listar_lideres_por_eventos(fake_pool, "ev-atual", None)
+
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "$2::uuid[] IS NULL" in sql
+    assert fake_pool.fetch.call_args[0][1:] == ("ev-atual", None)

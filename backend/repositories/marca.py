@@ -11,7 +11,7 @@ from asyncpg import Pool
 async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
     row = await pool.fetchrow(
         """
-        SELECT id, nome, slug, cor_primaria, tipografia, logo_url, criado_em
+        SELECT id, nome, slug, cor_primaria, tipografia, logo_url, itens_por_pagina, criado_em
         FROM marcas WHERE slug = $1
         """,
         slug,
@@ -22,7 +22,7 @@ async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
 async def buscar_por_id(pool: Pool, marca_id: str) -> dict | None:
     row = await pool.fetchrow(
         """
-        SELECT id, nome, slug, cor_primaria, tipografia, logo_url, criado_em
+        SELECT id, nome, slug, cor_primaria, tipografia, logo_url, itens_por_pagina, criado_em
         FROM marcas WHERE id = $1
         """,
         marca_id,
@@ -34,7 +34,7 @@ async def listar_todas(pool: Pool) -> list[dict]:
     """Todas as marcas — para o painel admin."""
     rows = await pool.fetch(
         """
-        SELECT id, nome, slug, cor_primaria, tipografia, logo_url, criado_em
+        SELECT id, nome, slug, cor_primaria, tipografia, logo_url, itens_por_pagina, criado_em
         FROM marcas ORDER BY criado_em DESC
         """
     )
@@ -65,18 +65,20 @@ async def atualizar(pool: Pool, marca_id: str, dados: dict) -> dict | None:
     row = await pool.fetchrow(
         """
         UPDATE marcas
-        SET nome         = COALESCE($2, nome),
-            cor_primaria = COALESCE($3, cor_primaria),
-            tipografia   = COALESCE($4, tipografia),
-            logo_url     = COALESCE($5, logo_url)
+        SET nome             = COALESCE($2, nome),
+            cor_primaria     = COALESCE($3, cor_primaria),
+            tipografia       = COALESCE($4, tipografia),
+            logo_url         = COALESCE($5, logo_url),
+            itens_por_pagina = COALESCE($6, itens_por_pagina)
         WHERE id = $1
-        RETURNING id, nome, slug, cor_primaria, tipografia, logo_url, criado_em
+        RETURNING id, nome, slug, cor_primaria, tipografia, logo_url, itens_por_pagina, criado_em
         """,
         marca_id,
         dados.get("nome"),
         dados.get("cor_primaria"),
         dados.get("tipografia"),
         dados.get("logo_url"),
+        dados.get("itens_por_pagina"),
     )
     return dict(row) if row else None
 

@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, File, Form, Uplo
 from pydantic import UUID4
 from utils.db import get_pool
 from utils.ip import get_client_ip, hash_ip
-from services import storage, rate_limit as rl, nick as nick_svc, score as score_svc
+from services import storage, rate_limit as rl, nick as nick_svc, score as score_svc, ranking as ranking_svc
 from services.sse import broker
 import repositories.evento      as evento_repo
 import repositories.evento_jogo as evento_jogo_repo
@@ -108,56 +108,44 @@ async def get_lideres_evento(slug: str, pool=Depends(get_pool)):
     """
     Top 1 de cada jogo do evento.
     Usado no index para exibir o líder em cada card de jogo.
+
+    A fonte do score respeita eventos.modo_ranking (docs/
+    RANKINGS_CONFIGURAVEIS_SPEC.md §2.1) — em modos agregados, o líder
+    pode vir de outro evento da marca (ou parceira), não só deste.
     """
-    evento = await _get_evento_publico(slug, pool)
-    rows   = await pool.fetch(
-        """
-        SELECT DISTINCT ON (e.jogo_id)
-            e.jogo_id,
-            j.slug,
-            e.nick,
-            e.pontuacao
-        FROM entradas e
-        JOIN jogos j ON j.id = e.jogo_id
-        JOIN evento_jogos ej ON ej.jogo_id = e.jogo_id
-                             AND ej.evento_id = $1
-                             AND ej.ativo = true
-        WHERE e.evento_id  = $1
-          AND e.no_ranking = true
-          AND e.superado   = false
-          AND e.pendente   = false
-          AND e.arquivado  = false
-        ORDER BY e.jogo_id, e.pontuacao DESC, e.criado_em ASC, e.id ASC
-        """,
-        str(evento["id"]),
-    )
-    return {
-        str(r["jogo_id"]): {
-            "slug":      r["slug"],
-            "nick":      r["nick"],
-            "pontuacao": r["pontuacao"],
-        }
-        for r in rows
-    }
+    evento     = await _get_evento_publico(slug, pool)
+    evento_ids = await ranking_svc.resolver_evento_ids(pool, evento)
+    return await entrada_repo.listar_lideres_por_eventos(pool, str(evento["id"]), evento_ids)
 
 
-# ── Ranking filtrado por evento ───────────────────────────────
+# ── Ranking filtrado por evento (respeita modo_ranking) ────────
 
 @router.get("/{slug}/ranking/{jogo_slug}")
 async def get_ranking_evento(slug: str, jogo_slug: str, pool=Depends(get_pool)):
     """
-    Ranking de um jogo filtrado pelo evento.
-    Retorna apenas scores registrados neste evento.
+    Ranking de um jogo no escopo deste evento — o escopo em si depende
+    de eventos.modo_ranking (docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.1):
+    zerado = só este evento; ultimo_evento/marca/marca_parceiras =
+    agregação viva de vários eventos; geral = placar da plataforma
+    inteira, sem filtro de evento nenhum.
     """
     evento = await _get_evento_publico(slug, pool)
     jogo   = await jogo_repo.buscar_por_slug(pool, jogo_slug)
     if not jogo:
         raise HTTPException(status_code=404, detail="Jogo não encontrado")
 
-    entradas = await entrada_repo.listar_ranking_por_evento(
-        pool, str(jogo["id"]), str(evento["id"])
-    )
-    return {"jogo": jogo, "evento": slug, "entradas": entradas}
+    evento_ids = await ranking_svc.resolver_evento_ids(pool, evento)
+    if evento_ids is None:
+        entradas = await entrada_repo.listar_ranking(pool, str(jogo["id"]))
+    else:
+        entradas = await entrada_repo.listar_ranking_por_eventos(pool, str(jogo["id"]), evento_ids)
+
+    return {
+        "jogo": jogo,
+        "evento": slug,
+        "modo_ranking": evento["modo_ranking"],
+        "entradas": entradas,
+    }
 
 
 # ── Upload de score ───────────────────────────────────────────

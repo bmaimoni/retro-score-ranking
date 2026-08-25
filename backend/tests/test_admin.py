@@ -249,6 +249,36 @@ async def test_atualizar_jogo_moderador_retorna_403(client):
 
 
 @pytest.mark.asyncio
+async def test_atualizar_jogo_com_metadado(client):
+    """plataforma/ano_lancamento/capa_url/gameplay_url passam direto
+    pro repository (BACKLOG_2026.md §3 item 3.1)."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    jogo_id = make_uuid()
+
+    with patch("repositories.jogo.atualizar", AsyncMock(return_value=make_jogo())) as atualizar_mock:
+        resp = await client.patch(f"/api/admin/jogos/{jogo_id}",
+            json={"plataforma": "Mega Drive", "ano_lancamento": 1991},
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    atualizar_mock.assert_called_once_with(
+        pool, jogo_id, None, None,
+        plataforma="Mega Drive", ano_lancamento=1991, capa_url=None, gameplay_url=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_atualizar_jogo_ano_lancamento_invalido_retorna_422(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.patch(f"/api/admin/jogos/{make_uuid()}",
+        json={"ano_lancamento": 1800}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_atualizar_jogo_inexistente_retorna_404(client):
     app.dependency_overrides[get_pool] = lambda: MagicMock()
 
@@ -639,6 +669,7 @@ async def test_criar_jogo_admin_escopado_fica_pendente_e_auto_vinculado(client):
     criar_mock.assert_called_once_with(
         pool, "Frogger", "frogger", None,
         pendente_aprovacao=True, criado_por="pessoa@x.com",
+        plataforma=None, ano_lancamento=None, capa_url=None, gameplay_url=None,
     )
     assert adicionar_mock.call_count == 2  # um por evento acessível
 
@@ -660,8 +691,52 @@ async def test_criar_jogo_super_admin_nasce_aprovado(client):
     criar_mock.assert_called_once_with(
         pool, "Pac-Man", "pac-man", None,
         pendente_aprovacao=False, criado_por="admin",
+        plataforma=None, ano_lancamento=None, capa_url=None, gameplay_url=None,
     )
     adicionar_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_criar_jogo_com_metadado(client):
+    """plataforma/ano_lancamento/capa_url/gameplay_url são opcionais e,
+    quando enviados, passam direto pro repository (BACKLOG_2026.md §3
+    item 3.1)."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.jogo.criar", AsyncMock(return_value={
+        "id": "j1", "nome": "Pac-Man", "slug": "pac-man", "ativo": True,
+        "score_max": None, "pendente_aprovacao": False, "criado_por": "admin",
+        "plataforma": "Arcade", "ano_lancamento": 1980,
+        "capa_url": "https://cdn/capa.png", "gameplay_url": "https://youtu.be/x",
+    })) as criar_mock:
+        resp = await client.post("/api/admin/jogos",
+            json={
+                "nome": "Pac-Man", "slug": "pac-man",
+                "plataforma": "Arcade", "ano_lancamento": 1980,
+                "capa_url": "https://cdn/capa.png", "gameplay_url": "https://youtu.be/x",
+            },
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 201
+    assert resp.json()["plataforma"] == "Arcade"
+    criar_mock.assert_called_once_with(
+        pool, "Pac-Man", "pac-man", None,
+        pendente_aprovacao=False, criado_por="admin",
+        plataforma="Arcade", ano_lancamento=1980,
+        capa_url="https://cdn/capa.png", gameplay_url="https://youtu.be/x",
+    )
+
+
+@pytest.mark.asyncio
+async def test_criar_jogo_ano_lancamento_invalido_retorna_422(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/jogos",
+        json={"nome": "X", "slug": "x", "ano_lancamento": 1899},
+        headers=AUTH_HEADER)
+
+    assert resp.status_code == 422
 
 
 @pytest.mark.asyncio

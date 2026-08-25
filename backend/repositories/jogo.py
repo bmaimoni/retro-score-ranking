@@ -11,7 +11,7 @@ async def listar_ativos(pool: Pool) -> list[dict]:
     """
     rows = await pool.fetch(
         """
-        SELECT id, nome, slug, score_max
+        SELECT id, nome, slug, score_max, plataforma, ano_lancamento, capa_url, gameplay_url
         FROM jogos
         WHERE ativo = true AND pendente_aprovacao = false
         ORDER BY nome
@@ -22,7 +22,11 @@ async def listar_ativos(pool: Pool) -> list[dict]:
 
 async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
     row = await pool.fetchrow(
-        "SELECT id, nome, slug, ativo, score_max FROM jogos WHERE slug = $1",
+        """
+        SELECT id, nome, slug, ativo, score_max,
+               plataforma, ano_lancamento, capa_url, gameplay_url
+        FROM jogos WHERE slug = $1
+        """,
         slug,
     )
     return dict(row) if row else None
@@ -35,14 +39,21 @@ async def criar(
     score_max: int | None,
     pendente_aprovacao: bool = False,
     criado_por: str | None = None,
+    plataforma: str | None = None,
+    ano_lancamento: int | None = None,
+    capa_url: str | None = None,
+    gameplay_url: str | None = None,
 ) -> dict:
     row = await pool.fetchrow(
         """
-        INSERT INTO jogos (nome, slug, score_max, pendente_aprovacao, criado_por)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, nome, slug, ativo, score_max, pendente_aprovacao, criado_por, criado_em
+        INSERT INTO jogos (nome, slug, score_max, pendente_aprovacao, criado_por,
+                            plataforma, ano_lancamento, capa_url, gameplay_url)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING id, nome, slug, ativo, score_max, pendente_aprovacao, criado_por, criado_em,
+                  plataforma, ano_lancamento, capa_url, gameplay_url
         """,
         nome, slug, score_max, pendente_aprovacao, criado_por,
+        plataforma, ano_lancamento, capa_url, gameplay_url,
     )
     return dict(row)
 
@@ -52,14 +63,31 @@ async def atualizar(
     jogo_id: str,
     ativo: bool | None,
     score_max: int | None,
+    plataforma: str | None = None,
+    ano_lancamento: int | None = None,
+    capa_url: str | None = None,
+    gameplay_url: str | None = None,
 ) -> dict | None:
     # Constrói SET dinâmico com apenas os campos fornecidos
     campos, valores = [], []
     idx = 1
+
+    def _adicionar(coluna, valor):
+        nonlocal idx
+        campos.append(f"{coluna} = ${idx}"); valores.append(valor); idx += 1
+
     if ativo is not None:
-        campos.append(f"ativo = ${idx}"); valores.append(ativo); idx += 1
+        _adicionar("ativo", ativo)
     if score_max is not None:
-        campos.append(f"score_max = ${idx}"); valores.append(score_max); idx += 1
+        _adicionar("score_max", score_max)
+    if plataforma is not None:
+        _adicionar("plataforma", plataforma)
+    if ano_lancamento is not None:
+        _adicionar("ano_lancamento", ano_lancamento)
+    if capa_url is not None:
+        _adicionar("capa_url", capa_url)
+    if gameplay_url is not None:
+        _adicionar("gameplay_url", gameplay_url)
 
     if not campos:
         return None
@@ -75,7 +103,11 @@ async def atualizar(
 async def listar_todos(pool: Pool) -> list[dict]:
     """Lista todos os jogos (ativos e inativos) para o painel admin."""
     rows = await pool.fetch(
-        "SELECT id, nome, slug, ativo, score_max, pendente_aprovacao, criado_em FROM jogos ORDER BY nome"
+        """
+        SELECT id, nome, slug, ativo, score_max, pendente_aprovacao, criado_em,
+               plataforma, ano_lancamento, capa_url, gameplay_url
+        FROM jogos ORDER BY nome
+        """
     )
     return [dict(r) for r in rows]
 

@@ -16,11 +16,12 @@ def make_uuid():
     return str(uuid.uuid4())
 
 
-def _evento(slug="canal3expo", publico=True, ativo=True):
+def _evento(slug="canal3expo", publico=True, ativo=True, modo_ranking="zerado", marca_id=None):
     return {
         "id": make_uuid(), "nome": "Canal3 Expo", "slug": slug,
         "ativo": ativo, "publico": publico,
         "logo_url": None, "cor_primaria": None,
+        "modo_ranking": modo_ranking, "marca_id": marca_id or make_uuid(),
     }
 
 
@@ -137,16 +138,67 @@ async def test_ranking_filtrado_por_evento(client):
          "evento_id": evento["id"], "criado_em": "2024-01-01"},
     ]
 
-    with patch("repositories.evento.buscar_por_slug",          AsyncMock(return_value=evento)), \
-         patch("repositories.jogo.buscar_por_slug",             AsyncMock(return_value=jogo)), \
-         patch("repositories.entrada.listar_ranking_por_evento", AsyncMock(return_value=entradas)):
+    with patch("repositories.evento.buscar_por_slug",           AsyncMock(return_value=evento)), \
+         patch("repositories.jogo.buscar_por_slug",              AsyncMock(return_value=jogo)), \
+         patch("repositories.entrada.listar_ranking_por_eventos", AsyncMock(return_value=entradas)) as listar_mock:
         resp = await client.get("/api/e/canal3expo/ranking/megamania")
 
     assert resp.status_code == 200
     data = resp.json()
     assert data["evento"] == "canal3expo"
+    assert data["modo_ranking"] == "zerado"
     assert len(data["entradas"]) == 1
     assert data["entradas"][0]["nick"] == "P1"
+    # modo 'zerado' resolve pro próprio evento, nenhum outro
+    listar_mock.assert_called_once_with(pool, jogo["id"], [evento["id"]])
+
+
+@pytest.mark.asyncio
+async def test_ranking_modo_geral_ignora_filtro_de_evento(client):
+    """modo_ranking='geral' (docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.1.E)
+    cai pro placar da plataforma inteira — sem filtro de evento nenhum,
+    reaproveitando repositories.entrada.listar_ranking (mesma função do
+    placar público sem evento)."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    evento = _evento(modo_ranking="geral")
+    jogo   = _jogo()
+    entradas = [{"id": make_uuid(), "nick": "P1", "pontuacao": 999}]
+
+    with patch("repositories.evento.buscar_por_slug",  AsyncMock(return_value=evento)), \
+         patch("repositories.jogo.buscar_por_slug",     AsyncMock(return_value=jogo)), \
+         patch("repositories.entrada.listar_ranking",   AsyncMock(return_value=entradas)) as listar_mock, \
+         patch("repositories.entrada.listar_ranking_por_eventos", AsyncMock()) as listar_eventos_mock:
+        resp = await client.get("/api/e/canal3expo/ranking/megamania")
+
+    assert resp.status_code == 200
+    assert resp.json()["modo_ranking"] == "geral"
+    listar_mock.assert_called_once_with(pool, jogo["id"])
+    listar_eventos_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ranking_modo_marca_agrega_eventos_da_marca(client):
+    """modo_ranking='marca' agrega todos os eventos não-zerados da
+    marca (docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.1.C) — via
+    services.ranking.resolver_evento_ids, que consulta a tabela
+    eventos direto (não mockada aqui: exercita o serviço real)."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    marca_id = make_uuid()
+    evento = _evento(modo_ranking="marca", marca_id=marca_id)
+    jogo   = _jogo()
+    outro_evento_id = make_uuid()
+    pool.fetch = AsyncMock(return_value=[{"id": evento["id"]}, {"id": outro_evento_id}])
+
+    with patch("repositories.evento.buscar_por_slug", AsyncMock(return_value=evento)), \
+         patch("repositories.jogo.buscar_por_slug",    AsyncMock(return_value=jogo)), \
+         patch("repositories.entrada.listar_ranking_por_eventos", AsyncMock(return_value=[])) as listar_mock:
+        resp = await client.get("/api/e/canal3expo/ranking/megamania")
+
+    assert resp.status_code == 200
+    evento_ids_chamados = listar_mock.call_args[0][2]
+    assert set(evento_ids_chamados) == {evento["id"], outro_evento_id}
 
 
 @pytest.mark.asyncio

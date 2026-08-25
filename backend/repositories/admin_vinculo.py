@@ -192,7 +192,7 @@ async def listar_eventos_acessiveis_detalhado(pool: Pool, user_id: str) -> list[
 async def registrar_auditoria(
     pool: Pool,
     acao: str,
-    user_alvo_id: str,
+    user_alvo_id: str | None,
     realizado_por: str,
     marca_id: str | None = None,
     nivel: str | None = None,
@@ -200,9 +200,15 @@ async def registrar_auditoria(
 ) -> None:
     """
     Grava uma linha em admin_vinculos_auditoria — toda concessão,
-    revogação ou transferência de titularidade passa por aqui (decisão
-    #12 do PERMISSOES_SPEC.md). Log append-only: sem retorno, sem
+    revogação, transferência de titularidade ou parceria entre marcas
+    passa por aqui (decisão #12 do PERMISSOES_SPEC.md, decisão #6 do
+    RANKINGS_CONFIGURAVEIS_SPEC.md). Log append-only: sem retorno, sem
     UPDATE/DELETE possível pelo app_user.
+
+    user_alvo_id pode ser None (migration 025) — caso de ação de
+    parceria acionada via bootstrap (Bearer <ADMIN_SECRET>, sem
+    user_id de sessão real); realizado_por já identifica o ator nesse
+    caso ("admin").
     """
     import json
 

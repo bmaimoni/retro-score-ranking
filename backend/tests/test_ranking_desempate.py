@@ -81,6 +81,7 @@ async def test_lideres_evento_desempata_por_criado_em_e_id(client):
     evento = {
         "id": make_uuid(), "slug": "canal3expo", "nome": "Canal3 Expo",
         "ativo": True, "publico": True,
+        "modo_ranking": "zerado", "marca_id": make_uuid(),
     }
     pool = MagicMock()
     pool.fetch = AsyncMock(return_value=[])
