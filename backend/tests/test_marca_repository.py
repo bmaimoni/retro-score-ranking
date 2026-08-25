@@ -72,3 +72,35 @@ async def test_atualizar_marca_campos_parciais(fake_pool):
     assert args[2] is None          # nome não foi passado
     assert args[3] == "#ff0000"     # cor_primaria foi passado
     assert args[4] is None          # tipografia não foi passado
+
+
+# ── buscar_dono_user_id: trava de revogação do titular (decisão #10) ───────────
+
+@pytest.mark.asyncio
+async def test_buscar_dono_user_id_retorna_titular(fake_pool):
+    dono_id = "550e8400-e29b-41d4-a716-446655440000"
+    fake_pool.set_fetchrow({"dono_user_id": dono_id})
+
+    resultado = await marca_repo.buscar_dono_user_id(fake_pool, "marca-1")
+
+    assert resultado == dono_id
+
+
+@pytest.mark.asyncio
+async def test_buscar_dono_user_id_marca_sem_titular_retorna_none(fake_pool):
+    """dono_user_id nasce NULL em toda marca existente após a
+    migration 019 — precisa ser atribuído manualmente depois."""
+    fake_pool.set_fetchrow({"dono_user_id": None})
+
+    resultado = await marca_repo.buscar_dono_user_id(fake_pool, "marca-1")
+
+    assert resultado is None
+
+
+@pytest.mark.asyncio
+async def test_buscar_dono_user_id_marca_inexistente_retorna_none(fake_pool):
+    fake_pool.set_fetchrow(None)
+
+    resultado = await marca_repo.buscar_dono_user_id(fake_pool, "nao-existe")
+
+    assert resultado is None

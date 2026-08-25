@@ -81,6 +81,20 @@ async def atualizar(pool: Pool, marca_id: str, dados: dict) -> dict | None:
     return dict(row) if row else None
 
 
+async def buscar_dono_user_id(pool: Pool, marca_id: str) -> str | None:
+    """
+    user_id do titular da marca (marcas.dono_user_id), ou None se a
+    marca não tem titular atribuído ainda (nasce NULL — migration 019).
+    Usado pela trava de revogação: revogar o vínculo admin do titular
+    atual é bloqueado até a titularidade ser transferida (decisão #10
+    do docs/PERMISSOES_SPEC.md).
+    """
+    row = await pool.fetchrow("SELECT dono_user_id FROM marcas WHERE id = $1", marca_id)
+    if not row or row["dono_user_id"] is None:
+        return None
+    return str(row["dono_user_id"])
+
+
 async def listar_eventos_da_marca(pool: Pool, marca_id: str) -> list[dict]:
     """Eventos vinculados a uma marca — para o painel admin."""
     rows = await pool.fetch(
