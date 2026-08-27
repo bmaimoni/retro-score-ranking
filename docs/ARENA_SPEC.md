@@ -1,6 +1,6 @@
 # Arena: onboarding self-serve, efeito de rede e evolução casual→profissional
 
-> Status: **em elaboração — Fases A-B fechadas, Fases C-H em aberto**.
+> Status: **em elaboração — Fases A-C fechadas, Fases D-H em aberto**.
 > Revisa `PERMISSOES_SPEC.md` numa dimensão que aquele documento não previa:
 > o container hoje chamado `marca` deixa de ser assumido como "empresa/
 > terceiro pagante" por padrão — passa a nascer **casual-first**, com a
@@ -173,11 +173,18 @@ expõe atrito com o modelo herdado do `PERMISSOES_SPEC.md`:
 
 ---
 
+## Fase C — Modelo de dados: plano, limites, estado de publicação ✅ fechada
+
+| # | Tópico | Decisão |
+|---|---|---|
+| C.1 | Estados de publicação | `nao_publicada` → `publicada` → `suspensa`. Resolve uma ambiguidade deixada em aberto na Fase B: pra maioria das Arenas (sem sinalização de risco), a checagem roda na própria criação e ela **já nasce `publicada`**, sem estado intermediário visível — só a minoria sinalizada pela heurística de B.4 fica retida em `nao_publicada` até revisão humana. Isso evita reabrir o gargalo geral que a Fase B existiu pra eliminar; a fricção de espera fica restrita só a quem já disparou sinal de risco. `suspensa` é congelamento pós-hoc de uma Arena já pública, se abuso for confirmado depois |
+| C.2 | Campo de plano | `arenas.plano` nasce como coluna, valor único `gratis` pra todo mundo por enquanto — nenhuma tier paga implementada ainda, só evita que o billing futuro precise de migração retroativa pra ter onde ancorar |
+| C.3 | Corte grátis/pago | **Direção confirmada: gate por feature, não por volume/uso.** Descartados os cortes por nº de evento simultâneo ou por volume de envios/participantes — penalizariam justo as Arenas crescendo organicamente, ou seja, as que mais provam a aposta de efeito de rede (anti-padrão pra produto de rede: nunca travar o nó mais viral no momento em que mais gera valor pra rede). Âncora: identidade de jogador, seguir, temporadas e desafios recorrentes (A.6) e badges ficam **grátis sem limite** — são o motor de efeito de rede em si (A.5), não dá pra gatear sem matar o próprio mecanismo que o produto aposta. Candidatos a feature paga: parcerias formais entre Arenas, ranking agregado multi-Arena, branding customizado — sinalizam Arena se comportando como operação profissional (bate com a narrativa casual→profissional de A.2). **Não fechado em definitivo**: a lista exata de que feature é básica vs. paga continua debate aberto a cada rodada futura (consistente com a postura de A.4 — nada aqui é decisão irrevisitável), só a direção do corte (feature, não volume) está fechada |
+
+---
+
 ## 5. Próximos passos — fases ainda em aberto
 
-- **Fase C** — Modelo de dados: plano, limites, estado de publicação da
-  Arena (onde o billing futuro ancora, mesmo que a cobrança em si fique
-  fora de escopo agora)
 - **Fase D** — Fluxo de cadastro self-serve (passo a passo técnico: login
   → criar Arena → o que acontece em cada etapa)
 - **Fase E** — Wizard de configuração pós-ativação (branding condicional,
