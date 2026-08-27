@@ -1,6 +1,6 @@
 # Arena: onboarding self-serve, efeito de rede e evolução casual→profissional
 
-> Status: **em elaboração — Fase A fechada, Fases B-H em aberto**.
+> Status: **em elaboração — Fases A-B fechadas, Fases C-H em aberto**.
 > Revisa `PERMISSOES_SPEC.md` numa dimensão que aquele documento não previa:
 > o container hoje chamado `marca` deixa de ser assumido como "empresa/
 > terceiro pagante" por padrão — passa a nascer **casual-first**, com a
@@ -162,11 +162,19 @@ expõe atrito com o modelo herdado do `PERMISSOES_SPEC.md`:
 
 ---
 
+## Fase B — Controle de admissão ✅ fechada
+
+| # | Tópico | Decisão |
+|---|---|---|
+| B.1 | O que "não publicada" restringe | Só **descoberta por estranho** — não bloqueia funcionalidade pro próprio grupo. Arena recém-criada funciona de imediato pra quem criou e pra quem for convidado (evento, envio de score, ranking interno); só não aparece em listagem pública (`GET /api/marcas/com-evento-ativo`) nem gera QR de venue físico até publicar. É onde o dano de impersonação realmente ocorre (estranho vendo telão físico ou listagem pública enganosa) — travar o "aha moment" de um grupo fechado jogando entre si não protege nada e mata o gatilho de hábito do casual-first. Tecnicamente barato: `GET /api/marcas` já filtra por `admin.tem_acesso_na_marca()` pra não-super desde a correção do §8.1 do `PERMISSOES_SPEC.md` — "não publicada" vira só mais um filtro na consulta pública |
+| B.2 | Lista de nomes protegidos | **Não** manter lista de marcas famosas do mundo real — não escala e não é o risco real aqui. Bloqueio: nome/slug quase-idêntico a Arena **já cadastrada na própria plataforma** (é ali que existe jogador real, reputação e eventual prêmio), mais uma entrada fixa pro próprio "Canal3" como operador. Escopo bem mais estreito que proteção de marca registrada genérica, e realista de manter |
+| B.3 | Rate limit | Por `user_id` autenticado, não por IP (CGNAT de operadora de celular no Brasil torna IP não confiável). Teto proposto: 3 Arenas/dia por conta — generoso pra uso legítimo, corta a maioria do abuso por script. Já parte de uma base não-anônima (Google/Magic Link) |
+| B.4 | Postura de revisão | **Reativa** — publica automático se passar B.1-B.3; só entra em fila de revisão humana se disparar heurística de risco (nome quase-igual a Arena existente, velocidade anômala de criação da mesma conta). Mantém o casual-first sem gargalo humano na maioria dos casos; aceita janela curta de exposição em troca disso — trade-off explícito, decisão consciente de risco vs. o modelo proativo (super aprova tudo antes), que reintroduziria o gargalo que o casual-first está tentando eliminar |
+
+---
+
 ## 5. Próximos passos — fases ainda em aberto
 
-- **Fase B** — Controle de admissão (trava anti-impersonação/spam antes do
-  cadastro self-serve ir ao ar; desenho de referência em §3, não fechado
-  formalmente)
 - **Fase C** — Modelo de dados: plano, limites, estado de publicação da
   Arena (onde o billing futuro ancora, mesmo que a cobrança em si fique
   fora de escopo agora)
