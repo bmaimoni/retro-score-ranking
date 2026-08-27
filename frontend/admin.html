@@ -1184,6 +1184,20 @@ function aplicarVisibilidadePorNivel() {
 
   const tabExclusoes = document.getElementById('tab-btn-exclusoes');
   if (tabExclusoes) tabExclusoes.style.display = super_ ? 'block' : 'none';
+
+  // Aba "Administradores" — visível pra super e pra qualquer admin
+  // (comum ou dono) de pelo menos uma marca, já que ambos concedem
+  // vínculo dentro da própria marca (docs/PERMISSOES_SPEC.md §4/§8.2).
+  // Moderador nunca vê: não tem nenhuma ação de gestão de vínculo.
+  const tabAdmins = document.getElementById('tab-btn-administradores');
+  if (tabAdmins) tabAdmins.style.display = ehAdminEmAlgumaMarca() ? 'block' : 'none';
+
+  // Escopo "Super-admin" no formulário de vínculo só faz sentido pra
+  // quem já é super — admin comum nunca pode conceder esse escopo
+  // (backend já bloqueia em _pode_conceder; aqui é só não oferecer a
+  // opção que resultaria em 403).
+  const optEscopoSuper = document.querySelector('#vinculo-escopo option[value="super"]');
+  if (optEscopoSuper) optEscopoSuper.style.display = super_ ? '' : 'none';
 }
 
 let feedFilter  = 'todos';
@@ -1349,7 +1363,6 @@ function mostrarPainel() {
 function configurarIdentidadeEEscopo() {
   const elIdentidade = document.getElementById('admin-identidade');
   const elSelector    = document.getElementById('evento-selector');
-  const elTabAdmins    = document.getElementById('tab-btn-administradores');
 
   if (!meInfo) { elIdentidade.style.display = 'none'; return; }
 
@@ -1358,19 +1371,16 @@ function configurarIdentidadeEEscopo() {
     ? `<strong>${escapar(meInfo.identificador)}</strong><span class="badge-super">SUPER</span>`
     : `<strong>${escapar(meInfo.identificador)}</strong>`;
 
-  aplicarVisibilidadePorNivel();
+  aplicarVisibilidadePorNivel();  // inclui a aba Administradores — ver ehAdminEmAlgumaMarca()
 
-  // Super-admin: sem seletor (vê tudo por padrão, igual sempre foi),
-  // aba de Administradores visível.
+  // Super-admin: sem seletor (vê tudo por padrão, igual sempre foi).
   if (meInfo.super) {
     elSelector.style.display = 'none';
-    elTabAdmins.style.display = 'block';
     return;
   }
 
   // Admin escopado: SEMPRE precisa de um evento selecionado — sem isso
   // /api/admin/feed retorna 400 (ver docs/MARCAS_SPEC.md §6).
-  elTabAdmins.style.display = 'none';
   if (meInfo.eventos.length === 0) {
     elIdentidade.innerHTML += ` <span style="color:var(--color-error)">— sem eventos vinculados</span>`;
     return;

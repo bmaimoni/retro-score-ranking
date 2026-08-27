@@ -189,6 +189,32 @@ async def listar_eventos_acessiveis_detalhado(pool: Pool, user_id: str) -> list[
     return [dict(r) for r in rows]
 
 
+async def listar_por_marcas(pool: Pool, marca_ids: list[str]) -> list[dict]:
+    """
+    Vínculos escopo='marca' (ativos e inativos) restritos às marcas
+    informadas, com dados do usuário — mesma forma de listar_todos, mas
+    escopado. Usado por GET /api/admin/vinculos pra admin não-super
+    (docs/PERMISSOES_SPEC.md §8.2): nunca inclui escopo='super', nunca
+    marca fora da lista informada.
+    """
+    if not marca_ids:
+        return []
+    rows = await pool.fetch(
+        """
+        SELECT av.id, av.user_id, u.email, u.nome,
+               av.escopo, av.marca_id, m.nome AS marca_nome,
+               av.nivel, av.ativo, av.criado_em
+        FROM admin_vinculos av
+        JOIN users u ON u.id = av.user_id
+        LEFT JOIN marcas  m ON m.id = av.marca_id
+        WHERE av.escopo = 'marca' AND av.marca_id = ANY($1::uuid[])
+        ORDER BY av.criado_em DESC
+        """,
+        marca_ids,
+    )
+    return [dict(r) for r in rows]
+
+
 async def registrar_auditoria(
     pool: Pool,
     acao: str,

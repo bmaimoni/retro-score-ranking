@@ -15,8 +15,12 @@ identificados — em especial risco #1, escalonamento cross-marca):
   admin comum NUNCA revoga outro admin (decisão #9). Revogar o vínculo
   do titular atual é bloqueado (decisão #10) — precisa transferir
   titularidade primeiro (endpoint ainda não implementado).
-- GET (listar tudo) continua restrito a super — não há necessidade de
-  expor vínculos de outras marcas pra um admin escopado ainda.
+- GET: super lista tudo; admin não-super lista só os vínculos
+  (admin E moderador) das marcas onde ele mesmo tem nivel='admin' —
+  nunca vínculos escopo='super', nunca de marca onde só é moderador ou
+  não tem vínculo (docs/PERMISSOES_SPEC.md §8.2 — corrige o bloqueio
+  total que existia antes e impedia até o dono da própria marca ver
+  quem ele mesmo administra).
 - Toda concessão/revogação grava em admin_vinculos_auditoria (decisão #12).
 """
 from fastapi import APIRouter, Depends, HTTPException
@@ -58,11 +62,6 @@ class VinculoUpdate(BaseModel):
     ativo: bool
 
 
-def _exigir_super(admin: AdminContext):
-    if not admin.super:
-        raise HTTPException(status_code=403, detail="Só super-admin pode listar todos os vínculos")
-
-
 def _pode_conceder(admin: AdminContext, escopo: str, marca_id: str | None) -> bool:
     """
     Quem pode CONCEDER (criar ou reativar) um vínculo com este
@@ -101,8 +100,16 @@ def _pode_revogar(admin: AdminContext, vinculo: dict, dono_user_id: str | None) 
 
 @router.get("")
 async def listar_vinculos(pool=Depends(get_pool), admin: AdminContext = Depends(require_admin)):
-    _exigir_super(admin)
-    return await admin_vinculo_repo.listar_todos(pool)
+    """super vê todos; admin não-super só os vínculos das marcas onde
+    ele mesmo tem nivel='admin' — é a única situação em que ele tem
+    qualquer ação de gestão disponível nesta lista (conceder/revogar
+    moderador sempre; conceder/revogar outro admin só se também for o
+    titular). Marca onde só é moderador não aparece: não há nada que
+    ele possa fazer ali."""
+    if admin.super:
+        return await admin_vinculo_repo.listar_todos(pool)
+    marca_ids = [v["marca_id"] for v in admin.vinculos if v["nivel"] == "admin"]
+    return await admin_vinculo_repo.listar_por_marcas(pool, marca_ids)
 
 
 @router.post("", status_code=201)

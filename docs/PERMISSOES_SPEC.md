@@ -191,9 +191,107 @@ buracos numa refatoração futura sem lembrar da razão original.
    esconde formulários/botões que o nível atual não permite, em vez de só
    bloquear depois do clique.
 
-**Gaps conhecidos, não bloqueantes:** `GET /api/admin/marcas` e
-`GET /api/admin/vinculos` continuam sem escopo por marca (listam tudo pra
-qualquer admin autenticado — só a escrita foi travada); resolução de marca
-via placar customizado em telões é uma simplificação provisória (ver
+**Gaps conhecidos, não bloqueantes:** resolução de marca via placar
+customizado em telões é uma simplificação provisória (ver
 `routers/teloes_admin.py`), a revisitar quando `RANKINGS_CONFIGURAVEIS_SPEC.md`
-(Fase 4) tratar placar↔marca de verdade.
+(Fase 4) tratar placar↔marca de verdade. Os dois gaps de `GET /api/admin/marcas`
+e `GET /api/admin/vinculos` citados aqui anteriormente foram corrigidos —
+ver §8.
+
+---
+
+## 8. Correções — jornada do novo cliente (2026-08-25)
+
+> Achado numa auditoria da jornada de onboarding de um cliente B2B novo
+> (dono de marca), pedida depois de reportado que admins/moderadores de
+> marca "não têm acesso à tela de admin". Login e moderação escopados já
+> funcionavam (implementados em §7) — o problema real, mais sério do que
+> a descrição original sugeria, era outro: um vazamento de dado
+> cross-cliente e a ausência de UI pra gestão dos próprios vínculos.
+
+### 8.1 `GET /api/admin/marcas` vazando roster de clientes entre marcas
+
+**Achado**: o endpoint não tinha nenhum escopo — qualquer admin ou
+moderador autenticado, de qualquer marca, recebia a lista de **todas**
+as marcas (nome, slug, cor_primaria, tipografia, logo_url,
+itens_por_pagina). `admin.html::carregarMarcas` renderizava essa lista
+incondicionalmente; só os botões Editar/Parcerias eram escondidos por
+nível. Diferente do gap de `GET /api/admin/vinculos` (bloqueava demais),
+este liberava demais — era vazamento de dado ativo em produção, não só
+funcionalidade faltando.
+
+**Por que importa mais que "só uma feature faltando"**: este documento
+existe porque `marca` passou a poder representar um terceiro pagante
+(§1). Um cliente ver nome/identidade visual de outro cliente no próprio
+painel é exatamente o tipo de vazamento que compromete confiança
+contratual num modelo B2B.
+
+**Decisão**: `GET /api/admin/marcas` passa a filtrar por escopo, mesmo
+padrão já usado em `GET /api/admin/eventos` (`routers/eventos.py::listar_eventos`):
+`super` vê tudo; admin/moderador só marcas onde
+`AdminContext.tem_acesso_na_marca()` é verdadeiro.
+
+### 8.2 `GET /api/admin/vinculos` — de bloqueio total pra escopo por marca
+
+**Achado**: o endpoint bloqueava qualquer admin/dono de marca com 403,
+mesmo pra ver os **próprios** vínculos — apesar de `POST`/`PATCH` já
+implementarem corretamente as regras de §4 (admin comum concede/revoga
+moderador; dono revoga outro admin) pra esse mesmo escopo. Sem o GET,
+não havia como construir a tela de gestão — e de fato `admin.html`
+nunca ganhou essa aba pra ninguém além de super
+(`tab-btn-administradores`, escondida incondicionalmente fora do ramo
+super).
+
+**Decisão**: `GET /api/admin/vinculos` passa a devolver, pra admin
+não-super, os vínculos (`admin` **e** `moderador`) das marcas onde esse
+admin tem `nivel='admin'` — só essas, porque só nelas ele tem qualquer
+ação de gestão disponível (moderador nunca gerencia vínculo, então não
+precisa enxergar a lista; admin comum de uma marca não gerencia vínculo
+de outra). Nunca inclui `escopo='super'` pra quem não é super.
+Reaproveita exatamente `_pode_conceder`/`_pode_revogar` já existentes no
+POST/PATCH — o GET só finalmente alimenta uma UI que já tinha as regras
+de escrita certas.
+
+**Frontend**: a aba "Administradores" passa a aparecer também quando
+`ehAdminEmAlgumaMarca()` é verdadeiro (mesma função já usada pra mostrar
+os formulários de criar jogo/evento), não só pra `super`. A opção de
+escopo "Super-admin" no formulário de conceder vínculo fica escondida
+pra quem não é super — evita depender só do 403 do backend pra dar
+feedback. O `<select>` de marca do formulário já vem naturalmente
+restrito à(s) própria(s) marca(s), como efeito colateral do escopo
+aplicado em §8.1 (mesma chamada `GET /api/admin/marcas` popula os dois
+formulários).
+
+### 8.3 Titularidade órfã por padrão — janela entre criar marca e atribuir dono
+
+**Achado**: criar marca (`POST /api/admin/marcas`) e atribuir
+titularidade (`PATCH /api/admin/marcas/{id}/titularidade`) eram duas
+chamadas manuais separadas, e nada forçava a segunda a acontecer.
+`marcas.dono_user_id` ficava `NULL` silenciosamente até alguém lembrar
+de transferir — sem erro, alerta ou indicador visual em lugar nenhum da
+UI. O sintoma só apareceria quando o cliente tentasse revogar um
+coadmin ou transferir titularidade e a ação falhasse sem causa óbvia —
+exatamente o risco #2 do §5, mas do lado da atribuição inicial, não só
+da revogação.
+
+**Decisão**: `POST /api/admin/marcas` aceita um campo opcional
+`dono_email`. Quando presente: exige que a pessoa já tenha conta (mesma
+mensagem 404 já usada em `admin_vinculos.py`/titularidade), cria o
+vínculo `admin` pra ela na marca recém-criada e atribui `dono_user_id`
+— as 3 operações que antes exigiam 2 chamadas manuais viram 1. Cada
+etapa continua auditada em `admin_vinculos_auditoria` (`concedido` pro
+vínculo; `titularidade_transferida` — com `detalhes.dono_anterior = null`
+— pra titularidade), sem introduzir novo valor de `acao` nem migração:
+é a mesma operação de sempre, só que partindo de `NULL` em vez de outro
+dono. `dono_email` continua opcional — super pode criar uma marca
+"vazia" (cliente ainda não logou, ou nem foi decidido quem será o
+titular) e atribuir depois, do jeito antigo.
+
+### 8.4 Fora de escopo desta rodada
+
+Fluxo de "conta de empresa" dedicado (tela de cadastro fora de
+`index.html`/`admin.html`, hoje o mesmo widget de login usado por um
+jogador anônimo), um wizard único que junte os 3 passos de onboarding
+numa UI só, e qualquer mecanismo de plano/limite de uso — ficam fora.
+São decisões de produto maiores, levantadas na crítica que motivou esta
+seção, mas não fechadas aqui.

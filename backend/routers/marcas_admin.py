@@ -52,6 +52,7 @@ class MarcaCreate(BaseModel):
     cor_primaria: str | None = None
     tipografia: str | None = None
     logo_url: str | None = None
+    dono_email: EmailStr | None = None  # ver docs/PERMISSOES_SPEC.md §8.3
 
     _valida_tipografia = field_validator("tipografia")(_validar_tipografia)
 
@@ -80,8 +81,16 @@ class TransferirTitularidade(BaseModel):
 # ── CRUD de marcas ─────────────────────────────────────────────
 
 @router.get("")
-async def listar_marcas(pool=Depends(get_pool), _=Depends(require_admin)):
-    return await marca_repo.listar_todas(pool)
+async def listar_marcas(pool=Depends(get_pool), admin: AdminContext = Depends(require_admin)):
+    """super vê todas; admin/moderador só as marcas onde tem vínculo
+    ativo — antes desta correção, o endpoint devolvia todas as marcas
+    pra qualquer admin autenticado, vazando nome/identidade visual de
+    outros clientes (docs/PERMISSOES_SPEC.md §8.1). Mesmo padrão já
+    usado em GET /api/admin/eventos."""
+    marcas = await marca_repo.listar_todas(pool)
+    if admin.super:
+        return marcas
+    return [m for m in marcas if admin.tem_acesso_na_marca(m["id"])]
 
 
 @router.post("", status_code=201)
@@ -91,8 +100,19 @@ async def criar_marca(
     admin: AdminContext = Depends(require_admin),
 ):
     _exigir_super(admin)
+
+    usuario = None
+    if dados.dono_email:
+        usuario = await auth_repo.buscar_usuario_por_email(pool, dados.dono_email.lower().strip())
+        if not usuario:
+            raise HTTPException(
+                status_code=404,
+                detail="Essa pessoa ainda não tem conta — ela precisa logar pelo menos uma vez "
+                       "(Google ou Magic Link) com esse e-mail antes de virar titular.",
+            )
+
     try:
-        return await marca_repo.criar(
+        marca = await marca_repo.criar(
             pool, dados.nome, dados.slug,
             dados.cor_primaria, dados.tipografia, dados.logo_url,
         )
@@ -100,6 +120,26 @@ async def criar_marca(
         if "unique" in str(exc).lower():
             raise HTTPException(status_code=409, detail="Slug já existe")
         raise
+
+    if usuario:
+        # Concede o vínculo admin e já atribui a titularidade na mesma
+        # chamada — colapsa os 2 passos manuais (POST /vinculos +
+        # PATCH /titularidade) que antes deixavam uma janela de marca
+        # sem dono se alguém esquecesse o segundo (docs/PERMISSOES_SPEC.md §8.3).
+        marca_id = str(marca["id"])
+        await admin_vinculo_repo.criar(pool, str(usuario["id"]), "marca", "admin", marca_id)
+        await admin_vinculo_repo.registrar_auditoria(
+            pool, acao="concedido", user_alvo_id=str(usuario["id"]), realizado_por=admin.identificador,
+            marca_id=marca_id, nivel="admin",
+        )
+        marca = await marca_repo.transferir_titularidade(pool, marca_id, str(usuario["id"]))
+        await admin_vinculo_repo.registrar_auditoria(
+            pool, acao="titularidade_transferida", user_alvo_id=str(usuario["id"]),
+            realizado_por=admin.identificador, marca_id=marca_id, nivel=None,
+            detalhes={"dono_anterior": None},
+        )
+
+    return marca
 
 
 @router.patch("/{marca_id}")

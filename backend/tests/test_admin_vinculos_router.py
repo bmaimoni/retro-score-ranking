@@ -66,16 +66,7 @@ def _sem_auditoria():
     return patch("repositories.admin_vinculo.registrar_auditoria", AsyncMock())
 
 
-# ── GET: continua restrito a super ──────────────────────────────────────────────
-
-@pytest.mark.asyncio
-async def test_admin_escopado_nao_pode_listar_vinculos(client):
-    app.dependency_overrides[require_admin] = lambda: admin_ctx()
-    app.dependency_overrides[get_pool] = lambda: MagicMock()
-
-    resp = await client.get("/api/admin/vinculos")
-    assert resp.status_code == 403
-
+# ── GET: super vê tudo; admin escopado só as próprias marcas (§8.2) ────────────
 
 @pytest.mark.asyncio
 async def test_super_admin_pode_listar_vinculos(client):
@@ -88,6 +79,56 @@ async def test_super_admin_pode_listar_vinculos(client):
 
     assert resp.status_code == 200
     assert len(resp.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_admin_escopado_lista_vinculos_da_propria_marca(client):
+    """docs/PERMISSOES_SPEC.md §8.2: admin/dono de marca passa a ver os
+    próprios vínculos (antes: 403 total, mesmo pra própria marca)."""
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    listar_mock = AsyncMock(return_value=[_vinculo(marca_id=MARCA_A)])
+
+    with patch("repositories.admin_vinculo.listar_por_marcas", listar_mock):
+        resp = await client.get("/api/admin/vinculos")
+
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+    listar_mock.assert_called_once_with(pool, [MARCA_A])
+
+
+@pytest.mark.asyncio
+async def test_admin_de_marca_a_nao_recebe_vinculos_da_marca_b(client):
+    """Adversarial (mesma régua do risco #1): a query escopada nunca
+    inclui marca fora do que o próprio admin administra."""
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    listar_mock = AsyncMock(return_value=[])
+
+    with patch("repositories.admin_vinculo.listar_por_marcas", listar_mock):
+        await client.get("/api/admin/vinculos")
+
+    marca_ids_pedidos = listar_mock.call_args[0][1]
+    assert MARCA_B not in marca_ids_pedidos
+
+
+@pytest.mark.asyncio
+async def test_moderador_nao_ve_nenhum_vinculo(client):
+    """Moderador não gerencia vínculo em lugar nenhum — a marca onde
+    ele só é moderador não entra na lista de marcas consultadas."""
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx(marca_id=MARCA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    listar_mock = AsyncMock(return_value=[])
+
+    with patch("repositories.admin_vinculo.listar_por_marcas", listar_mock):
+        resp = await client.get("/api/admin/vinculos")
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+    listar_mock.assert_called_once_with(pool, [])
 
 
 # ── Criar vínculo (por e-mail) — super ──────────────────────────────────────────

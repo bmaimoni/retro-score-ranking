@@ -135,6 +135,145 @@ async def test_listar_marcas(client):
     assert len(resp.json()) == 1
 
 
+@pytest.mark.asyncio
+async def test_admin_escopado_so_ve_a_propria_marca(client):
+    """docs/PERMISSOES_SPEC.md §8.1: antes desta correção, o endpoint
+    devolvia TODAS as marcas pra qualquer admin autenticado — vazando
+    nome/identidade visual de outros clientes."""
+    marca_a, marca_b = _marca(nome="Canal3"), _marca(nome="Cliente B")
+    admin_de_a = AdminContext(
+        identificador="admin-a@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"marca_id": marca_a["id"], "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_a
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.marca.listar_todas", AsyncMock(return_value=[marca_a, marca_b])):
+        resp = await client.get("/api/admin/marcas")
+
+    assert resp.status_code == 200
+    nomes = [m["nome"] for m in resp.json()]
+    assert nomes == ["Canal3"]
+
+
+@pytest.mark.asyncio
+async def test_moderador_so_ve_a_propria_marca(client):
+    marca_a, marca_b = _marca(nome="Canal3"), _marca(nome="Cliente B")
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"marca_id": marca_a["id"], "nivel": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.marca.listar_todas", AsyncMock(return_value=[marca_a, marca_b])):
+        resp = await client.get("/api/admin/marcas")
+
+    assert resp.status_code == 200
+    nomes = [m["nome"] for m in resp.json()]
+    assert nomes == ["Canal3"]
+
+
+@pytest.mark.asyncio
+async def test_super_ve_todas_as_marcas(client):
+    marca_a, marca_b = _marca(nome="Canal3"), _marca(nome="Cliente B")
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.marca.listar_todas", AsyncMock(return_value=[marca_a, marca_b])):
+        resp = await client.get("/api/admin/marcas", headers=AUTH_HEADER)
+
+    assert len(resp.json()) == 2
+
+
+# ── Criar marca com titularidade atômica (docs/PERMISSOES_SPEC.md §8.3) ────────
+
+@pytest.mark.asyncio
+async def test_criar_marca_com_dono_email_atribui_vinculo_e_titularidade(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    marca_id = make_uuid()
+    dono = _usuario(email="dono@cliente.com")
+    marca_criada  = _marca(id=marca_id)
+    marca_com_dono = _marca(id=marca_id, dono_user_id=dono["id"])
+
+    with patch("auth.repository.buscar_usuario_por_email", AsyncMock(return_value=dono)), \
+         patch("repositories.marca.criar", AsyncMock(return_value=marca_criada)), \
+         patch("repositories.admin_vinculo.criar", AsyncMock()) as criar_vinculo_mock, \
+         patch("repositories.marca.transferir_titularidade", AsyncMock(return_value=marca_com_dono)) as transferir_mock, \
+         patch("repositories.admin_vinculo.registrar_auditoria", AsyncMock()) as auditoria_mock:
+        resp = await client.post("/api/admin/marcas",
+            json={"nome": "Cliente Novo", "slug": "cliente-novo", "dono_email": dono["email"]},
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 201
+    assert resp.json()["dono_user_id"] == dono["id"]
+    criar_vinculo_mock.assert_called_once_with(pool, dono["id"], "marca", "admin", marca_id)
+    transferir_mock.assert_called_once_with(pool, marca_id, dono["id"])
+    assert auditoria_mock.call_count == 2
+    auditoria_mock.assert_any_call(
+        pool, acao="concedido", user_alvo_id=dono["id"], realizado_por="admin",
+        marca_id=marca_id, nivel="admin",
+    )
+    auditoria_mock.assert_any_call(
+        pool, acao="titularidade_transferida", user_alvo_id=dono["id"],
+        realizado_por="admin", marca_id=marca_id, nivel=None,
+        detalhes={"dono_anterior": None},
+    )
+
+
+@pytest.mark.asyncio
+async def test_criar_marca_dono_email_pessoa_nunca_logou_retorna_404(client):
+    """Mesma mensagem já usada em /vinculos e /titularidade — e a marca
+    NÃO chega a ser criada (evita marca 'meia-pronta' se o e-mail
+    estiver errado)."""
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("auth.repository.buscar_usuario_por_email", AsyncMock(return_value=None)), \
+         patch("repositories.marca.criar", AsyncMock()) as criar_marca_mock:
+        resp = await client.post("/api/admin/marcas",
+            json={"nome": "X", "slug": "x", "dono_email": "nunca-logou@x.com"},
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 404
+    assert "logar" in resp.json()["detail"].lower()
+    criar_marca_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_criar_marca_sem_dono_email_fica_sem_titular_como_antes(client):
+    """dono_email continua opcional — comportamento antigo preservado."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.marca.criar", AsyncMock(return_value=_marca())) as criar_marca_mock, \
+         patch("repositories.admin_vinculo.criar", AsyncMock()) as criar_vinculo_mock:
+        resp = await client.post("/api/admin/marcas",
+            json={"nome": "Canal3", "slug": "canal3"},
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 201
+    criar_marca_mock.assert_called_once()
+    criar_vinculo_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_criar_marca_admin_nao_super_com_dono_email_retorna_403(client):
+    """A checagem de super acontece antes de qualquer coisa — admin
+    comum não cria marca mesmo enviando dono_email."""
+    admin_de_marca = AdminContext(
+        identificador="dono@x.com", user_id="u1", super=False,
+        vinculos=[{"marca_id": make_uuid(), "nivel": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_marca
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.post("/api/admin/marcas",
+        json={"nome": "X", "slug": "x", "dono_email": "quem@x.com"})
+
+    assert resp.status_code == 403
+
+
 # ── Atualizar marca ────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

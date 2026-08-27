@@ -193,6 +193,36 @@ async def test_listar_eventos_acessiveis_detalhado_inclui_nivel(fake_pool):
     assert "av.nivel" in sql
 
 
+# ── listar_por_marcas (docs/PERMISSOES_SPEC.md §8.2) ───────────────────────────
+
+@pytest.mark.asyncio
+async def test_listar_por_marcas_filtra_escopo_e_marca(fake_pool):
+    m1 = make_uuid()
+    fake_pool.set_fetch([
+        {"id": make_uuid(), "user_id": "u1", "email": "a@x.com", "nome": "A",
+         "escopo": "marca", "marca_id": m1, "marca_nome": "Canal3",
+         "nivel": "admin", "ativo": True, "criado_em": "2026-01-01"},
+    ])
+
+    resultado = await admin_vinculo_repo.listar_por_marcas(fake_pool, [m1])
+
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "escopo = 'marca'" in sql
+    assert "marca_id = ANY($1" in sql
+    assert len(resultado) == 1
+
+
+@pytest.mark.asyncio
+async def test_listar_por_marcas_vazio_nao_bate_no_banco(fake_pool):
+    """Lista de marcas vazia (ex: moderador sem nenhuma marca onde é
+    admin) retorna vazio sem nem montar a query — evita ANY($1) com
+    array vazio precisar de tratamento especial."""
+    resultado = await admin_vinculo_repo.listar_por_marcas(fake_pool, [])
+
+    assert resultado == []
+    fake_pool.fetch.assert_not_called()
+
+
 # ── auditoria ────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
