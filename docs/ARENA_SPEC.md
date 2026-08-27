@@ -1,6 +1,6 @@
 # Arena: onboarding self-serve, efeito de rede e evolução casual→profissional
 
-> Status: **em elaboração — Fases A-E fechadas, Fases F-H em aberto**.
+> Status: **em elaboração — Fases A-F fechadas, Fases G-H em aberto**.
 > Revisa `PERMISSOES_SPEC.md` numa dimensão que aquele documento não previa:
 > o container hoje chamado `marca` deixa de ser assumido como "empresa/
 > terceiro pagante" por padrão — passa a nascer **casual-first**, com a
@@ -231,10 +231,22 @@ existe migra depois, em rodada dedicada.
 
 ---
 
+## Fase F — Convite assíncrono de colaboradores ✅ fechada
+
+| # | Tópico | Decisão |
+|---|---|---|
+| F.1 | Dois convites diferentes, escondidos no mesmo verbo | Convidar **pra jogar** (participante comum, sem poder de gestão) não precisa de vínculo nenhum — é só compartilhar o link de `play.html` com o identificador do evento, já funciona hoje, zero mecanismo novo. O gap real que esta fase resolve é só o outro caso: convidar **pra coadministrar** (nível `admin`/`moderator`, `PERMISSOES_SPEC.md`) — hoje quebrado porque `dono_email`/`POST /api/admin/vinculos` exige que a pessoa já tenha logado antes (404 se não) |
+| F.2 | Convite de coadministração sempre passa por aceite explícito | Mesmo se o convidado já tem conta — substitui a concessão direta e silenciosa de hoje. Unifica num caminho de código só (não dois: "e-mail já existe" vs "e-mail não existe"), e dá ao convidado a chance real de recusar — alinhado ao Padrão C (§2, GitHub Orgs/Discord) e à mesma exigência de aceite explícito que a decisão #11 do `PERMISSOES_SPEC.md` já usa pra transferência de titularidade |
+| F.3 | Sem tabela nova | `memberships` (ex-`admin_vinculos`, renomeada pela decisão cross-cutting da Fase D) ganha um estado `pending` e colunas de convite (`email`, `invited_by`, `token_hash`, `expires_at`, `accepted_at`) — todas nulas fora do estado pendente. Evita duas tabelas fazendo o mesmo papel de "vínculo de alguém com uma Arena" |
+| F.4 | Segurança do token | Nunca texto puro — mesmo padrão de `magic_link_tokens` (`AUTH_SPEC.md` §5), hash no banco. Expira em 7 dias — mais longo que o token de login (15 min), porque aceitar coadministração é decisão maior que só logar; a pessoa pode demorar a ver o e-mail |
+| F.5 | Fluxo de aceite | Clique no link: sessão ativa com o mesmo e-mail convidado aceita na hora; sem sessão, aciona login (Google ou Magic Link) **exigindo bater o e-mail convidado** (mesma regra de account linking por `email_verified` do `AUTH_SPEC.md` #2) — evita sequestro de convite por link vazado pra terceiro. Aceite grava `membership` ativa + entrada em `admin_vinculos_auditoria`, redireciona pro painel da Arena |
+| F.6 | Quem pode convidar/cancelar não muda | Reaproveita exatamente `_pode_conceder`/`_pode_revogar` já existentes em `admin_vinculos.py` — só o mecanismo (assíncrono, não mais síncrono) muda. Quem convidou pode cancelar convite pendente antes do aceite |
+| F.7 | Transferência de titularidade fica fora do escopo desta fase | Já exige alvo ser admin vinculado existente (decisão #11 do `PERMISSOES_SPEC.md`) — não tem o problema de "pessoa sem conta" que motiva Fase F, então não precisa do mecanismo de convite |
+
+---
+
 ## 6. Próximos passos — fases ainda em aberto
 
-- **Fase F** — Convite assíncrono de colaboradores (resolve o gap atual em
-  que `dono_email` exige conta pré-existente — ver Padrão B/C em §2)
 - **Fase G** — Migração e compatibilidade com o modelo `super`/`dono`
   atual do `PERMISSOES_SPEC.md` (o que muda pras Arenas já existentes, o
   que `super` deixa/não deixa de fazer)
