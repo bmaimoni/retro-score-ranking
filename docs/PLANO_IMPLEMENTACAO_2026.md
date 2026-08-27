@@ -7,7 +7,7 @@
 > produção, seguindo o mesmo processo já usado no projeto inteiro: migração
 > testada localmente → aplicada → backend → testes → frontend → validação.
 
-Próxima migração livre: **`026`**.
+Próxima migração livre: **`029`**.
 
 **Fase 1 concluída** (migração 019, ver `docs/PERMISSOES_SPEC.md` §7).
 **Fase 2 concluída** (migrações 020-022, ver `docs/NICKNAME_SPEC.md` e
@@ -22,17 +22,12 @@ frontend prontos. Backlog do plano original está completo — itens
 menores pendentes seguem em `docs/BACKLOG_2026.md` §5, sem ordem de
 execução fechada.
 
-**Iniciativa nova, ainda não sequenciada em fases de execução**:
-`docs/ARENA_SPEC.md` (especificação completa, Fases A-H fechadas em
-2026-08-27) — pivô estratégico casual-first: o container `marca` vira
-**Arena**, nasce self-serve (sem `super` como gatekeeper único), com
-efeito de rede via identidade de jogador cruzando Arenas, wizard de
-onboarding e convite assíncrono de coadministração. Inclui decisão
-cross-cutting de migrar identificadores de código (tabelas/colunas/rotas/
-arquivos) pra inglês — prosa dos docs continua em português. Antes de
-sequenciar isso em fases de execução aqui, o próprio `ARENA_SPEC.md`
-recomenda começar pelo rename retroativo do código já existente (ver seu
-§8), pra não empilhar código novo em cima da nomenclatura antiga.
+**Fases 7-10 sequenciadas em 2026-08-27**, a partir de `docs/ARENA_SPEC.md`
+(especificação completa, Fases A-H fechadas) — pivô estratégico
+casual-first: o container `marca` vira **Arena**, nasce self-serve (sem
+`super` como gatekeeper único), com efeito de rede via identidade de
+jogador cruzando Arenas, wizard de onboarding e convite assíncrono de
+coadministração. Nenhuma delas começou a ser implementada ainda.
 
 ---
 
@@ -251,6 +246,122 @@ documentados em `docs/BACKLOG_2026.md` §3.
 
 ---
 
+## Fase 7 — Rename retroativo de identificadores pra inglês ⏳ não iniciada
+
+**Spec**: `docs/ARENA_SPEC.md` §5/§8 (decisão cross-cutting — escopo
+limitado a identificadores de código; prosa dos docs continua em
+português)
+**Bloqueia**: Fases 8-10 — recomendação do próprio `ARENA_SPEC.md` é não
+empilhar código novo em cima da nomenclatura antiga
+
+- [ ] Migração 026: rename mecânico de tabelas/colunas via `ALTER TABLE
+  ... RENAME` (sem `DROP`/`DELETE`, reversível, nenhuma perda de dado) —
+  `marcas`→`arenas`, `admin_vinculos`→`memberships`,
+  `admin_vinculos_auditoria`→`membership_audit_log`, `entradas`→
+  `entries`, `eventos`→`events`, `jogos`→`games`, `marcas_parcerias`→
+  `arena_partnerships`; colunas `dono_user_id`→`owner_user_id`,
+  `nivel`→`role`, `escopo`→`scope`. Testar contra Postgres real antes de
+  aplicar (disciplina padrão do projeto) — descrever o comportamento
+  exato antes de rodar, mesmo sendo rename puro.
+- [ ] Atualizar toda RLS/policy que referencia nome de tabela — não
+  presumir que o rename "só funciona"; validar policy por policy (mesma
+  lição do `SPEC.md` §5-6 sobre a armadilha de RLS).
+- [ ] Backend: renomear routers (`marcas_admin.py`→`arenas_admin.py`,
+  `admin_vinculos.py`→`memberships.py`, etc.), rotas (`/api/admin/marcas`
+  → `/api/admin/arenas`, etc.), repositórios, e todo código que
+  referencia os nomes antigos.
+- [ ] Frontend: `admin.html` e demais telas atualizadas pras rotas novas.
+- [ ] Testes: suíte inteira ajustada pros nomes novos — rodar suíte
+  completa e confirmar zero regressão antes de considerar a fase
+  concluída.
+
+---
+
+## Fase 8 — Fundação Arena: admissão, dados e cadastro self-serve ⏳ não iniciada
+
+**Spec**: `docs/ARENA_SPEC.md` Fases B, C, D e G
+**Depende de**: Fase 7
+
+- [ ] Migração 027: `arenas.status` (`draft`/`published`/`suspended`,
+  default `published` pras linhas existentes — C.1/G.1), `arenas.plan`
+  (default `free` — C.2/G.1), `events.visibility` (`open`/`private`,
+  default `private` — D.7). **Pré-requisito antes de rodar**: auditar
+  `owner_user_id` nulo em Arena existente (gap do §8.3 do
+  `PERMISSOES_SPEC.md`) e resolver manualmente — mesma disciplina de
+  "confirmar zero órfãos antes" já usada no `EVENTOS_SPEC.md`.
+- [ ] Backend: endpoint de criar Arena aceita qualquer usuário autenticado
+  (não só `super` — D.2/D.3, pede só nome, slug auto-derivado), aplicando
+  na criação: colisão de nome/slug contra Arena já cadastrada + "Canal3"
+  (B.2), rate limit de 3/dia por `owner_user_id` (B.3, `super` isento —
+  G.4), heurística de risco → `status='draft'` + fila de revisão (B.4).
+  Endpoint único, comportamento condicional por quem chama, não fork
+  (G.3). Fila de revisão pra `super` aprovar/rejeitar Arena sinalizada;
+  ação de suspender Arena com abuso confirmado. `logo_url` tratado como
+  input hostil — sanitização contra XSS (renderizado em telão público).
+- [ ] Testes: cobertura adversarial de rate limit, colisão de nome,
+  isenção de `super`, e confirmação de que Arena sinalizada nunca aparece
+  em listagem pública antes de aprovada — mesma régua de teste
+  adversarial já usada no `PERMISSOES_SPEC.md`.
+- [ ] Frontend: `index.html` vira home institucional (proposta de valor,
+  CTA "criar sua Arena", diretório de eventos com `visibility='open'` —
+  D.1/D.7); página de participação renomeada pra `play.html`, passa a
+  exigir identificador de evento explícito na URL — a lógica de fallback/
+  seleção de marca que existia migra inteira pra descoberta da home.
+
+---
+
+## Fase 9 — Wizard de configuração pós-ativação ⏳ não iniciada
+
+**Spec**: `docs/ARENA_SPEC.md` Fase E
+**Depende de**: Fase 8
+
+- [ ] Sem migração — progresso do checklist computado on-the-fly a partir
+  do que já existe (tem evento? tem mais de um membro? tem branding
+  customizado?), sem tabela de estado nova (E.1).
+- [ ] Backend: endpoint que resolve o estado do checklist pra uma Arena.
+- [ ] Frontend: wizard não-bloqueante de 3 passos no painel — criar
+  primeira competição (E.2, default de janela `data_inicio=agora`/
+  `data_fim=+10 anos`, mesma convenção do `EVENTOS_SPEC.md`), convidar
+  colegas (E.3, aponta pro que a Fase 10 constrói), personalizar Arena
+  com seletor limitado no tier grátis + upsell de branding completo (E.4,
+  respeita o gate de C.3). Disponível também pras Arenas antigas, sem
+  trabalho extra de migração (G.5).
+
+---
+
+## Fase 10 — Convite assíncrono de colaboradores ⏳ não iniciada
+
+**Spec**: `docs/ARENA_SPEC.md` Fase F, mais H.1
+**Depende de**: Fase 8 (reaproveita `memberships`, já renomeada na Fase 7)
+
+- [ ] Migração 028: `memberships` ganha estado `pending` e colunas de
+  convite (`email`, `invited_by`, `token_hash`, `expires_at`,
+  `accepted_at`), todas nulas fora do estado pendente (F.3) — sem tabela
+  nova.
+- [ ] Backend: enviar convite (token com hash, nunca texto puro, expira
+  em 7 dias — F.4; rate limit por Arena/remetente — H.1, gap fechado na
+  Fase H do `ARENA_SPEC.md`); aceitar convite (exige login com o mesmo
+  e-mail convidado, mesma regra de account linking do `AUTH_SPEC.md` #2
+  — F.5); cancelar convite pendente. Reaproveita `_pode_conceder`/
+  `_pode_revogar` já existentes, sem regra nova de quem pode convidar
+  (F.6). E-mail via Resend (mesmo provedor já decidido no `AUTH_SPEC.md`
+  #10 pro magic link).
+- [ ] Testes: aceite com e-mail divergente é rejeitado, convite expirado
+  não aceita, cancelamento antes do aceite funciona.
+- [ ] Frontend: UI de convite no painel (passo 2 do wizard aponta pra
+  cá), tela de aceite de convite (login se necessário, redireciona pro
+  painel da Arena após aceite).
+
+---
+
+Depois da Fase 10, o restante do `ARENA_SPEC.md` §8 (badges de
+rivalidade, chave de campeonato, moderação de score online, corte
+grátis/pago em definitivo) segue como pendência registrada, mesmo padrão
+do `BACKLOG_2026.md` §5 — sem fase de execução própria ainda, porque
+depende de specs futuras que ainda não existem.
+
+---
+
 ## Resumo — o que cada fase entrega, de forma independente
 
 | Fase | Entrega sozinha, sem as outras? |
@@ -261,6 +372,10 @@ documentados em `docs/BACKLOG_2026.md` §3.
 | 4 | Não — precisa da Fase 1 (`marca_id NOT NULL`) |
 | 5 | Parcial — filtros de data/jogo funcionam sem as outras fases; "sem identificação" precisa da Fase 2; escopo por nível precisa da Fase 1 |
 | 6 | Parcial — tudo funciona sem as outras, exceto o prefill de nick/avatar (Fase 2) |
+| 7 | Sim — rename puro, zero mudança de comportamento, mas **bloqueia** 8-10 por convenção (não empilhar nomenclatura nova em cima da antiga) |
+| 8 | Não — depende inteiramente da Fase 7 (nomenclatura) |
+| 9 | Não — depende da Fase 8 (precisa de Arena/evento existindo pra ter o que checar) |
+| 10 | Não — depende da Fase 8 (`memberships` só ganha sentido de convite depois da fundação self-serve existir) |
 
 Isso significa que, se for necessário pausar entre fases por qualquer
 motivo, o sistema permanece funcional e consistente a cada ponto de parada
