@@ -1,6 +1,8 @@
 # Arena: onboarding self-serve, efeito de rede e evolução casual→profissional
 
-> Status: **em elaboração — Fases A-G fechadas, Fase H em aberto**.
+> Status: **especificação completa — Fases A-H fechadas**. Próximo passo
+> é planejamento de execução em `PLANO_IMPLEMENTACAO_2026.md`, não mais
+> decisão de arquitetura (ver "Encerramento" no fim deste documento).
 > Revisa `PERMISSOES_SPEC.md` numa dimensão que aquele documento não previa:
 > o container hoje chamado `marca` deixa de ser assumido como "empresa/
 > terceiro pagante" por padrão — passa a nascer **casual-first**, com a
@@ -259,6 +261,41 @@ existe migra depois, em rodada dedicada.
 
 ---
 
-## 6. Próximos passos — fases ainda em aberto
+## Fase H — Segurança consolidada e fora de escopo ✅ fechada
 
-- **Fase H** — Segurança consolidada e fora de escopo desta rodada
+| # | Tópico | Decisão |
+|---|---|---|
+| H.1 | Gap fechado nesta consolidação: rate limit de envio de convite | Nenhuma fase anterior fechou isso explicitamente — convite de coadministração (Fase F) precisa de rate limit por Arena/por remetente, não só validação de token, ou vira vetor de spam de e-mail em massa pra terceiros. Mesma preocupação de B.3, adaptada: ali o alvo do abuso é a criação de Arena; aqui é a caixa de entrada de gente que nunca pediu pra receber nada |
+
+### 7. Checklist de segurança (consolidado)
+
+- Criação de Arena exige usuário autenticado (Google/Magic Link, já rate-limitado por e-mail/IP no próprio login — `AUTH_SPEC.md` §5) + rate limit adicional por `user_id` na criação em si (B.3) — defesa em camadas, sem CAPTCHA adicional por enquanto (revisitar se abuso real for observado na prática)
+- Bloqueio de nome/slug por colisão com Arena já cadastrada + "Canal3" (B.2), incluindo Arenas legadas (G.7)
+- Postura reativa com heurística de risco → fila de revisão humana antes de exposição pública total (B.4)
+- Todo input de bootstrap de Arena (principalmente `logo_url`, renderizado num telão físico público) tratado como hostil — sanitização contra XSS (§3, item 4)
+- Token de convite de coadministração: hash no banco, nunca texto puro, expira em 7 dias (F.4) + rate limit de envio (H.1)
+- Aceite de convite exige login com o mesmo e-mail convidado — evita sequestro por link vazado (F.5)
+- Toda concessão/revogação/aceite de convite grava em `admin_vinculos_auditoria`, sem exceção — mesmo padrão já usado desde o `PERMISSOES_SPEC.md` original
+- Cookie de sessão e demais mínimos de transporte seguem os já fechados em `AUTH_SPEC.md` §5 (HttpOnly/Secure/SameSite) — nada novo introduzido por esta spec nessa camada
+
+### 8. Fora de escopo desta rodada
+
+| Item | Por que fica de fora |
+|---|---|
+| Badge de rivalidade / confronto direto entre jogadores | Exige entidade de dado nova (resultado de partida head-to-head), estruturalmente diferente de `entradas` — pré-requisito de spec futura dedicada (§4, item 2) |
+| Chave de campeonato / geração de bracket | Subsistema de ordem de grandeza maior que o resto do roadmap — visão de produto, não recurso incremental (§4 item 3, A.6) |
+| Moderação de score online autodeclarado (fora de evento presencial) | Modelo de confiança diferente do atual (foto de evidência) — decidir junto com a spec de scoring online, não aqui (§4, item 4) |
+| Diferencial competitivo vs. ferramentas de bracket gratuitas existentes (Challonge, Battlefy, Toornament) | Pergunta estratégica em aberto — não bloqueia esta spec, mas deve orientar a priorização de features futuras (§4, item 5) |
+| Rename retroativo do código já existente pra inglês | Migração real de schema em produção, disciplina própria — vira linha dedicada em `PLANO_IMPLEMENTACAO_2026.md`, não decidida de passagem aqui (§5) |
+| Lista exata de qual feature é grátis vs. paga | Direção do corte está fechada (gate por feature, C.3), mas a lista específica continua debate aberto a cada rodada — consistente com a postura de A.4 |
+
+---
+
+## Encerramento
+
+Documento fechado — Fases A-H completas. Próximo passo é sair da
+especificação e entrar no plano de execução: sequenciar isso dentro de
+`PLANO_IMPLEMENTACAO_2026.md` (mesmo processo já usado pras fases
+anteriores do backlog: migração testada localmente → aplicada → backend →
+testes → frontend → validação), começando pelo rename retroativo pra
+inglês (§8) antes de empilhar código novo em cima da nomenclatura antiga.
