@@ -1,6 +1,6 @@
 # Arena: onboarding self-serve, efeito de rede e evolução casual→profissional
 
-> Status: **em elaboração — Fases A-D fechadas, Fases E-H em aberto**.
+> Status: **em elaboração — Fases A-E fechadas, Fases F-H em aberto**.
 > Revisa `PERMISSOES_SPEC.md` numa dimensão que aquele documento não previa:
 > o container hoje chamado `marca` deixa de ser assumido como "empresa/
 > terceiro pagante" por padrão — passa a nascer **casual-first**, com a
@@ -220,10 +220,19 @@ existe migra depois, em rodada dedicada.
 
 ---
 
+## Fase E — Wizard de configuração pós-ativação ✅ fechada
+
+| # | Tópico | Decisão |
+|---|---|---|
+| E.1 | Estrutura do wizard | Checklist não-bloqueante, sempre retomável — nunca tranca acesso ao resto do painel atrás de completar (Padrão D de §2: Stripe Connect, Shopify/Notion/Intercom). Progresso calculado on-the-fly a partir do que já existe (tem evento criado? tem mais de um membro na Arena? tem branding customizado definido?) — sem tabela nova de "estado de checklist", evita abstração sem necessidade |
+| E.2 | Passo 1 — primeira competição (o "aha moment") | Cria um `evento` — entidade **já existente** em `EVENTOS_SPEC.md`, sem schema novo: nome + janela de envio (`data_inicio`/`data_fim`, já obrigatórios lá). Default de janela: `data_inicio=agora`, `data_fim=+10 anos` — mesma convenção já usada na migração do `EVENTOS_SPEC.md` pra "sem previsão de encerramento". É o passo que entrega valor real na primeira sessão (link de ranking funcionando), não uma tela de configuração. Nota de reconciliação: `publico` (acesso via link — já existe, controla se `GET` de ranking/telão funciona) e `visibility` (busca/descoberta — novo, D.7) são **eixos independentes**: uma Arena/evento pode ser acessível por quem tem o link e mesmo assim não aparecer em nenhum diretório de busca |
+| E.3 | Passo 2 — convidar colegas | Reserva só o espaço/ordem no wizard — o mecanismo de convite assíncrono em si é desenhado por inteiro na Fase F. Vem depois do passo 1 de propósito: convidar gente pra uma Arena vazia entrega menos valor do que convidar pra uma que já tem uma competição rodando |
+| E.4 | Passo 3 — personalizar Arena | Respeita o gate de C.3 (branding customizado é candidato a feature paga): tier grátis vê um seletor limitado de opções pré-definidas, não um customizador completo — personalização total vira upsell natural mostrado dentro do próprio wizard, no momento em que a pessoa já teve a primeira experiência de valor (passos 1-2), não antes |
+
+---
+
 ## 6. Próximos passos — fases ainda em aberto
 
-- **Fase E** — Wizard de configuração pós-ativação (branding condicional,
-  primeiro evento/temporada — o "aha moment")
 - **Fase F** — Convite assíncrono de colaboradores (resolve o gap atual em
   que `dono_email` exige conta pré-existente — ver Padrão B/C em §2)
 - **Fase G** — Migração e compatibilidade com o modelo `super`/`dono`
