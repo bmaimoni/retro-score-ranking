@@ -3,6 +3,15 @@
 > Status: **implementado (Fases 1 e 2)** — backend e frontend em produção.
 > Complementa `EVENTOS_SPEC.md` — introduz um nível novo (`marcas`) acima de
 > `eventos`, e revisita a navegação de `index.html`/`ranking.html`.
+>
+> **Revisado por `ARENA_SPEC.md`** (2026-08-27): o conceito `marca` descrito
+> aqui como "empresa/terceiro pagante" deixa de ser a única premissa —
+> nasce um container casual-first (nome de trabalho: **Arena**), com a
+> mesma estrutura de dados mas campos condicionais por estágio de
+> profissionalização. O que este documento descreve continua válido como
+> registro histórico de decisão e como base técnica (relação marca↔evento,
+> precedência de identidade visual, admin escopado); pra onde o modelo está
+> indo, ver `ARENA_SPEC.md`.
 
 ---
 

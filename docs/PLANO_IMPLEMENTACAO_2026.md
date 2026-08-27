@@ -18,9 +18,21 @@ migração — extensão pura de `WHERE`, nenhuma mudança de schema, ver
 `docs/BACKLOG_2026.md` §4). **Fase 6 concluída** (sem migração —
 `frontend`/`marcas_publico` novo endpoint público, sem schema novo, ver
 `docs/BACKLOG_2026.md` §2/§3.4). Todas aplicadas em produção, backend e
-frontend prontos. Backlog do plano original está completo — próximos
-itens vêm de `docs/BACKLOG_2026.md` §5 (pendências registradas, sem
-ordem de execução fechada ainda).
+frontend prontos. Backlog do plano original está completo — itens
+menores pendentes seguem em `docs/BACKLOG_2026.md` §5, sem ordem de
+execução fechada.
+
+**Iniciativa nova, ainda não sequenciada em fases de execução**:
+`docs/ARENA_SPEC.md` (especificação completa, Fases A-H fechadas em
+2026-08-27) — pivô estratégico casual-first: o container `marca` vira
+**Arena**, nasce self-serve (sem `super` como gatekeeper único), com
+efeito de rede via identidade de jogador cruzando Arenas, wizard de
+onboarding e convite assíncrono de coadministração. Inclui decisão
+cross-cutting de migrar identificadores de código (tabelas/colunas/rotas/
+arquivos) pra inglês — prosa dos docs continua em português. Antes de
+sequenciar isso em fases de execução aqui, o próprio `ARENA_SPEC.md`
+recomenda começar pelo rename retroativo do código já existente (ver seu
+§8), pra não empilhar código novo em cima da nomenclatura antiga.
 
 ---
 

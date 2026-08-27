@@ -8,6 +8,15 @@
 > obrigatória e o nível cascateia dela pra todos os eventos), e ganha
 > titularidade de marca com trava de integridade.
 >
+> **Por sua vez, revisado por `ARENA_SPEC.md`** (2026-08-27): o modelo de
+> nível/titularidade/auditoria descrito aqui continua valendo, mas deixa
+> de ser exigência desde o cadastro — vira camada que se ativa quando o
+> container (renomeado pra **Arena**) profissionaliza. `super` deixa de
+> ser o único criador de container (self-serve casual-first). As regras de
+> **quem pode conceder/revogar o quê** (§4 abaixo) não mudam — só o
+> mecanismo de concessão, que vira convite assíncrono com aceite explícito
+> em vez de concessão direta.
+>
 > Escrito a partir de uma sessão de crítica adversarial (arquitetura +
 > estratégia de produto) — as seções "Riscos identificados" carregam o
 > raciocínio de ataque que motivou cada trava, não só a decisão final.
