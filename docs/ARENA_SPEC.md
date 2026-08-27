@@ -1,6 +1,6 @@
 # Arena: onboarding self-serve, efeito de rede e evolução casual→profissional
 
-> Status: **em elaboração — Fases A-F fechadas, Fases G-H em aberto**.
+> Status: **em elaboração — Fases A-G fechadas, Fase H em aberto**.
 > Revisa `PERMISSOES_SPEC.md` numa dimensão que aquele documento não previa:
 > o container hoje chamado `marca` deixa de ser assumido como "empresa/
 > terceiro pagante" por padrão — passa a nascer **casual-first**, com a
@@ -245,9 +245,20 @@ existe migra depois, em rodada dedicada.
 
 ---
 
+## Fase G — Migração e compatibilidade com o modelo `super`/`dono` atual ✅ fechada
+
+| # | Tópico | Decisão |
+|---|---|---|
+| G.1 | Estado de migração pras Arenas já existentes | Todas nascem `published` (nunca `draft` — já são conhecidas, já rodam eventos reais) e `plan='free'` (mesmo tratamento das novas, sem tier especial pro operador — sem necessidade concreta agora de diferenciar, mesma disciplina de não superengenheirar de C.2/C.3). Pré-requisito de migração: auditar `owner_user_id` nulo (gap já registrado no §8.3 do `PERMISSOES_SPEC.md` — Arena sem dono atribuído) e resolver antes de seguir, mesma disciplina de "confirmar zero órfãos antes" já usada no `EVENTOS_SPEC.md` |
+| G.2 | Papel de `super` daqui pra frente | Não desaparece, muda de "único criador de Arena" pra "resolvedor de exceções": revisão de Arena sinalizada por heurística de risco (B.4), suspensão por abuso confirmado (C.1), provisionamento manual branco-luva continua disponível (D.4), e segue sendo o único que concede papel `super` a outra pessoa — regra já existente do `PERMISSOES_SPEC.md`, sem mudança |
+| G.3 | Endpoint único, não dois | O endpoint de criar Arena passa a aceitar tanto `super` quanto qualquer usuário autenticado — comportamento condicional por quem chama, em vez de fork em dois endpoints separados; menos superfície duplicada pra manter |
+| G.4 | `super` fica isento do rate limit (B.3) | Ator confiável, pode legitimamente provisionar mais de 3 Arenas num dia (onboarding de vários clientes de uma vez, ambiente de teste) — mesma lógica que já isenta `super` de outras travas de escopo no projeto |
+| G.5 | Wizard (Fase E) disponível também pras Arenas antigas | Sem migração de dado necessária — como o progresso é calculado on-the-fly (E.1), qualquer Arena existente já se encaixa automaticamente, sem precisar de flag "veio de antes/depois desta mudança" |
+| G.6 | Convite assíncrono (Fase F) funciona igual pras Arenas antigas | Aditivo por natureza (novo estado `pending`, colunas novas nulas nas linhas existentes) — nenhum trabalho de migração extra necessário |
+| G.7 | Checagem de colisão de nome (B.2) inclui as Arenas legadas | O universo de comparação já é "toda Arena cadastrada na plataforma" — as legadas entram nisso naturalmente, sem caso especial: um self-serve tentando criar "Canal3 Oficial" colide com a Arena real "Canal3"/"canal3expo" já existente |
+
+---
+
 ## 6. Próximos passos — fases ainda em aberto
 
-- **Fase G** — Migração e compatibilidade com o modelo `super`/`dono`
-  atual do `PERMISSOES_SPEC.md` (o que muda pras Arenas já existentes, o
-  que `super` deixa/não deixa de fazer)
 - **Fase H** — Segurança consolidada e fora de escopo desta rodada
