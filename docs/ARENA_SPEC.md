@@ -1,6 +1,6 @@
 # Arena: onboarding self-serve, efeito de rede e evolução casual→profissional
 
-> Status: **em elaboração — Fases A-C fechadas, Fases D-H em aberto**.
+> Status: **em elaboração — Fases A-D fechadas, Fases E-H em aberto**.
 > Revisa `PERMISSOES_SPEC.md` numa dimensão que aquele documento não previa:
 > o container hoje chamado `marca` deixa de ser assumido como "empresa/
 > terceiro pagante" por padrão — passa a nascer **casual-first**, com a
@@ -177,16 +177,51 @@ expõe atrito com o modelo herdado do `PERMISSOES_SPEC.md`:
 
 | # | Tópico | Decisão |
 |---|---|---|
-| C.1 | Estados de publicação | `nao_publicada` → `publicada` → `suspensa`. Resolve uma ambiguidade deixada em aberto na Fase B: pra maioria das Arenas (sem sinalização de risco), a checagem roda na própria criação e ela **já nasce `publicada`**, sem estado intermediário visível — só a minoria sinalizada pela heurística de B.4 fica retida em `nao_publicada` até revisão humana. Isso evita reabrir o gargalo geral que a Fase B existiu pra eliminar; a fricção de espera fica restrita só a quem já disparou sinal de risco. `suspensa` é congelamento pós-hoc de uma Arena já pública, se abuso for confirmado depois |
-| C.2 | Campo de plano | `arenas.plano` nasce como coluna, valor único `gratis` pra todo mundo por enquanto — nenhuma tier paga implementada ainda, só evita que o billing futuro precise de migração retroativa pra ter onde ancorar |
+| C.1 | Estados de publicação | `draft` → `published` → `suspended` (nomes atualizados pra inglês — ver §5). Resolve uma ambiguidade deixada em aberto na Fase B: pra maioria das Arenas (sem sinalização de risco), a checagem roda na própria criação e ela **já nasce `published`**, sem estado intermediário visível — só a minoria sinalizada pela heurística de B.4 fica retida em `draft` até revisão humana. Isso evita reabrir o gargalo geral que a Fase B existiu pra eliminar; a fricção de espera fica restrita só a quem já disparou sinal de risco. `suspended` é congelamento pós-hoc de uma Arena já pública, se abuso for confirmado depois |
+| C.2 | Campo de plano | `arenas.plan` nasce como coluna, valor único `free` pra todo mundo por enquanto — nenhuma tier paga implementada ainda, só evita que o billing futuro precise de migração retroativa pra ter onde ancorar |
 | C.3 | Corte grátis/pago | **Direção confirmada: gate por feature, não por volume/uso.** Descartados os cortes por nº de evento simultâneo ou por volume de envios/participantes — penalizariam justo as Arenas crescendo organicamente, ou seja, as que mais provam a aposta de efeito de rede (anti-padrão pra produto de rede: nunca travar o nó mais viral no momento em que mais gera valor pra rede). Âncora: identidade de jogador, seguir, temporadas e desafios recorrentes (A.6) e badges ficam **grátis sem limite** — são o motor de efeito de rede em si (A.5), não dá pra gatear sem matar o próprio mecanismo que o produto aposta. Candidatos a feature paga: parcerias formais entre Arenas, ranking agregado multi-Arena, branding customizado — sinalizam Arena se comportando como operação profissional (bate com a narrativa casual→profissional de A.2). **Não fechado em definitivo**: a lista exata de que feature é básica vs. paga continua debate aberto a cada rodada futura (consistente com a postura de A.4 — nada aqui é decisão irrevisitável), só a direção do corte (feature, não volume) está fechada |
 
 ---
 
-## 5. Próximos passos — fases ainda em aberto
+## 5. Nomenclatura: migração pra inglês (decisão cross-cutting, registrada durante a Fase D)
 
-- **Fase D** — Fluxo de cadastro self-serve (passo a passo técnico: login
-  → criar Arena → o que acontece em cada etapa)
+Decidido durante a Fase D, mas afeta o documento inteiro daqui pra frente:
+identificadores de código (tabelas, colunas, rotas, nomes de arquivo)
+passam a ser escritos em inglês, mesmo dentro de prosa em português — nome
+do container `Arena` já é compatível nos dois idiomas, sem mudança.
+**Alcance explicitamente limitado a código**: a prosa dos documentos
+(`docs/*.md`, este incluído) continua em português — não é migração de
+documentação, é convenção de identificador. Motivo dado pra fazer isso
+agora, não depois: sistema ainda pequeno, sem grandes clientes/usuários,
+sem campeonatos ou rankings de peso — janela mais barata pra migrar do que
+será depois de crescer. O rename retroativo do que **já existe** em
+produção (`admin_vinculos`, `entradas`, `eventos`, routers, arquivos de
+frontend) é uma migração real de schema/código já em produção — precisa da
+mesma disciplina de qualquer migração deste projeto (testar contra
+Postgres real, descrever comportamento antes de rodar, nunca `DELETE`
+físico) e vale linha própria em `PLANO_IMPLEMENTACAO_2026.md`, não uma
+decisão de passagem aqui. Registrado como iniciativa separada — daqui pra
+frente, todo identificador **novo** desta spec já nasce em inglês; o que já
+existe migra depois, em rodada dedicada.
+
+---
+
+## Fase D — Fluxo de cadastro self-serve ✅ fechada
+
+| # | Tópico | Decisão |
+|---|---|---|
+| D.1 | Reestruturação da entrada | `index.html` vira **home institucional** do produto (proposta de valor, CTA "criar sua Arena"/"criar um ranking pra você e seus amigos", diretório de eventos abertos — ver D.7). A página de participação (hoje `index.html`, chegada por QR/link direto de evento) é renomeada pra **`play.html`** e passa a **sempre exigir identificador de evento explícito na URL** — a lógica de fallback/seletor de marca que existia (Fase 6 do `PLANO_IMPLEMENTACAO_2026.md`, `GET /api/marcas/com-evento-ativo` quando não há `?evento=`) migra inteira pra função de descoberta da home, não fica duplicada em `play.html`. Sem redirect de compatibilidade pra QR/links externos existentes — descartado por decisão explícita |
+| D.2 | Login antes de criar | Sessão resolvida antes de qualquer criação de Arena — mesmo padrão já usado em `admin.html`, sem estado transitório novo de "preencha o formulário, autentique depois" |
+| D.3 | Campos mínimos no cadastro | Só nome (slug derivado automático, editável). Identidade visual (cor/tipografia/logo) fica de fora — migra pro wizard pós-ativação (Fase E). Resolve o "peso do container" apontado em §4.1: não pedir branding antes da pessoa nem saber se vai usar aquilo pra evento presencial ou só pra jogar com amigos |
+| D.4 | Caminho de `super` continua existindo | Provisionamento manual por `super` (com atribuição de dono por e-mail, §8.3 do `PERMISSOES_SPEC.md`) continua em paralelo ao self-serve — não é substituído, útil pro caso raro de onboarding branco-luva de um patrocinador grande de verdade |
+| D.5 | Corrida de slug | Constraint único já cobre no banco (retorna 409 hoje); self-serve precisa de UX amigável de sugestão de slug alternativo na colisão — detalhe de implementação, não decisão bloqueante |
+| D.6 | Implementação do rate limit (B.3) | Sem tabela nova — contagem de Arenas `WHERE owner_user_id = ? AND created_at > now() - interval '1 day'`, comparada ao teto de 3/dia já fechado em B.3 |
+| D.7 | Visibilidade por evento (nova, mais fina que a de Arena) | `events.visibility = 'open' \| 'private'`, **default `private`** — diferente do default efetivo de Arena (pública assim que passa em B.1-B.4), porque a preocupação aqui é escolha do grupo, não impersonação de container. Grupo caseiro não é surpreendido aparecendo num diretório público sem pedir; operador que quer atrair gente de fora abre o evento deliberadamente. É o que alimenta o diretório "eventos abertos agora" da nova home institucional (D.1) — discovery real de produto, mais forte pro efeito de rede (A.5) do que qualquer CTA sozinho |
+
+---
+
+## 6. Próximos passos — fases ainda em aberto
+
 - **Fase E** — Wizard de configuração pós-ativação (branding condicional,
   primeiro evento/temporada — o "aha moment")
 - **Fase F** — Convite assíncrono de colaboradores (resolve o gap atual em
