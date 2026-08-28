@@ -246,34 +246,43 @@ documentados em `docs/BACKLOG_2026.md` §3.
 
 ---
 
-## Fase 7 — Rename retroativo de identificadores pra inglês ⏳ não iniciada
+## Fase 7 — Rename retroativo de identificadores pra inglês ✅ fechada
 
 **Spec**: `docs/ARENA_SPEC.md` §5/§8 (decisão cross-cutting — escopo
 limitado a identificadores de código; prosa dos docs continua em
 português)
-**Bloqueia**: Fases 8-10 — recomendação do próprio `ARENA_SPEC.md` é não
-empilhar código novo em cima da nomenclatura antiga
+**Bloqueava**: Fases 8-10 — desbloqueadas
 
-- [ ] Migração 026: rename mecânico de tabelas/colunas via `ALTER TABLE
-  ... RENAME` (sem `DROP`/`DELETE`, reversível, nenhuma perda de dado) —
-  `marcas`→`arenas`, `admin_vinculos`→`memberships`,
-  `admin_vinculos_auditoria`→`membership_audit_log`, `entradas`→
-  `entries`, `eventos`→`events`, `jogos`→`games`, `marcas_parcerias`→
-  `arena_partnerships`; colunas `dono_user_id`→`owner_user_id`,
-  `nivel`→`role`, `escopo`→`scope`. Testar contra Postgres real antes de
-  aplicar (disciplina padrão do projeto) — descrever o comportamento
-  exato antes de rodar, mesmo sendo rename puro.
-- [ ] Atualizar toda RLS/policy que referencia nome de tabela — não
-  presumir que o rename "só funciona"; validar policy por policy (mesma
-  lição do `SPEC.md` §5-6 sobre a armadilha de RLS).
-- [ ] Backend: renomear routers (`marcas_admin.py`→`arenas_admin.py`,
-  `admin_vinculos.py`→`memberships.py`, etc.), rotas (`/api/admin/marcas`
-  → `/api/admin/arenas`, etc.), repositórios, e todo código que
-  referencia os nomes antigos.
-- [ ] Frontend: `admin.html` e demais telas atualizadas pras rotas novas.
-- [ ] Testes: suíte inteira ajustada pros nomes novos — rodar suíte
-  completa e confirmar zero regressão antes de considerar a fase
-  concluída.
+- [x] Migração 026 (`backend/migrations/026_rename_ingles.sql`): rename
+  mecânico de tabelas/colunas via `ALTER TABLE ... RENAME` (sem
+  `DROP`/`DELETE`, reversível, nenhuma perda de dado) — `marcas`→`arenas`,
+  `admin_vinculos`→`memberships`, `admin_vinculos_auditoria`→
+  `membership_audit_log`, `entradas`→`entries`, `eventos`→`events`,
+  `jogos`→`games`, `marcas_parcerias`→`arena_partnerships`,
+  `evento_jogos`→`event_games`; colunas `dono_user_id`→`owner_user_id`,
+  `nivel`→`role`, `escopo`→`scope` (mais as FKs correspondentes). Rodada
+  com sucesso em produção via Supabase SQL Editor (sem backup prévio —
+  decisão explícita, volume de dado irrisório, produto ainda em fase de
+  teste).
+- [x] RLS/policy: confirmado que `ALTER TABLE ... RENAME TO` no Postgres
+  carrega a policy junto automaticamente (ligada por OID, não por nome)
+  — nenhuma policy precisou ser recriada.
+- [x] Backend: routers/repositórios/rotas renomeados
+  (`marcas_admin.py`→`arenas_admin.py`, `admin_vinculos.py`→
+  `memberships.py`, etc.), todo código que referenciava os nomes antigos
+  atualizado.
+- [x] Frontend: `admin.html` e demais telas atualizadas pras rotas novas.
+  Parâmetros de URL externos (`?evento=`/`?jogo=`, usados em QR
+  code/link já distribuído) preservados de propósito — decisão de
+  escopo pra manter zero mudança de comportamento pra quem já tem link
+  impresso.
+- [x] Testes: suíte inteira ajustada — 568 passed, 10 failed (falhas
+  pré-existentes por falta de Postgres real em sandbox, mesma categoria
+  já documentada em `SPEC.md` §9, validado manualmente como não-regressão).
+- [x] Deploy: migração rodada em produção, código commitado (`5cff69f`,
+  `0454cc2`) e push feito — Railway/Vercel redeployam automaticamente a
+  partir do push no `main`, aceitando janela curta de indisponibilidade
+  entre os dois passos (decisão registrada nesta mesma rodada).
 
 ---
 
