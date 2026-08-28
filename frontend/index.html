@@ -768,8 +768,12 @@ async function carregarSessao() {
 function renderContaLogado(usuario) {
   const el = document.getElementById('conta-status');
   const nomeExibicao = usuario.nome || usuario.email || 'sua conta';
+  const linkPainel = usuario.tem_arena
+    ? `<a href="admin.html" class="conta-sair" style="text-decoration:underline">Meu painel</a>`
+    : '';
   el.innerHTML = `
     <span class="conta-info">✓ Logado como <strong>${escaparHtml(nomeExibicao)}</strong></span>
+    ${linkPainel}
     <a href="perfil.html" class="conta-sair" style="text-decoration:underline">Meu perfil</a>
     <button class="conta-sair" onclick="fazerLogout()">Sair</button>
   `;

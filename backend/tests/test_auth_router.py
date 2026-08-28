@@ -321,11 +321,13 @@ async def test_magic_link_verify_valido_cria_sessao(client):
               "expira_em": "2026-02-01", "revogada_em": None}
 
     with patch("auth.service.verificar_magic_link", AsyncMock(return_value=usuario)), \
-         patch("auth.service.criar_sessao_para_usuario", AsyncMock(return_value=sessao)):
+         patch("auth.service.criar_sessao_para_usuario", AsyncMock(return_value=sessao)), \
+         patch("repositories.membership.listar_por_usuario", AsyncMock(return_value=[])):
         resp = await client.post("/api/auth/magic-link/verify", json={"token": "abc"})
 
     assert resp.status_code == 200
     assert resp.json()["email"] == usuario["email"]
+    assert resp.json()["tem_arena"] is False
     assert "canal3_session" in resp.cookies
     # Nunca expõe campos internos (email_verified, status)
     assert "email_verified" not in resp.json()
@@ -348,11 +350,29 @@ async def test_session_com_cookie_valido_retorna_usuario(client):
     usuario = _usuario()
 
     client.cookies.set("canal3_session", "sessao-valida")
-    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)):
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.membership.listar_por_usuario", AsyncMock(return_value=[])):
         resp = await client.get("/api/auth/session")
 
     assert resp.status_code == 200
     assert resp.json()["id"] == usuario["id"]
+    assert resp.json()["tem_arena"] is False
+
+
+@pytest.mark.asyncio
+async def test_session_com_vinculo_marca_retorna_tem_arena_true(client):
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    usuario = _usuario()
+
+    client.cookies.set("canal3_session", "sessao-valida")
+    vinculo = {"scope": "marca", "arena_id": make_uuid(), "role": "admin"}
+    with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
+         patch("repositories.membership.listar_por_usuario", AsyncMock(return_value=[vinculo])):
+        resp = await client.get("/api/auth/session")
+
+    assert resp.status_code == 200
+    assert resp.json()["tem_arena"] is True
 
 
 @pytest.mark.asyncio

@@ -24,6 +24,7 @@ from utils.db import get_pool
 from utils.ip import get_client_ip, hash_ip
 import auth.service as auth_svc
 import auth.repository as auth_repo
+import repositories.membership as membership_repo
 
 log = structlog.get_logger()
 
@@ -68,13 +69,20 @@ def _set_session_cookie(response: Response, session_id: str) -> None:
     )
 
 
-def _usuario_publico(usuario: dict) -> dict:
-    """Formato de usuário exposto pro frontend — nunca campos internos."""
+def _usuario_publico(usuario: dict, tem_arena: bool = False) -> dict:
+    """Formato de usuário exposto pro frontend — nunca campos internos.
+
+    tem_arena: se a pessoa tem pelo menos um membership scope='marca'
+    ativo — usado pela home institucional pra mostrar atalho "Meu
+    painel" em vez de só "Meu perfil" pra quem já administra alguma
+    Arena (achado durante o planejamento da Fase 8, ver
+    PLANO_IMPLEMENTACAO_2026.md)."""
     return {
         "id": usuario["id"],
         "nome": usuario["nome"],
         "email": usuario["email"],
         "foto_url": usuario["foto_url"],
+        "tem_arena": tem_arena,
     }
 
 
@@ -208,16 +216,23 @@ async def magic_link_verify(
         ip_hash=ip_hash,
     )
     _set_session_cookie(response, sessao["id"])
-    return _usuario_publico(usuario)
+    vinculos = await membership_repo.listar_por_usuario(pool, usuario["id"])
+    tem_arena = any(v["scope"] == "marca" for v in vinculos)
+    return _usuario_publico(usuario, tem_arena)
 
 
 # ── Sessão ──────────────────────────────────────────────────────
 
 @router.get("/session")
-async def obter_sessao(usuario: dict | None = Depends(auth_svc.sessao_opcional)):
+async def obter_sessao(
+    usuario: dict | None = Depends(auth_svc.sessao_opcional),
+    pool=Depends(get_pool),
+):
     if not usuario:
         raise HTTPException(status_code=401, detail="Não autenticado")
-    return _usuario_publico(usuario)
+    vinculos = await membership_repo.listar_por_usuario(pool, usuario["id"])
+    tem_arena = any(v["scope"] == "marca" for v in vinculos)
+    return _usuario_publico(usuario, tem_arena)
 
 
 @router.post("/logout")
