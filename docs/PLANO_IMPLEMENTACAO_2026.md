@@ -351,22 +351,45 @@ limpar numa rodada futura.
 
 ---
 
-## Fase 9 — Wizard de configuração pós-ativação ⏳ não iniciada
+## Fase 9 — Wizard de configuração pós-ativação ✅ fechada
 
-**Spec**: `docs/ARENA_SPEC.md` Fase E
+**Spec**: `docs/ARENA_SPEC.md` Fase E, fundida com a Fase 1 do
+`docs/CATALOGO_JOGOS_SPEC.md` (escolha/cadastro de jogo dentro do
+mesmo Passo 1 — as duas são a mesma tela na prática)
 **Depende de**: Fase 8
 
-- [ ] Sem migração — progresso do checklist computado on-the-fly a partir
-  do que já existe (tem evento? tem mais de um membro? tem branding
-  customizado?), sem tabela de estado nova (E.1).
-- [ ] Backend: endpoint que resolve o estado do checklist pra uma Arena.
-- [ ] Frontend: wizard não-bloqueante de 3 passos no painel — criar
-  primeira competição (E.2, default de janela `data_inicio=agora`/
-  `data_fim=+10 anos`, mesma convenção do `EVENTOS_SPEC.md`), convidar
-  colegas (E.3, aponta pro que a Fase 10 constrói), personalizar Arena
-  com seletor limitado no tier grátis + upsell de branding completo (E.4,
-  respeita o gate de C.3). Disponível também pras Arenas antigas, sem
-  trabalho extra de migração (G.5).
+- [x] Migração 029 (`games.igdb_id`, bigint/nullable/UNIQUE — dedup
+  estrutural pro caminho de busca IGDB, Fase 5 do
+  `CATALOGO_JOGOS_SPEC.md`) — rodada e validada em produção.
+- [x] `services/igdb.py`: OAuth2 client-credentials via Twitch
+  Developer (`IGDB_CLIENT_ID`/`IGDB_CLIENT_SECRET` em `.env`, testado
+  contra a API real), busca Apicalypse, mapeamento pra
+  nome/plataforma/ano/capa.
+- [x] Backend: `GET /api/admin/arenas/{id}/wizard-status` resolve o
+  checklist on-the-fly (tem_evento, tem_colaborador, tem_branding —
+  sem tabela nova, E.1). `POST /api/admin/games` ganha 2 caminhos por
+  `igdb_id`: via IGDB pula `pendente_aprovacao` e reaproveita
+  duplicata automaticamente (5.1/5.4); manual ganha rate limit 5/dia +
+  colisão de nome (5.5/5.6). Vínculo a event só via `event_id`
+  explícito — corrige o achado 5.9 (antes poluía todos os events do
+  admin).
+- [x] Frontend: wizard não-bloqueante de 3 passos em `admin.html` —
+  Passo 1 cria event (E.2, default `data_inicio=agora`/
+  `data_fim=+10 anos`) **e** resolve jogo na mesma tela (busca IGDB
+  com crédito obrigatório "Dados de jogos fornecidos por IGDB.com" —
+  5.7 — ou cadastro manual); Passo 2 convidar (E.3, card estático
+  apontando pro link `play.html?evento=` que já funciona hoje,
+  mecanismo de coadministração fica pra Fase 10); Passo 3 personalizar
+  (E.4, paleta de 8 cores pré-definidas + tipografia já fixa em 3
+  opções — sem color picker livre, respeita o gate de C.3). Disponível
+  também pras Arenas antigas, sem migração extra (G.5).
+- [x] Testes: 24 novos (busca IGDB mockada, aprovação automática via
+  igdb_id, dedup em reimportação, rate limit/colisão do caminho
+  manual, correção do vínculo por `event_id`, wizard-status em
+  cenários variados) — 615 passed, 10 failed (baseline conhecido, sem
+  banco real).
+- [x] Deploy: migração rodada em produção, código commitado (`dc10aea`)
+  e push feito.
 
 ---
 

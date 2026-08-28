@@ -1,6 +1,6 @@
 # Catálogo de jogos: admissão, integração IGDB e jornada de cadastro/seleção
 
-> Status: **Fase 5 fechada — Fases 1-4 ainda não iniciadas**. Revisa o
+> Status: **Fases 1 e 5 fechadas — Fases 2-4 ainda não iniciadas**. Revisa o
 > item 3.1 do `docs/BACKLOG_2026.md` (decisão anterior: "sem integração
 > externa... processo à parte, fora do projeto") — reaberta aqui por
 > pedido explícito, não por esquecimento. Nenhuma decisão anterior é
@@ -75,8 +75,19 @@ ignorada.
 
 ---
 
-## Fases 1-4 — pendentes
+## Fase 1 — Wizard self-serve ✅ fechada
 
-Ainda não iniciadas. Ordem prevista (ver §2): wizard self-serve → painel
-"Jogos" → painel "Eventos" (vínculo) → lado público. Cada uma assume o
-modelo de admissão fechado na Fase 5 acima como já resolvido.
+Construída junto com a Fase 9 do `PLANO_IMPLEMENTACAO_2026.md` — as duas
+são a mesma tela (Passo 1 do wizard resolve evento **e** jogo juntos).
+Ver detalhamento completo no registro da Fase 9. Resumo: busca na IGDB
+com crédito obrigatório (5.7), cadastro manual como escape hatch (5.3),
+`event_id` explícito evita poluir outros eventos do mesmo admin (achado
+5.9, corrigido nesta rodada).
+
+## Fases 2-4 — pendentes
+
+Ainda não iniciadas. Ordem prevista (ver §2): painel "Jogos" (revisão da
+fila de aprovação/mesclagem pra escala self-serve) → painel "Eventos"
+(vínculo de jogo já existente) → lado público (`play.html`/`ranking.html`/
+`telao.html` com jogo pendente/mesclado). Cada uma assume o modelo de
+admissão fechado na Fase 5 e o wizard da Fase 1 como já resolvidos.
