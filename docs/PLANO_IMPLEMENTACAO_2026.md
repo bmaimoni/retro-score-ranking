@@ -304,22 +304,32 @@ português)
 **Spec**: `docs/ARENA_SPEC.md` Fases B, C, D e G
 **Depende de**: Fase 7
 
-- [ ] Migração 027: `arenas.status` (`draft`/`published`/`suspended`,
-  default `published` pras linhas existentes — C.1/G.1), `arenas.plan`
-  (default `free` — C.2/G.1), `events.visibility` (`open`/`private`,
-  default `private` — D.7). **Pré-requisito antes de rodar**: auditar
-  `owner_user_id` nulo em Arena existente (gap do §8.3 do
-  `PERMISSOES_SPEC.md`) e resolver manualmente — mesma disciplina de
-  "confirmar zero órfãos antes" já usada no `EVENTOS_SPEC.md`.
-- [ ] Backend: endpoint de criar Arena aceita qualquer usuário autenticado
-  (não só `super` — D.2/D.3, pede só nome, slug auto-derivado), aplicando
-  na criação: colisão de nome/slug contra Arena já cadastrada + "Canal3"
-  (B.2), rate limit de 3/dia por `owner_user_id` (B.3, `super` isento —
-  G.4), heurística de risco → `status='draft'` + fila de revisão (B.4).
-  Endpoint único, comportamento condicional por quem chama, não fork
-  (G.3). Fila de revisão pra `super` aprovar/rejeitar Arena sinalizada;
-  ação de suspender Arena com abuso confirmado. `logo_url` tratado como
-  input hostil — sanitização contra XSS (renderizado em telão público).
+- [x] **Pré-requisito resolvido antes da Fase 8 começar**: `owner_user_id`
+  nulo nas 2 Arenas legadas (Canal3, Old School Pinball) — atribuído a
+  `bmaimoni@gmail.com` como titular temporário (ver nota na Fase 7).
+- [ ] Migração 028 (027 foi consumida pelo hotfix da Fase 7): `arenas.status`
+  (`draft`/`published`/`suspended`, default `published` pras linhas
+  existentes — C.1/G.1), `arenas.plan` (default `free` — C.2/G.1),
+  `events.visibility` (`open`/`private`, default `private` — D.7).
+- [ ] Backend: nova dependency `require_authenticated_user` em
+  `middleware/auth.py` (só exige sessão válida, sem exigir `membership`
+  — resolve o problema de ovo-e-galinha de `require_admin`, achado
+  durante o planejamento desta fase) usada **só** no endpoint de criar
+  Arena; resto do painel continua com `require_admin` sem mudança.
+  Endpoint de criar Arena aceita qualquer usuário autenticado (não só
+  `super` — D.2/D.3, pede só nome, slug auto-derivado), aplicando na
+  criação: colisão de nome/slug (B.2 — normaliza minúsculo/sem acento/
+  pontuação, bloqueia em correspondência exata ou substring contra
+  nome/slug de Arena já cadastrada + entrada fixa "Canal3"), rate limit
+  de 3/dia por `owner_user_id` (B.3, `super` isento — G.4), heurística
+  de risco → `status='draft'` + fila de revisão (B.4 — dispara quando:
+  (a) nome/slug é "quase-igual" a uma Arena existente sem ser bloqueio
+  exato de B.2, ou (b) é a 2ª+ Arena criada pela mesma conta dentro da
+  janela de 24h do rate limit). Endpoint único, comportamento
+  condicional por quem chama, não fork (G.3). Fila de revisão pra
+  `super` aprovar/rejeitar Arena sinalizada; ação de suspender Arena
+  com abuso confirmado. `logo_url` tratado como input hostil —
+  sanitização contra XSS (renderizado em telão público).
 - [ ] Testes: cobertura adversarial de rate limit, colisão de nome,
   isenção de `super`, e confirmação de que Arena sinalizada nunca aparece
   em listagem pública antes de aprovada — mesma régua de teste
