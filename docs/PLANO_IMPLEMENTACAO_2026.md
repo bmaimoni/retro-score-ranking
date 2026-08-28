@@ -283,6 +283,19 @@ português)
   `0454cc2`) e push feito — Railway/Vercel redeployam automaticamente a
   partir do push no `main`, aceitando janela curta de indisponibilidade
   entre os dois passos (decisão registrada nesta mesma rodada).
+- [x] **Hotfix pós-deploy** (migração 027, `a96fe91`): auditoria
+  sistemática (toda referência a nome de tabela no código comparada
+  contra o schema real de produção) achou 2 gaps que a 026 deixou
+  passar — `membership_audit_log.nivel` nunca virou `role` (quebrava
+  todo `INSERT` de auditoria de vínculo) e `evento_config` nunca foi
+  renomeada pra `event_config` (quebrava config da tela de upload).
+  Ambos corrigidos e validados em produção antes de seguir pra Fase 8.
+- [x] **G.1 resolvido**: as 2 Arenas legadas (Canal3, Old School
+  Pinball) tinham `owner_user_id` nulo — atribuídas a
+  `bmaimoni@gmail.com` como titular temporário (repassar aos admins
+  corretos depois, pelo próprio sistema, quando a Fase 10/convite
+  existir), com vínculo `admin` + auditoria gravados pelos
+  repositórios reais do app, não SQL direto.
 
 ---
 
