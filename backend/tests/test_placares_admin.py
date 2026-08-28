@@ -84,18 +84,18 @@ async def test_listar_placares(client):
     assert len(resp.json()) == 1
 
 
-# ── Membership de eventos ─────────────────────────────────────────────────────
+# ── Membership de events ─────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_adicionar_evento_ao_placar(client):
+async def test_adicionar_event_ao_placar(client):
     placar_id = make_uuid()
-    evento_id = make_uuid()
+    event_id = make_uuid()
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    vinculo = {"placar_id": placar_id, "evento_id": evento_id, "ativo": True, "criado_em": "2026-01-01"}
-    with patch("repositories.placar.adicionar_evento", AsyncMock(return_value=vinculo)):
-        resp = await client.post(f"/api/admin/placares/{placar_id}/eventos/{evento_id}",
+    vinculo = {"placar_id": placar_id, "event_id": event_id, "ativo": True, "criado_em": "2026-01-01"}
+    with patch("repositories.placar.adicionar_event", AsyncMock(return_value=vinculo)):
+        resp = await client.post(f"/api/admin/placares/{placar_id}/events/{event_id}",
             headers=AUTH_HEADER)
 
     assert resp.status_code == 201
@@ -103,36 +103,36 @@ async def test_adicionar_evento_ao_placar(client):
 
 
 @pytest.mark.asyncio
-async def test_remover_evento_do_placar_via_patch_ativo_false(client):
+async def test_remover_event_do_placar_via_patch_ativo_false(client):
     """
     'Remover' é ativo=false, não DELETE — app_user não tem permissão de
     DELETE em placar_eventos (ver migration 012).
     """
     placar_id = make_uuid()
-    evento_id = make_uuid()
+    event_id = make_uuid()
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    vinculo = {"placar_id": placar_id, "evento_id": evento_id, "ativo": False, "criado_em": "2026-01-01"}
-    with patch("repositories.placar.remover_evento", AsyncMock(return_value=vinculo)) as remover_mock:
-        resp = await client.patch(f"/api/admin/placares/{placar_id}/eventos/{evento_id}",
+    vinculo = {"placar_id": placar_id, "event_id": event_id, "ativo": False, "criado_em": "2026-01-01"}
+    with patch("repositories.placar.remover_event", AsyncMock(return_value=vinculo)) as remover_mock:
+        resp = await client.patch(f"/api/admin/placares/{placar_id}/events/{event_id}",
             json={"ativo": False},
             headers=AUTH_HEADER)
 
     assert resp.status_code == 200
     assert resp.json()["ativo"] is False
-    remover_mock.assert_called_once_with(pool, placar_id, evento_id)
+    remover_mock.assert_called_once_with(pool, placar_id, event_id)
 
 
 @pytest.mark.asyncio
-async def test_remover_evento_inexistente_no_placar_retorna_404(client):
+async def test_remover_event_inexistente_no_placar_retorna_404(client):
     placar_id = make_uuid()
-    evento_id = make_uuid()
+    event_id = make_uuid()
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("repositories.placar.remover_evento", AsyncMock(return_value=None)):
-        resp = await client.patch(f"/api/admin/placares/{placar_id}/eventos/{evento_id}",
+    with patch("repositories.placar.remover_event", AsyncMock(return_value=None)):
+        resp = await client.patch(f"/api/admin/placares/{placar_id}/events/{event_id}",
             json={"ativo": False},
             headers=AUTH_HEADER)
 
@@ -140,34 +140,34 @@ async def test_remover_evento_inexistente_no_placar_retorna_404(client):
 
 
 @pytest.mark.asyncio
-async def test_reativar_evento_no_placar(client):
+async def test_reativar_event_no_placar(client):
     placar_id = make_uuid()
-    evento_id = make_uuid()
+    event_id = make_uuid()
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    vinculo = {"placar_id": placar_id, "evento_id": evento_id, "ativo": True, "criado_em": "2026-01-01"}
-    with patch("repositories.placar.adicionar_evento", AsyncMock(return_value=vinculo)) as add_mock:
-        resp = await client.patch(f"/api/admin/placares/{placar_id}/eventos/{evento_id}",
+    vinculo = {"placar_id": placar_id, "event_id": event_id, "ativo": True, "criado_em": "2026-01-01"}
+    with patch("repositories.placar.adicionar_event", AsyncMock(return_value=vinculo)) as add_mock:
+        resp = await client.patch(f"/api/admin/placares/{placar_id}/events/{event_id}",
             json={"ativo": True},
             headers=AUTH_HEADER)
 
     assert resp.status_code == 200
-    add_mock.assert_called_once_with(pool, placar_id, evento_id)
+    add_mock.assert_called_once_with(pool, placar_id, event_id)
 
 
 @pytest.mark.asyncio
-async def test_listar_eventos_do_placar(client):
+async def test_listar_events_do_placar(client):
     placar_id = make_uuid()
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    eventos = [
-        {"id": make_uuid(), "nome": "Evento A", "slug": "evento-a", "ativo": True,  "criado_em": "2026-01-01"},
-        {"id": make_uuid(), "nome": "Evento B", "slug": "evento-b", "ativo": False, "criado_em": "2026-01-02"},
+    events = [
+        {"id": make_uuid(), "nome": "Evento A", "slug": "event-a", "ativo": True,  "criado_em": "2026-01-01"},
+        {"id": make_uuid(), "nome": "Evento B", "slug": "event-b", "ativo": False, "criado_em": "2026-01-02"},
     ]
-    with patch("repositories.placar.listar_eventos_do_placar", AsyncMock(return_value=eventos)):
-        resp = await client.get(f"/api/admin/placares/{placar_id}/eventos", headers=AUTH_HEADER)
+    with patch("repositories.placar.listar_events_do_placar", AsyncMock(return_value=events)):
+        resp = await client.get(f"/api/admin/placares/{placar_id}/events", headers=AUTH_HEADER)
 
     assert resp.status_code == 200
     assert len(resp.json()) == 2

@@ -9,23 +9,23 @@ manual de super, não um relógio.
 from datetime import datetime, timezone
 
 import auth.repository as auth_repo
-import repositories.admin_vinculo as admin_vinculo_repo
-import repositories.marca as marca_repo
+import repositories.membership as membership_repo
+import repositories.arena as arena_repo
 import repositories.usuario as usuario_repo
 
 JANELA_CANCELAMENTO_DIAS = 30
 
 
 class ExclusaoBloqueadaTitularidadeError(Exception):
-    """Pessoa é dono_user_id de alguma marca — precisa transferir a
+    """Pessoa é owner_user_id de alguma arena — precisa transferir a
     titularidade antes (decisão #5 do EXCLUSAO_CONTA_SPEC.md)."""
 
-    def __init__(self, marcas: list[dict]):
-        nomes = ", ".join(m["nome"] for m in marcas)
+    def __init__(self, arenas: list[dict]):
+        nomes = ", ".join(m["nome"] for m in arenas)
         super().__init__(
             f"Você é titular de {nomes} — transfira a titularidade antes de excluir a conta."
         )
-        self.marcas = marcas
+        self.arenas = arenas
 
 
 class ExclusaoNaoElegivelError(Exception):
@@ -37,9 +37,9 @@ class ExclusaoJanelaAbertaError(Exception):
 
 
 async def solicitar(pool, user_id: str) -> dict:
-    marcas = await marca_repo.listar_onde_e_dono(pool, user_id)
-    if marcas:
-        raise ExclusaoBloqueadaTitularidadeError(marcas)
+    arenas = await arena_repo.listar_onde_e_dono(pool, user_id)
+    if arenas:
+        raise ExclusaoBloqueadaTitularidadeError(arenas)
 
     resultado = await usuario_repo.solicitar_exclusao(pool, user_id)
     if resultado is None:
@@ -57,12 +57,12 @@ async def processar(pool, user_id: str) -> dict:
     """
     Anonimização manual, disparada por super. Repete a checagem de
     titularidade no momento de processar (não só no de solicitar) —
-    a pessoa pode ter se tornado dono_user_id de uma marca nova depois
+    a pessoa pode ter se tornado owner_user_id de uma arena nova depois
     de já ter pedido a exclusão.
     """
-    marcas = await marca_repo.listar_onde_e_dono(pool, user_id)
-    if marcas:
-        raise ExclusaoBloqueadaTitularidadeError(marcas)
+    arenas = await arena_repo.listar_onde_e_dono(pool, user_id)
+    if arenas:
+        raise ExclusaoBloqueadaTitularidadeError(arenas)
 
     usuario = await usuario_repo.buscar_para_exclusao(pool, user_id)
     if not usuario or usuario["status"] != "ativo" or usuario["exclusao_solicitada_em"] is None:
@@ -81,6 +81,6 @@ async def processar(pool, user_id: str) -> dict:
         async with conn.transaction():
             resultado = await usuario_repo.anonimizar(conn, user_id, usuario["email"])
             await auth_repo.revogar_todas_sessoes_usuario(conn, user_id)
-            await admin_vinculo_repo.revogar_todos_do_usuario(conn, user_id)
+            await membership_repo.revogar_todos_do_usuario(conn, user_id)
 
     return resultado

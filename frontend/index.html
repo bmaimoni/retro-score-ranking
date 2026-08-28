@@ -143,13 +143,13 @@
       min-height: 1em;
     }
 
-    /* ── Busca de jogos ── */
-    .jogos-busca-bar {
+    /* ── Busca de games ── */
+    .games-busca-bar {
       width: 100%;
       max-width: 520px;
       margin-bottom: var(--space-md);
     }
-    .jogos-busca-input {
+    .games-busca-input {
       width: 100%;
       background: var(--color-bg-surface);
       border: var(--border-width) solid var(--color-border);
@@ -160,20 +160,20 @@
       padding: var(--space-sm) var(--space-md);
       transition: border-color var(--transition);
     }
-    .jogos-busca-input::placeholder { color: var(--color-text-muted); }
-    .jogos-busca-input:focus {
+    .games-busca-input::placeholder { color: var(--color-text-muted); }
+    .games-busca-input:focus {
       outline: none;
       border-color: var(--color-primary);
     }
-    .jogos-busca-vazio {
+    .games-busca-vazio {
       text-align: center;
       color: var(--color-text-muted);
       font-size: var(--text-sm);
       padding: var(--space-lg) 0;
     }
 
-    /* ── Link direto por jogo (?jogo=) ── */
-    .voltar-todos-jogos {
+    /* ── Link direto por game (?game=) ── */
+    .voltar-todos-games {
       display: inline-block;
       margin-bottom: var(--space-md);
       color: var(--color-text-muted);
@@ -183,7 +183,7 @@
     }
 
     /* ── Link "ver ranking" no card fechado ── */
-    .jogo-ranking-link {
+    .game-ranking-link {
       flex-shrink: 0;
       font-size: var(--text-xs);
       color: var(--color-text-muted);
@@ -194,7 +194,7 @@
       white-space: nowrap;
       transition: border-color var(--transition), color var(--transition);
     }
-    .jogo-ranking-link:hover {
+    .game-ranking-link:hover {
       border-color: var(--card-primary, var(--color-primary));
       color: var(--card-primary, var(--color-primary));
     }
@@ -283,8 +283,8 @@
     .regras-toggle-icon { transition: transform 0.25s; display: inline-block; }
     .regras-toggle.aberto .regras-toggle-icon { transform: rotate(180deg); }
 
-    /* ── Lista de jogos ── */
-    .jogos-lista {
+    /* ── Lista de games ── */
+    .games-lista {
       width: 100%;
       max-width: 520px;
       display: flex;
@@ -292,8 +292,8 @@
       gap: var(--space-sm);
     }
 
-    /* ── Card de jogo (colapsado) ── */
-    .jogo-card {
+    /* ── Card de game (colapsado) ── */
+    .game-card {
       border-radius: var(--radius-md);
       overflow: hidden;
       transition: box-shadow 0.3s ease, opacity 0.3s ease;
@@ -302,16 +302,16 @@
     }
 
     /* Quando outro card está expandido, os demais esmaeecem */
-    .jogos-lista.tem-expandido .jogo-card:not(.expandido) {
+    .games-lista.tem-expandido .game-card:not(.expandido) {
       opacity: 0.45;
     }
-    .jogos-lista.tem-expandido .jogo-card.expandido {
+    .games-lista.tem-expandido .game-card.expandido {
       border-color: var(--card-primary, var(--color-primary));
       box-shadow: 0 0 0 1px var(--card-primary, var(--color-primary));
     }
 
     /* ── Header do card (sempre visível) ── */
-    .jogo-header {
+    .game-header {
       display: flex;
       align-items: center;
       gap: var(--space-md);
@@ -320,7 +320,7 @@
       transition: background 0.2s;
       position: relative;
     }
-    .jogo-header::before {
+    .game-header::before {
       content: '';
       position: absolute;
       left: 0; top: 0; bottom: 0;
@@ -328,23 +328,23 @@
       background: var(--card-primary, var(--color-primary));
       transition: width 0.2s;
     }
-    .jogo-card.expandido .jogo-header::before { width: 5px; }
-    .jogo-header:hover { background: rgba(255,255,255,0.03); }
+    .game-card.expandido .game-header::before { width: 5px; }
+    .game-header:hover { background: rgba(255,255,255,0.03); }
 
-    .jogo-icone {
+    .game-icone {
       font-size: 28px; line-height: 1;
       flex-shrink: 0; width: 40px; text-align: center;
     }
-    .jogo-icone-img { width: 32px; height: 32px; object-fit: contain; border-radius: 4px; }
+    .game-icone-img { width: 32px; height: 32px; object-fit: contain; border-radius: 4px; }
 
-    .jogo-info { flex: 1; min-width: 0; }
-    .jogo-nome {
+    .game-info { flex: 1; min-width: 0; }
+    .game-nome {
       font-size: var(--text-md);
       font-weight: var(--weight-bold);
       color: var(--color-text);
       letter-spacing: 0.04em;
     }
-    .jogo-lider {
+    .game-lider {
       font-size: var(--text-xs);
       color: var(--color-text-muted);
       margin-top: 3px;
@@ -357,29 +357,29 @@
     }
     .lider-nick { color: var(--color-text-muted); }
 
-    .jogo-chevron {
+    .game-chevron {
       font-size: var(--text-md);
       color: var(--color-text-dim);
       transition: transform 0.3s ease, color 0.2s;
       flex-shrink: 0;
     }
-    .jogo-card.expandido .jogo-chevron {
+    .game-card.expandido .game-chevron {
       transform: rotate(90deg);
       color: var(--card-primary, var(--color-primary));
     }
 
     /* ── Corpo expansível do card ── */
-    .jogo-body {
+    .game-body {
       max-height: 0;
       overflow: hidden;
       transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .jogo-card.expandido .jogo-body {
+    .game-card.expandido .game-body {
       max-height: 900px;
     }
 
     /* ── Conteúdo interno do card (formulário com tema) ── */
-    .jogo-conteudo {
+    .game-conteudo {
       padding: var(--space-md) var(--space-lg) var(--space-xl);
       border-top: var(--border-width) solid rgba(255,255,255,0.06);
       background: var(--card-bg, var(--color-bg-surface));
@@ -388,7 +388,7 @@
     }
 
     /* Imagem de fundo do tema dentro do card */
-    .jogo-conteudo::before {
+    .game-conteudo::before {
       content: '';
       position: absolute;
       inset: 0;
@@ -399,7 +399,7 @@
       pointer-events: none;
       z-index: 0;
     }
-    .jogo-conteudo > * { position: relative; z-index: 1; }
+    .game-conteudo > * { position: relative; z-index: 1; }
 
     /* ── Formulário dentro do card ── */
     .card-form { display: flex; flex-direction: column; }
@@ -681,7 +681,7 @@
     .ranking-link:hover { color: var(--color-secondary); }
 
     /* Loading */
-    .loading-jogos { display: flex; flex-direction: column; align-items: center; gap: var(--space-md); padding: var(--space-2xl); color: var(--color-text-muted); }
+    .loading-games { display: flex; flex-direction: column; align-items: center; gap: var(--space-md); padding: var(--space-2xl); color: var(--color-text-muted); }
     .loading-blink { font-family: var(--font-display); font-size: var(--text-sm); animation: blink 1s step-end infinite; }
 
     input[type="file"] { display: none; }
@@ -729,41 +729,41 @@
     </button>
   </div>
 
-  <!-- Busca de jogos -->
-  <div class="jogos-busca-bar animate-slide-up">
-    <input type="search" id="jogos-busca-input" class="jogos-busca-input"
+  <!-- Busca de games -->
+  <div class="games-busca-bar animate-slide-up">
+    <input type="search" id="games-busca-input" class="games-busca-input"
            placeholder="Buscar jogo..." autocomplete="off" aria-label="Buscar jogo">
   </div>
 
-  <!-- Aparece só quando ?jogo= está na URL (link direto por cabine) -->
-  <a href="#" class="voltar-todos-jogos" id="voltar-todos-jogos" style="display:none" onclick="mostrarTodosJogos(); return false;">
+  <!-- Aparece só quando ?game= está na URL (link direto por cabine) -->
+  <a href="#" class="voltar-todos-games" id="voltar-todos-games" style="display:none" onclick="mostrarTodosJogos(); return false;">
     ← Ver todos os jogos
   </a>
 
-  <div class="jogos-lista" id="jogos-lista">
+  <div class="games-lista" id="games-lista">
     <!-- Skeleton — substituto visual enquanto a API responde -->
-    <div class="jogo-card" style="pointer-events:none;opacity:0.4">
-      <div class="jogo-header">
-        <span class="jogo-icone" style="background:var(--color-bg-surface2);border-radius:6px;width:32px;height:32px;display:block"></span>
-        <div class="jogo-info">
+    <div class="game-card" style="pointer-events:none;opacity:0.4">
+      <div class="game-header">
+        <span class="game-icone" style="background:var(--color-bg-surface2);border-radius:6px;width:32px;height:32px;display:block"></span>
+        <div class="game-info">
           <div style="background:var(--color-bg-surface2);height:16px;width:120px;border-radius:4px;margin-bottom:8px"></div>
           <div style="background:var(--color-bg-surface2);height:12px;width:80px;border-radius:4px"></div>
         </div>
       </div>
     </div>
-    <div class="jogo-card" style="pointer-events:none;opacity:0.3">
-      <div class="jogo-header">
-        <span class="jogo-icone" style="background:var(--color-bg-surface2);border-radius:6px;width:32px;height:32px;display:block"></span>
-        <div class="jogo-info">
+    <div class="game-card" style="pointer-events:none;opacity:0.3">
+      <div class="game-header">
+        <span class="game-icone" style="background:var(--color-bg-surface2);border-radius:6px;width:32px;height:32px;display:block"></span>
+        <div class="game-info">
           <div style="background:var(--color-bg-surface2);height:16px;width:100px;border-radius:4px;margin-bottom:8px"></div>
           <div style="background:var(--color-bg-surface2);height:12px;width:60px;border-radius:4px"></div>
         </div>
       </div>
     </div>
-    <div class="jogo-card" style="pointer-events:none;opacity:0.2">
-      <div class="jogo-header">
-        <span class="jogo-icone" style="background:var(--color-bg-surface2);border-radius:6px;width:32px;height:32px;display:block"></span>
-        <div class="jogo-info">
+    <div class="game-card" style="pointer-events:none;opacity:0.2">
+      <div class="game-header">
+        <span class="game-icone" style="background:var(--color-bg-surface2);border-radius:6px;width:32px;height:32px;display:block"></span>
+        <div class="game-info">
           <div style="background:var(--color-bg-surface2);height:16px;width:140px;border-radius:4px;margin-bottom:8px"></div>
           <div style="background:var(--color-bg-surface2);height:12px;width:90px;border-radius:4px"></div>
         </div>
@@ -785,23 +785,23 @@ const API_URL = 'https://retro-score-ranking-production.up.railway.app';
 
 inserirNav('index');
 
-// Slug do evento — vem da URL (?evento=slug). Sem fallback hardcoded
+// Slug do event — vem da URL (?evento=slug). Sem fallback hardcoded
 // (removido na Fase 6, docs/BACKLOG_2026.md §2 item 2.1 — confirmado
 // que não existe QR/material físico impresso dependendo dele). Ausente
-// = resolverMarcaOuEvento() decide: marca única com evento válido pula
-// direto pro fluxo dela, senão mostra o seletor de marca. Permite
-// múltiplos eventos simultâneos, cada um com sua própria URL de envio
+// = resolverMarcaOuEvento() decide: arena única com event válido pula
+// direto pro fluxo dela, senão mostra o seletor de arena. Permite
+// múltiplos events simultâneos, cada um com sua própria URL de envio
 // (ex: index.html?evento=canal3expo-2027) — ver docs/EVENTOS_SPEC.md.
-let EVENTO_SLUG = new URLSearchParams(location.search).get('evento');
+let EVENT_SLUG = new URLSearchParams(location.search).get('evento');
 
-// Link direto por jogo (QR na própria cabine) — ver docs/MARCAS_SPEC.md §4.3
-const JOGO_SLUG_DIRETO = new URLSearchParams(location.search).get('jogo');
+// Link direto por game (QR na própria cabine) — ver docs/MARCAS_SPEC.md §4.3
+const GAME_SLUG_DIRETO = new URLSearchParams(location.search).get('jogo');
 
 let jogosCache   = [];
 let lideresCache = {};
 let buscaJogosQuery = '';
 
-// Estado por card (indexed by jogo.id)
+// Estado por card (indexed by game.id)
 const estado = {};
 let cardExpandido = null;
 
@@ -809,10 +809,10 @@ let cardExpandido = null;
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([carregarConfig(), carregarSessao()]);
 
-  // Sem ?evento= na URL: precisa resolver marca/evento antes de
-  // qualquer fetch escopado por EVENTO_SLUG (docs/BACKLOG_2026.md §2
+  // Sem ?evento= na URL: precisa resolver arena/event antes de
+  // qualquer fetch escopado por EVENT_SLUG (docs/BACKLOG_2026.md §2
   // item 2.1) — diferente de antes, não existe mais fallback fixo.
-  if (EVENTO_SLUG) {
+  if (EVENT_SLUG) {
     await Promise.all([carregarJogos(), carregarIdentidadeVisual()]);
   } else {
     await resolverMarcaOuEvento();
@@ -881,7 +881,7 @@ async function mostrarAtividadeDeQuemSigo() {
 
     atividade.forEach((a, i) => {
       setTimeout(() => {
-        showToast(`🏆 ${a.seguido_nome || 'Alguém que você segue'} te superou em ${a.jogo_nome}!`, 'success');
+        showToast(`🏆 ${a.seguido_nome || 'Alguém que você segue'} te superou em ${a.game_nome}!`, 'success');
       }, i * 3500);
     });
   } catch { /* silencioso — não é crítico */ }
@@ -992,13 +992,13 @@ function escaparHtml(texto) {
   return div.innerHTML;
 }
 
-// ── JOGOS + LÍDERES ───────────────────────────────────────────
+// ── GAMES + LÍDERES ───────────────────────────────────────────
 async function carregarJogos() {
   try {
-    // Jogos são obrigatórios. Líderes são opcionais — falha silenciosa.
+    // Games são obrigatórios. Líderes são opcionais — falha silenciosa.
     const [rJogos, rLideres] = await Promise.allSettled([
-      fetch(`${API_URL}/api/e/${EVENTO_SLUG}/jogos`),
-      fetch(`${API_URL}/api/e/${EVENTO_SLUG}/ranking/lideres`),
+      fetch(`${API_URL}/api/e/${EVENT_SLUG}/games`),
+      fetch(`${API_URL}/api/e/${EVENT_SLUG}/ranking/lideres`),
     ]);
 
     if (rJogos.status === 'rejected' || !rJogos.value.ok) throw new Error();
@@ -1011,20 +1011,20 @@ async function carregarJogos() {
     conectarBuscaJogos();
     atualizarListaJogos();
   } catch {
-    document.getElementById('jogos-lista').innerHTML =
-      `<div class="loading-jogos"><span style="color:var(--color-error)">Erro ao carregar jogos</span></div>`;
+    document.getElementById('games-lista').innerHTML =
+      `<div class="loading-games"><span style="color:var(--color-error)">Erro ao carregar jogos</span></div>`;
   }
 }
 
 function conectarBuscaJogos() {
-  const input = document.getElementById('jogos-busca-input');
+  const input = document.getElementById('games-busca-input');
   if (input._conectado) return;
   input._conectado = true;
 
-  // Link direto por jogo esconde a busca (não faz sentido buscar
-  // quando já se sabe exatamente qual jogo é, ver MARCAS_SPEC.md §4.3)
-  if (JOGO_SLUG_DIRETO) {
-    input.closest('.jogos-busca-bar').style.display = 'none';
+  // Link direto por game esconde a busca (não faz sentido buscar
+  // quando já se sabe exatamente qual game é, ver MARCAS_SPEC.md §4.3)
+  if (GAME_SLUG_DIRETO) {
+    input.closest('.games-busca-bar').style.display = 'none';
     return;
   }
 
@@ -1041,43 +1041,43 @@ function conectarBuscaJogos() {
 function atualizarListaJogos() {
   let jogosParaExibir = jogosCache;
 
-  if (JOGO_SLUG_DIRETO) {
-    jogosParaExibir = jogosCache.filter(j => j.slug === JOGO_SLUG_DIRETO);
-    document.getElementById('voltar-todos-jogos').style.display = 'inline-block';
+  if (GAME_SLUG_DIRETO) {
+    jogosParaExibir = jogosCache.filter(j => j.slug === GAME_SLUG_DIRETO);
+    document.getElementById('voltar-todos-games').style.display = 'inline-block';
   } else if (buscaJogosQuery.trim()) {
     const q = buscaJogosQuery.toLowerCase().trim();
     jogosParaExibir = jogosCache.filter(j => j.nome.toLowerCase().includes(q));
   }
 
   if (jogosParaExibir.length === 0) {
-    document.getElementById('jogos-lista').innerHTML =
-      `<div class="jogos-busca-vazio">Nenhum jogo encontrado para "${escapar(buscaJogosQuery)}"</div>`;
+    document.getElementById('games-lista').innerHTML =
+      `<div class="games-busca-vazio">Nenhum jogo encontrado para "${escapar(buscaJogosQuery)}"</div>`;
     return;
   }
 
   renderJogos(jogosParaExibir, lideresCache);
 
   // Link direto: card já nasce expandido, sem precisar clicar
-  if (JOGO_SLUG_DIRETO && jogosParaExibir.length === 1) {
+  if (GAME_SLUG_DIRETO && jogosParaExibir.length === 1) {
     const j = jogosParaExibir[0];
     toggleCard(j.id, j.slug, j.nome);
   }
 }
 
 window.mostrarTodosJogos = function() {
-  history.replaceState(null, '', location.pathname + `?evento=${EVENTO_SLUG}`);
+  history.replaceState(null, '', location.pathname + `?evento=${EVENT_SLUG}`);
   location.reload();
 };
 
-// ── SELEÇÃO DE MARCA (sem ?evento= na URL) ─────────────────────
+// ── SELEÇÃO DE ARENA (sem ?evento= na URL) ─────────────────────
 // docs/BACKLOG_2026.md §2 item 2.1, ponto cego #2: sem fallback fixo,
-// "marca válida" = tem pelo menos um evento ativo+público. Marca única
+// "arena válida" = tem pelo menos um event ativo+público. Arena única
 // pula o seletor direto pro fluxo dela; mais de uma mostra o seletor.
 let marcasDisponiveis = [];
 
 async function resolverMarcaOuEvento() {
   try {
-    const resp = await fetch(`${API_URL}/api/marcas/com-evento-ativo`);
+    const resp = await fetch(`${API_URL}/api/arenas/com-event-ativo`);
     marcasDisponiveis = resp.ok ? await resp.json() : [];
   } catch {
     marcasDisponiveis = [];
@@ -1092,58 +1092,58 @@ async function resolverMarcaOuEvento() {
   }
 }
 
-// Guarda o título/subtítulo de antes do seletor de marca sobrescrever
+// Guarda o título/subtítulo de antes do seletor de arena sobrescrever
 // (já pode ter vindo customizado de carregarConfig()) — pra restaurar
-// depois que a marca for escolhida, em vez de hardcoded.
+// depois que a arena for escolhida, em vez de hardcoded.
 let tituloAntesDoSeletor, subtituloAntesDoSeletor;
 
-async function selecionarMarca(marca) {
-  EVENTO_SLUG = marca.evento_slug;
+async function selecionarMarca(arena) {
+  EVENT_SLUG = arena.event_slug;
   if (tituloAntesDoSeletor !== undefined) {
     document.getElementById('page-title').textContent = tituloAntesDoSeletor;
     document.getElementById('page-subtitle').textContent = subtituloAntesDoSeletor;
   }
-  const buscaBar = document.getElementById('jogos-busca-input')?.closest('.jogos-busca-bar');
+  const buscaBar = document.getElementById('games-busca-input')?.closest('.games-busca-bar');
   if (buscaBar) buscaBar.style.display = '';
 
-  history.replaceState(null, '', location.pathname + `?evento=${EVENTO_SLUG}`);
+  history.replaceState(null, '', location.pathname + `?evento=${EVENT_SLUG}`);
   await Promise.all([carregarJogos(), carregarIdentidadeVisual()]);
 }
 
 window.selecionarMarcaPorId = function(id) {
-  const marca = marcasDisponiveis.find(m => m.id === id);
-  if (marca) selecionarMarca(marca);
+  const arena = marcasDisponiveis.find(m => m.id === id);
+  if (arena) selecionarMarca(arena);
 };
 
-function renderSeletorDeMarcas(marcas) {
+function renderSeletorDeMarcas(arenas) {
   const tituloEl    = document.getElementById('page-title');
   const subtituloEl = document.getElementById('page-subtitle');
   tituloAntesDoSeletor    = tituloEl.textContent;
   subtituloAntesDoSeletor = subtituloEl.textContent;
   tituloEl.textContent    = 'ESCOLHA O LOCAL';
-  subtituloEl.textContent = 'Selecione onde você está pra ver os jogos certos';
+  subtituloEl.textContent = 'Selecione onde você está pra ver os games certos';
 
-  const buscaBar = document.getElementById('jogos-busca-input')?.closest('.jogos-busca-bar');
-  if (buscaBar) buscaBar.style.display = 'none';  // busca não se aplica à seleção de marca
+  const buscaBar = document.getElementById('games-busca-input')?.closest('.games-busca-bar');
+  if (buscaBar) buscaBar.style.display = 'none';  // busca não se aplica à seleção de arena
 
-  document.getElementById('jogos-lista').innerHTML = marcas.map(m => `
-    <div class="jogo-card">
-      <div class="jogo-header" onclick="selecionarMarcaPorId('${m.id}')">
-        <span class="jogo-icone">
-          ${m.logo_url ? `<img class="jogo-icone-img" src="${escapar(m.logo_url)}" alt="${escapar(m.nome)}">` : '📍'}
+  document.getElementById('games-lista').innerHTML = arenas.map(m => `
+    <div class="game-card">
+      <div class="game-header" onclick="selecionarMarcaPorId('${m.id}')">
+        <span class="game-icone">
+          ${m.logo_url ? `<img class="game-icone-img" src="${escapar(m.logo_url)}" alt="${escapar(m.nome)}">` : '📍'}
         </span>
-        <div class="jogo-info">
-          <div class="jogo-nome">${escapar(m.nome)}</div>
+        <div class="game-info">
+          <div class="game-nome">${escapar(m.nome)}</div>
         </div>
-        <span class="jogo-chevron">›</span>
+        <span class="game-chevron">›</span>
       </div>
     </div>
   `).join('');
 }
 
 function renderSemEventoDisponivel() {
-  document.getElementById('jogos-lista').innerHTML =
-    `<div class="loading-jogos"><span>Nenhum evento disponível pra envio de pontuações no momento.</span></div>`;
+  document.getElementById('games-lista').innerHTML =
+    `<div class="loading-games"><span>Nenhum evento disponível pra envio de pontuações no momento.</span></div>`;
 }
 
 // Scroll infinito client-side (docs/BACKLOG_2026.md §2 item 2.4) — a
@@ -1151,15 +1151,15 @@ function renderSemEventoDisponivel() {
 // sobre ela toda, sem paginação de servidor. O que muda aqui é só
 // RENDERIZAÇÃO progressiva: evita centenas de cards pesados (com tema,
 // custom properties, formulário completo) no DOM de uma vez só quando
-// o evento tem muitos jogos ativos.
-const JOGOS_BATCH_SIZE = 20;
+// o event tem muitos games ativos.
+const GAMES_BATCH_SIZE = 20;
 let jogosRenderState = { lista: [], lideres: {}, renderizados: 0, observer: null };
 
 function renderCardJogo(j, lideres) {
   const tema    = getTema(j.slug);
   const lider   = lideres[j.id];
   const iconeHtml = tema.assets.icone_url
-    ? `<img class="jogo-icone-img" src="${tema.assets.icone_url}" alt="${escapar(j.nome)}">`
+    ? `<img class="game-icone-img" src="${tema.assets.icone_url}" alt="${escapar(j.nome)}">`
     : (tema.assets.icone || '🎮');
 
   const liderHtml = lider
@@ -1168,7 +1168,7 @@ function renderCardJogo(j, lideres) {
     : `<span style="opacity:0.4;font-style:italic">sem registros ainda</span>`;
 
   return `
-  <div class="jogo-card" id="card-${j.id}"
+  <div class="game-card" id="card-${j.id}"
        style="--card-primary:${tema.cores.primary};
               --card-secondary:${tema.cores.secondary};
               --card-accent:${tema.cores.accent};
@@ -1177,57 +1177,57 @@ function renderCardJogo(j, lideres) {
               --card-overlay:${tema.assets.bg_overlay || 0.75};
               --card-font-display:${tema.tipografia.font_display};
               --card-font-body:${tema.tipografia.font_body}">
-    <div class="jogo-header" onclick="toggleCard('${j.id}', '${j.slug}', '${escapar(j.nome)}')">
-      <span class="jogo-icone">${iconeHtml}</span>
-      <div class="jogo-info">
-        <div class="jogo-nome">${escapar(j.nome)}</div>
-        <div class="jogo-lider">${liderHtml}</div>
+    <div class="game-header" onclick="toggleCard('${j.id}', '${j.slug}', '${escapar(j.nome)}')">
+      <span class="game-icone">${iconeHtml}</span>
+      <div class="game-info">
+        <div class="game-nome">${escapar(j.nome)}</div>
+        <div class="game-lider">${liderHtml}</div>
       </div>
-      <a href="ranking.html?evento=${EVENTO_SLUG}&jogo=${j.slug}" class="jogo-ranking-link"
+      <a href="ranking.html?evento=${EVENT_SLUG}&jogo=${j.slug}" class="game-ranking-link"
          onclick="event.stopPropagation()">Ranking</a>
-      <span class="jogo-chevron">›</span>
+      <span class="game-chevron">›</span>
     </div>
-    <div class="jogo-body" id="body-${j.id}">
-      <div class="jogo-conteudo" id="conteudo-${j.id}">
+    <div class="game-body" id="body-${j.id}">
+      <div class="game-conteudo" id="conteudo-${j.id}">
         ${renderFormulario(j)}
       </div>
     </div>
   </div>`;
 }
 
-function renderJogos(jogos, lideres) {
-  const lista = document.getElementById('jogos-lista');
-  if (!jogos.length) {
-    lista.innerHTML = `<div class="loading-jogos"><span>Nenhum jogo disponível</span></div>`;
+function renderJogos(games, lideres) {
+  const lista = document.getElementById('games-lista');
+  if (!games.length) {
+    lista.innerHTML = `<div class="loading-games"><span>Nenhum jogo disponível</span></div>`;
     return;
   }
 
   // Inicializa estado dos cards (fontes já carregadas no <head>) — pra
-  // TODOS os jogos, não só o primeiro lote: foto/envio dependem disso
+  // TODOS os games, não só o primeiro lote: foto/envio dependem disso
   // independente de o card já ter sido renderizado na tela.
-  jogos.forEach(j => {
+  games.forEach(j => {
     estado[j.id] = { fotoFile: null, jogoId: j.id, jogoNome: j.nome, jogoSlug: j.slug };
   });
 
   if (jogosRenderState.observer) jogosRenderState.observer.disconnect();
-  jogosRenderState = { lista: jogos, lideres, renderizados: 0, observer: null };
+  jogosRenderState = { lista: games, lideres, renderizados: 0, observer: null };
   lista.innerHTML = '';
   renderProximoLoteDeJogos();
 }
 
 function renderProximoLoteDeJogos() {
-  const { lista: jogos, lideres, renderizados } = jogosRenderState;
-  const container = document.getElementById('jogos-lista');
-  const proximoLote = jogos.slice(renderizados, renderizados + JOGOS_BATCH_SIZE);
+  const { lista: games, lideres, renderizados } = jogosRenderState;
+  const container = document.getElementById('games-lista');
+  const proximoLote = games.slice(renderizados, renderizados + GAMES_BATCH_SIZE);
 
-  document.getElementById('jogos-scroll-sentinela')?.remove();
+  document.getElementById('games-scroll-sentinela')?.remove();
   container.insertAdjacentHTML('beforeend', proximoLote.map(j => renderCardJogo(j, lideres)).join(''));
   jogosRenderState.renderizados += proximoLote.length;
 
-  if (jogosRenderState.renderizados >= jogos.length) return;
+  if (jogosRenderState.renderizados >= games.length) return;
 
   const sentinela = document.createElement('div');
-  sentinela.id = 'jogos-scroll-sentinela';
+  sentinela.id = 'games-scroll-sentinela';
   sentinela.style.height = '1px';
   container.appendChild(sentinela);
 
@@ -1282,7 +1282,7 @@ function renderFormulario(j) {
       <label class="card-consent-text" id="lgpd-texto-${j.id}" for="consent-${j.id}" data-lgpd>
         Concordo que minha foto, nome e pontuação sejam exibidos no ranking público
         e armazenados pelo Canal3. Os dados poderão ser mantidos após o encerramento
-        do evento para fins de histórico e divulgação.
+        do event para fins de histórico e divulgação.
       </label>
     </div>
 
@@ -1307,7 +1307,7 @@ function renderFormulario(j) {
     <p class="sucesso-motivacao" id="sucesso-motivacao-${j.id}" style="display:none"></p>
     <p class="sucesso-msg" id="sucesso-msg-${j.id}"></p>
     <div class="sucesso-actions" style="flex-direction:row;gap:var(--space-sm)">
-      <a href="ranking.html?evento=${EVENTO_SLUG}&jogo=${j.slug}" class="card-btn" style="text-decoration:none;text-align:center;flex:1">VER RANKING →</a>
+      <a href="ranking.html?evento=${EVENT_SLUG}&jogo=${j.slug}" class="card-btn" style="text-decoration:none;text-align:center;flex:1">VER RANKING →</a>
       <button class="card-btn" onclick="resetCard('${j.id}')" style="flex:1;background:transparent;border:var(--border-width) solid var(--card-primary,var(--color-primary));color:var(--card-primary,var(--color-primary))">↺ NOVAMENTE</button>
     </div>
 
@@ -1345,7 +1345,7 @@ function renderFormulario(j) {
 
 // ── TOGGLE CARD ────────────────────────────────────────────────
 window.toggleCard = function(id, slug, nome) {
-  const lista  = document.getElementById('jogos-lista');
+  const lista  = document.getElementById('games-lista');
   const card   = document.getElementById(`card-${id}`);
   const isOpen = card.classList.contains('expandido');
 
@@ -1400,7 +1400,7 @@ const zone = document.getElementById(`pz-${id}`);
 
 
 const FRASES_MOTIVACAO = {
-  1:     "🎉 UAU! Pontuação incrível — você dominou este jogo!",
+  1:     "🎉 UAU! Pontuação incrível — você dominou este game!",
   2:     "🔥 Que placar! Você está logo atrás do 1º lugar!",
   3:     "🏅 Pódio conquistado! Você está entre os melhores!",
   top5:  "⚡ Top 5! Você é um dos jogadores mais fortes aqui!",
@@ -1424,8 +1424,8 @@ async function buscarPosicao(jogoSlug, nick) {
     const resp = await fetch(`${API_URL}/api/ranking/${jogoSlug}`);
     if (!resp.ok) return null;
     const data = await resp.json();
-    const entradas = data.entradas || [];
-    const pos = entradas.findIndex(e =>
+    const entries = data.entries || [];
+    const pos = entries.findIndex(e =>
       e.nick.toLowerCase() === nick.toLowerCase()
     );
     return pos >= 0 ? pos + 1 : null;
@@ -1455,10 +1455,10 @@ window.enviarScore = async function(id) {
     fd.append('nick', nick);
     if (nomeCompleto) fd.append('nome', nomeCompleto);
     fd.append('pontuacao', String(score));
-    fd.append('jogo_id', id);
+    fd.append('game_id', id);
 
     setProgress(id, true, 60, e.fotoFile ? 'Enviando foto...' : 'Registrando...');
-    const resp = await fetch(`${API_URL}/api/e/${EVENTO_SLUG}/upload`, {
+    const resp = await fetch(`${API_URL}/api/e/${EVENT_SLUG}/upload`, {
       method: 'POST', body: fd, credentials: 'include',
     });
     setProgress(id, true, 95, 'Registrando...');
@@ -1486,7 +1486,7 @@ window.enviarScore = async function(id) {
       document.getElementById(`sucesso-msg-${id}`).textContent = '';
 // Monta dados de compartilhamento imediatamente (sem esperar posição)
       const tema = getTema(e.jogoSlug);
-      const linkPessoal = `${location.origin}/ranking.html?jogo=${e.jogoSlug}&destaque=${encodeURIComponent(nick)}`;
+      const linkPessoal = `${location.origin}/ranking.html?game=${e.jogoSlug}&destaque=${encodeURIComponent(nick)}`;
       window._shareData = window._shareData || {};
       window._shareData[id] = {
         nick, nome: nomeCompleto, score, pos: null,
@@ -1592,16 +1592,16 @@ window.resetCard = function(id) {
 // ── CONFIG ────────────────────────────────────────────────────
 async function carregarConfig() {
   try {
-    const resp = await fetch(`${API_URL}/api/jogos/config`);
+    const resp = await fetch(`${API_URL}/api/games/config`);
     if (!resp.ok) return;
     const cfg = await resp.json();
-    if (cfg.evento_nome) document.title = cfg.evento_nome + ' — Envie sua pontuação';
+    if (cfg.event_nome) document.title = cfg.event_nome + ' — Envie sua pontuação';
     if (cfg.upload_titulo) document.getElementById('page-title').textContent = cfg.upload_titulo;
     if (cfg.upload_subtitulo) document.getElementById('page-subtitle').textContent = cfg.upload_subtitulo;
   } catch {}
 }
 
-// ── IDENTIDADE VISUAL (marca/evento) — docs/MARCAS_SPEC.md §5 ──
+// ── IDENTIDADE VISUAL (arena/event) — docs/MARCAS_SPEC.md §5 ──
 const TIPOGRAFIAS = {
   arcade:    "'Press Start 2P', 'Pixel Operator', monospace",
   futurista: "'Orbitron', sans-serif",
@@ -1610,7 +1610,7 @@ const TIPOGRAFIAS = {
 
 async function carregarIdentidadeVisual() {
   try {
-    const resp = await fetch(`${API_URL}/api/e/${EVENTO_SLUG}/config`);
+    const resp = await fetch(`${API_URL}/api/e/${EVENT_SLUG}/config`);
     if (!resp.ok) return; // sem config resolvida, fica no default da plataforma
     aplicarIdentidadeVisual(await resp.json());
   } catch {}
@@ -1666,7 +1666,7 @@ async function gerarImagemShare(dados) {
   const ctx = canvas.getContext('2d');
   const cor = (primaryColor || '#5e2b82').trim();
 
-  // ── Fundo: cor sólida do jogo ──
+  // ── Fundo: cor sólida do game ──
   ctx.fillStyle = bgColor || '#0b1331';
   ctx.fillRect(0, 0, W, H);
 

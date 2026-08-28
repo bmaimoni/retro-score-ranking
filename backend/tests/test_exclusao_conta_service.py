@@ -16,16 +16,16 @@ def make_uuid():
 # ── solicitar ────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_solicitar_bloqueia_se_dono_de_marca():
+async def test_solicitar_bloqueia_se_dono_de_arena():
     pool = MagicMock()
-    marcas = [{"id": "m1", "nome": "Canal3"}]
+    arenas = [{"id": "m1", "nome": "Canal3"}]
 
-    with patch("repositories.marca.listar_onde_e_dono", AsyncMock(return_value=marcas)):
+    with patch("repositories.arena.listar_onde_e_dono", AsyncMock(return_value=arenas)):
         with pytest.raises(exclusao_svc.ExclusaoBloqueadaTitularidadeError) as exc:
             await exclusao_svc.solicitar(pool, "u1")
 
     assert "Canal3" in str(exc.value)
-    assert exc.value.marcas == marcas
+    assert exc.value.arenas == arenas
 
 
 @pytest.mark.asyncio
@@ -33,7 +33,7 @@ async def test_solicitar_sucesso_sem_titularidade():
     pool = MagicMock()
     resultado_esperado = {"id": "u1", "exclusao_solicitada_em": "2026-01-01"}
 
-    with patch("repositories.marca.listar_onde_e_dono", AsyncMock(return_value=[])), \
+    with patch("repositories.arena.listar_onde_e_dono", AsyncMock(return_value=[])), \
          patch("repositories.usuario.solicitar_exclusao", AsyncMock(return_value=resultado_esperado)):
         resultado = await exclusao_svc.solicitar(pool, "u1")
 
@@ -48,7 +48,7 @@ async def test_solicitar_idempotente_ja_pendente_devolve_estado_atual():
     pool = MagicMock()
     estado_atual = {"id": "u1", "status": "ativo", "exclusao_solicitada_em": "2026-01-01"}
 
-    with patch("repositories.marca.listar_onde_e_dono", AsyncMock(return_value=[])), \
+    with patch("repositories.arena.listar_onde_e_dono", AsyncMock(return_value=[])), \
          patch("repositories.usuario.solicitar_exclusao", AsyncMock(return_value=None)), \
          patch("repositories.usuario.buscar_para_exclusao", AsyncMock(return_value=estado_atual)):
         resultado = await exclusao_svc.solicitar(pool, "u1")
@@ -72,11 +72,11 @@ async def test_cancelar_delega_pro_repository():
 # ── processar ────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_processar_bloqueia_se_dono_de_marca():
+async def test_processar_bloqueia_se_dono_de_arena():
     pool = MagicMock()
-    marcas = [{"id": "m1", "nome": "Canal3"}]
+    arenas = [{"id": "m1", "nome": "Canal3"}]
 
-    with patch("repositories.marca.listar_onde_e_dono", AsyncMock(return_value=marcas)):
+    with patch("repositories.arena.listar_onde_e_dono", AsyncMock(return_value=arenas)):
         with pytest.raises(exclusao_svc.ExclusaoBloqueadaTitularidadeError):
             await exclusao_svc.processar(pool, "u1")
 
@@ -86,7 +86,7 @@ async def test_processar_sem_solicitacao_pendente_levanta_erro():
     pool = MagicMock()
     usuario = {"id": "u1", "email": "p@x.com", "status": "ativo", "exclusao_solicitada_em": None}
 
-    with patch("repositories.marca.listar_onde_e_dono", AsyncMock(return_value=[])), \
+    with patch("repositories.arena.listar_onde_e_dono", AsyncMock(return_value=[])), \
          patch("repositories.usuario.buscar_para_exclusao", AsyncMock(return_value=usuario)):
         with pytest.raises(exclusao_svc.ExclusaoNaoElegivelError):
             await exclusao_svc.processar(pool, "u1")
@@ -97,7 +97,7 @@ async def test_processar_ja_excluido_levanta_erro():
     pool = MagicMock()
     usuario = {"id": "u1", "email": None, "status": "excluido", "exclusao_solicitada_em": None}
 
-    with patch("repositories.marca.listar_onde_e_dono", AsyncMock(return_value=[])), \
+    with patch("repositories.arena.listar_onde_e_dono", AsyncMock(return_value=[])), \
          patch("repositories.usuario.buscar_para_exclusao", AsyncMock(return_value=usuario)):
         with pytest.raises(exclusao_svc.ExclusaoNaoElegivelError):
             await exclusao_svc.processar(pool, "u1")
@@ -113,7 +113,7 @@ async def test_processar_dentro_da_janela_bloqueia():
         "exclusao_solicitada_em": datetime.now(timezone.utc) - timedelta(days=10, seconds=1),
     }
 
-    with patch("repositories.marca.listar_onde_e_dono", AsyncMock(return_value=[])), \
+    with patch("repositories.arena.listar_onde_e_dono", AsyncMock(return_value=[])), \
          patch("repositories.usuario.buscar_para_exclusao", AsyncMock(return_value=usuario)):
         with pytest.raises(exclusao_svc.ExclusaoJanelaAbertaError) as exc:
             await exclusao_svc.processar(pool, "u1")
@@ -142,11 +142,11 @@ async def test_processar_fora_da_janela_anonimiza_e_revoga_tudo():
     }
     resultado_anonimizado = {"id": "u1", "status": "excluido"}
 
-    with patch("repositories.marca.listar_onde_e_dono", AsyncMock(return_value=[])), \
+    with patch("repositories.arena.listar_onde_e_dono", AsyncMock(return_value=[])), \
          patch("repositories.usuario.buscar_para_exclusao", AsyncMock(return_value=usuario)), \
          patch("repositories.usuario.anonimizar", AsyncMock(return_value=resultado_anonimizado)) as anonimizar_mock, \
          patch("auth.repository.revogar_todas_sessoes_usuario", AsyncMock()) as sessoes_mock, \
-         patch("repositories.admin_vinculo.revogar_todos_do_usuario", AsyncMock()) as vinculos_mock:
+         patch("repositories.membership.revogar_todos_do_usuario", AsyncMock()) as vinculos_mock:
         resultado = await exclusao_svc.processar(pool, "u1")
 
     assert resultado == resultado_anonimizado
@@ -158,12 +158,12 @@ async def test_processar_fora_da_janela_anonimiza_e_revoga_tudo():
 @pytest.mark.asyncio
 async def test_processar_virou_dono_depois_de_solicitar_bloqueia():
     """Checagem de titularidade repetida no momento de processar — a
-    pessoa pode ter virado dono_user_id de uma marca nova depois de já
+    pessoa pode ter virado owner_user_id de uma arena nova depois de já
     ter pedido a exclusão (achado do PERMISSOES_SPEC.md aplicado aqui)."""
     pool = MagicMock()
-    marcas = [{"id": "m1", "nome": "Marca Nova"}]
+    arenas = [{"id": "m1", "nome": "Marca Nova"}]
 
-    with patch("repositories.marca.listar_onde_e_dono", AsyncMock(return_value=marcas)), \
+    with patch("repositories.arena.listar_onde_e_dono", AsyncMock(return_value=arenas)), \
          patch("repositories.usuario.buscar_para_exclusao", AsyncMock()) as buscar_mock:
         with pytest.raises(exclusao_svc.ExclusaoBloqueadaTitularidadeError):
             await exclusao_svc.processar(pool, "u1")

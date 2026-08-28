@@ -13,12 +13,12 @@ def make_uuid():
 
 
 @pytest.mark.asyncio
-async def test_lideres_retorna_top1_por_jogo(client):
-    jogo1 = make_uuid()
-    jogo2 = make_uuid()
+async def test_lideres_retorna_top1_por_game(client):
+    game1 = make_uuid()
+    game2 = make_uuid()
     rows = [
-        {"jogo_id": jogo1, "slug": "pac-man",    "nick": "CAMPEAO", "pontuacao": 99000},
-        {"jogo_id": jogo2, "slug": "river-raid", "nick": "ACE",     "pontuacao": 45000},
+        {"game_id": game1, "slug": "pac-man",    "nick": "CAMPEAO", "pontuacao": 99000},
+        {"game_id": game2, "slug": "river-raid", "nick": "ACE",     "pontuacao": 45000},
     ]
     pool_mock = MagicMock()
     pool_mock.fetch = AsyncMock(return_value=rows)
@@ -31,13 +31,13 @@ async def test_lideres_retorna_top1_por_jogo(client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data[jogo1]["nick"] == "CAMPEAO"
-    assert data[jogo1]["pontuacao"] == 99000
-    assert data[jogo2]["slug"] == "river-raid"
+    assert data[game1]["nick"] == "CAMPEAO"
+    assert data[game1]["pontuacao"] == 99000
+    assert data[game2]["slug"] == "river-raid"
 
 
 @pytest.mark.asyncio
-async def test_lideres_vazio_quando_sem_entradas(client):
+async def test_lideres_vazio_quando_sem_entries(client):
     pool_mock = MagicMock()
     pool_mock.fetch = AsyncMock(return_value=[])
 
@@ -63,4 +63,4 @@ async def test_lideres_nao_conflita_com_rota_slug(client):
         app.dependency_overrides.clear()
 
     assert resp.status_code == 200
-    assert "jogo" not in resp.json()
+    assert "game" not in resp.json()

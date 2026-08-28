@@ -5,7 +5,7 @@ Prefixo: /api/admin/placares
 Ver docs/EVENTOS_SPEC.md §3: o placar global é único e seedado por
 migração (não é criado aqui — o índice único parcial no banco impede
 um segundo). Este router gerencia apenas placares customizados e a
-membership de eventos neles.
+membership de events neles.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -47,50 +47,50 @@ async def criar_placar(
         raise
 
 
-# ── Membership de eventos no placar ───────────────────────────
+# ── Membership de events no placar ───────────────────────────
 
-@router.get("/{placar_id}/eventos")
-async def listar_eventos_do_placar(
+@router.get("/{placar_id}/events")
+async def listar_events_do_placar(
     placar_id: str,
     pool=Depends(get_pool),
     _=Depends(require_admin),
 ):
     """Eventos vinculados ao placar (ativos e inativos)."""
-    return await placar_repo.listar_eventos_do_placar(pool, placar_id)
+    return await placar_repo.listar_events_do_placar(pool, placar_id)
 
 
-@router.post("/{placar_id}/eventos/{evento_id}", status_code=201)
-async def adicionar_evento_ao_placar(
+@router.post("/{placar_id}/events/{event_id}", status_code=201)
+async def adicionar_event_ao_placar(
     placar_id: str,
-    evento_id: str,
+    event_id: str,
     pool=Depends(get_pool),
     _=Depends(require_admin),
 ):
-    """Vincula um evento ao placar. Se já existir, reativa."""
+    """Vincula um event ao placar. Se já existir, reativa."""
     try:
-        return await placar_repo.adicionar_evento(pool, placar_id, evento_id)
+        return await placar_repo.adicionar_event(pool, placar_id, event_id)
     except Exception as exc:
         if "foreign key" in str(exc).lower():
-            raise HTTPException(status_code=404, detail="Placar ou evento não encontrado")
+            raise HTTPException(status_code=404, detail="Placar ou event não encontrado")
         raise
 
 
-@router.patch("/{placar_id}/eventos/{evento_id}")
-async def atualizar_evento_do_placar(
+@router.patch("/{placar_id}/events/{event_id}")
+async def atualizar_event_do_placar(
     placar_id: str,
-    evento_id: str,
+    event_id: str,
     dados: PlacarEventoUpdate,
     pool=Depends(get_pool),
     _=Depends(require_admin),
 ):
     """
-    Atualiza ativo de um evento no placar — usado para "remover"
+    Atualiza ativo de um event no placar — usado para "remover"
     (ativo=false) sem DELETE físico (app_user não tem essa permissão em
     placar_eventos, ver migration 012) e para reativar (ativo=true).
     """
-    resultado = await placar_repo.remover_evento(pool, placar_id, evento_id) \
+    resultado = await placar_repo.remover_event(pool, placar_id, event_id) \
         if dados.ativo is False else \
-        await placar_repo.adicionar_evento(pool, placar_id, evento_id)
+        await placar_repo.adicionar_event(pool, placar_id, event_id)
     if not resultado:
         raise HTTPException(status_code=404, detail="Vínculo não encontrado")
     return resultado

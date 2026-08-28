@@ -6,7 +6,7 @@ async def checar_rate_limit(pool: Pool, ip_hash: str) -> bool:
     """
     Verifica se o ip_hash excedeu o limite de uploads na janela configurada.
 
-    Tenta ler os limites da tabela evento_config (configurável pelo admin).
+    Tenta ler os limites da tabela event_config (configurável pelo admin).
     Se não encontrar, usa os valores das variáveis de ambiente como fallback.
 
     Retorna True se deve ser marcado como pendente (acima do limite).
@@ -21,7 +21,7 @@ async def checar_rate_limit(pool: Pool, ip_hash: str) -> bool:
             SELECT
               MAX(CASE WHEN chave = 'rate_limit'        THEN valor END) AS rate_limit,
               MAX(CASE WHEN chave = 'rate_window_horas' THEN valor END) AS rate_window_horas
-            FROM evento_config
+            FROM event_config
             WHERE chave IN ('rate_limit', 'rate_window_horas')
             """
         )
@@ -35,7 +35,7 @@ async def checar_rate_limit(pool: Pool, ip_hash: str) -> bool:
     count = await pool.fetchval(
         """
         SELECT COUNT(*)
-        FROM entradas
+        FROM entries
         WHERE ip_hash  = $1
           AND criado_em > now() - ($2 || ' seconds')::interval
         """,

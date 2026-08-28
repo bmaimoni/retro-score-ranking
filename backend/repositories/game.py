@@ -4,15 +4,15 @@ from typing import Any
 
 async def listar_ativos(pool: Pool) -> list[dict]:
     """
-    Jogos do catálogo geral — usado por /api/jogos (sem evento) e pelo
-    placar escopo='global'. Exclui jogos pendentes de aprovação (ver
-    migration 018): um jogo criado por admin não-super só entra aqui
+    Games do catálogo geral — usado por /api/games (sem event) e pelo
+    placar escopo='global'. Exclui games pendentes de aprovação (ver
+    migration 018): um game criado por admin não-super só entra aqui
     depois que um super-admin aprova.
     """
     rows = await pool.fetch(
         """
         SELECT id, nome, slug, score_max, plataforma, ano_lancamento, capa_url, gameplay_url
-        FROM jogos
+        FROM games
         WHERE ativo = true AND pendente_aprovacao = false
         ORDER BY nome
         """
@@ -25,7 +25,7 @@ async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
         """
         SELECT id, nome, slug, ativo, score_max,
                plataforma, ano_lancamento, capa_url, gameplay_url
-        FROM jogos WHERE slug = $1
+        FROM games WHERE slug = $1
         """,
         slug,
     )
@@ -46,7 +46,7 @@ async def criar(
 ) -> dict:
     row = await pool.fetchrow(
         """
-        INSERT INTO jogos (nome, slug, score_max, pendente_aprovacao, criado_por,
+        INSERT INTO games (nome, slug, score_max, pendente_aprovacao, criado_por,
                             plataforma, ano_lancamento, capa_url, gameplay_url)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id, nome, slug, ativo, score_max, pendente_aprovacao, criado_por, criado_em,
@@ -60,7 +60,7 @@ async def criar(
 
 async def atualizar(
     pool: Pool,
-    jogo_id: str,
+    game_id: str,
     ativo: bool | None,
     score_max: int | None,
     plataforma: str | None = None,
@@ -92,21 +92,21 @@ async def atualizar(
     if not campos:
         return None
 
-    valores.append(jogo_id)
+    valores.append(game_id)
     row = await pool.fetchrow(
-        f"UPDATE jogos SET {', '.join(campos)} WHERE id = ${idx} RETURNING *",
+        f"UPDATE games SET {', '.join(campos)} WHERE id = ${idx} RETURNING *",
         *valores,
     )
     return dict(row) if row else None
 
 
 async def listar_todos(pool: Pool) -> list[dict]:
-    """Lista todos os jogos (ativos e inativos) para o painel admin."""
+    """Lista todos os games (ativos e inativos) para o painel admin."""
     rows = await pool.fetch(
         """
         SELECT id, nome, slug, ativo, score_max, pendente_aprovacao, criado_em,
                plataforma, ano_lancamento, capa_url, gameplay_url
-        FROM jogos ORDER BY nome
+        FROM games ORDER BY nome
         """
     )
     return [dict(r) for r in rows]
@@ -115,7 +115,7 @@ async def listar_todos(pool: Pool) -> list[dict]:
 
 async def listar_pendentes_aprovacao(pool: Pool) -> list[dict]:
     """
-    Jogos aguardando aprovação de um super-admin, com os eventos que já
+    Games aguardando aprovação de um super-admin, com os events que já
     os utilizam — pro painel de revisão saber o contexto (quem criou,
     onde já está em uso) antes de aprovar ou mesclar.
     """
@@ -126,10 +126,10 @@ async def listar_pendentes_aprovacao(pool: Pool) -> list[dict]:
             COALESCE(
                 array_agg(e.nome) FILTER (WHERE e.nome IS NOT NULL),
                 '{}'
-            ) AS eventos_em_uso
-        FROM jogos j
-        LEFT JOIN evento_jogos ej ON ej.jogo_id = j.id AND ej.ativo = true
-        LEFT JOIN eventos e ON e.id = ej.evento_id
+            ) AS events_em_uso
+        FROM games j
+        LEFT JOIN event_games ej ON ej.game_id = j.id AND ej.ativo = true
+        LEFT JOIN events e ON e.id = ej.event_id
         WHERE j.pendente_aprovacao = true
         GROUP BY j.id
         ORDER BY j.criado_em ASC
@@ -138,55 +138,55 @@ async def listar_pendentes_aprovacao(pool: Pool) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def aprovar(pool: Pool, jogo_id: str) -> dict | None:
+async def aprovar(pool: Pool, game_id: str) -> dict | None:
     """
-    Aprova um jogo pendente pro catálogo geral. Como listar_ativos/o
+    Aprova um game pendente pro catálogo geral. Como listar_ativos/o
     placar global só filtram por pendente_aprovacao=false (não fazem
-    nenhum backfill), as entradas já enviadas para esse jogo entram no
-    catálogo geral automaticamente, sem precisar tocar em 'entradas'.
+    nenhum backfill), as entries já enviadas para esse game entram no
+    catálogo geral automaticamente, sem precisar tocar em 'entries'.
     """
     row = await pool.fetchrow(
         """
-        UPDATE jogos SET pendente_aprovacao = false
+        UPDATE games SET pendente_aprovacao = false
         WHERE id = $1 AND pendente_aprovacao = true
         RETURNING id, nome, slug, ativo, score_max, pendente_aprovacao, criado_por, criado_em
         """,
-        jogo_id,
+        game_id,
     )
     return dict(row) if row else None
 
 
-async def mesclar(conn, jogo_origem_id: str, jogo_destino_id: str) -> dict:
+async def mesclar(conn, game_origem_id: str, game_destino_id: str) -> dict:
     """
-    Mescla jogo_origem em jogo_destino — usado quando um super-admin
-    percebe que um jogo criado por outro admin já existe na plataforma
-    com outro nome/slug. Migra entradas e vínculos de evento, arquiva
-    o jogo original mantendo o rastro de pra onde foi (nunca apaga).
+    Mescla game_origem em game_destino — usado quando um super-admin
+    percebe que um game criado por outro admin já existe na plataforma
+    com outro nome/slug. Migra entries e vínculos de event, arquiva
+    o game original mantendo o rastro de pra onde foi (nunca apaga).
 
     Recebe uma conexão já dentro de uma transação (ver router) — a
-    migração de entradas + vínculos + arquivamento precisa ser atômica.
+    migração de entries + vínculos + arquivamento precisa ser atômica.
     """
     await conn.execute(
-        "UPDATE entradas SET jogo_id = $1 WHERE jogo_id = $2",
-        jogo_destino_id, jogo_origem_id,
+        "UPDATE entries SET game_id = $1 WHERE game_id = $2",
+        game_destino_id, game_origem_id,
     )
-    # Vínculos de evento: migra os que o destino ainda não tem
-    # (ON CONFLICT porque o mesmo evento pode já ter os dois jogos)
+    # Vínculos de event: migra os que o destino ainda não tem
+    # (ON CONFLICT porque o mesmo event pode já ter os dois games)
     await conn.execute(
         """
-        INSERT INTO evento_jogos (evento_id, jogo_id, ordem)
-        SELECT evento_id, $1, ordem FROM evento_jogos WHERE jogo_id = $2
-        ON CONFLICT (evento_id, jogo_id) DO NOTHING
+        INSERT INTO event_games (event_id, game_id, ordem)
+        SELECT event_id, $1, ordem FROM event_games WHERE game_id = $2
+        ON CONFLICT (event_id, game_id) DO NOTHING
         """,
-        jogo_destino_id, jogo_origem_id,
+        game_destino_id, game_origem_id,
     )
     row = await conn.fetchrow(
         """
-        UPDATE jogos
-        SET ativo = false, mesclado_em_jogo_id = $2, pendente_aprovacao = false
+        UPDATE games
+        SET ativo = false, mesclado_em_game_id = $2, pendente_aprovacao = false
         WHERE id = $1
-        RETURNING id, nome, slug, ativo, mesclado_em_jogo_id
+        RETURNING id, nome, slug, ativo, mesclado_em_game_id
         """,
-        jogo_origem_id, jogo_destino_id,
+        game_origem_id, game_destino_id,
     )
     return dict(row)

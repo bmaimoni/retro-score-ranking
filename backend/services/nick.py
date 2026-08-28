@@ -17,29 +17,29 @@ def normalizar_nick(nick: str) -> str:
 async def marcar_anterior_como_superado(
     pool: Pool,
     nick_norm: str,
-    jogo_id: str,
+    game_id: str,
     conn=None,
 ) -> str | None:
     """
-    Busca a entrada ativa do nick no jogo e a marca como superada.
+    Busca a entry ativa do nick no game e marca como superada.
     Deve ser chamado dentro da mesma transação do INSERT.
 
-    Retorna o id da entrada anterior, ou None se não havia.
+    Retorna o id da entry anterior, ou None se não havia.
     """
     executor = conn or pool
 
     row = await executor.fetchrow(
         """
-        UPDATE entradas
+        UPDATE entries
         SET superado = true
         WHERE nick_norm = $1
-          AND jogo_id   = $2
+          AND game_id   = $2
           AND superado  = false
           AND pendente  = false
         RETURNING id
         """,
         nick_norm,
-        jogo_id,
+        game_id,
     )
 
     return str(row["id"]) if row else None

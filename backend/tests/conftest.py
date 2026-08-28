@@ -62,21 +62,21 @@ async def client():
 def make_uuid():
     return str(uuid.uuid4())
 
-def make_jogo(slug="pac-man", nome="Pac-Man", score_max=999990, ativo=True):
+def make_game(slug="pac-man", nome="Pac-Man", score_max=999990, ativo=True):
     return {"id": make_uuid(), "slug": slug, "nome": nome,
             "score_max": score_max, "ativo": ativo}
 
-def make_entrada(nick="PLAYER1", pontuacao=50000, jogo_id=None,
+def make_entry(nick="PLAYER1", pontuacao=50000, game_id=None,
                  no_ranking=True, superado=False, pendente=False,
                  foto_url="https://cdn.example.com/foto.jpg"):
     return {
-        "id": make_uuid(), "jogo_id": jogo_id or make_uuid(),
+        "id": make_uuid(), "game_id": game_id or make_uuid(),
         "nick": nick, "nick_norm": nick.lower().strip(),
         "pontuacao": pontuacao, "foto_url": foto_url,
         "no_ranking": no_ranking, "superado": superado, "pendente": pendente,
         "ip_hash": "abc123", "criado_em": "2024-01-01T00:00:00Z",
         "moderado_em": None, "moderado_por": None,
-        "jogo_nome": "Pac-Man", "jogo_slug": "pac-man",
+        "game_nome": "Pac-Man", "game_slug": "pac-man",
     }
 
 def make_jpeg_bytes():

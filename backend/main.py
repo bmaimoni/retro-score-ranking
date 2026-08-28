@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import get_settings
 from utils.db import get_pool, close_pool
-from routers import ranking, jogos, admin, eventos, evento_publico, placar_publico, telao_publico, placares_admin, teloes_admin, marcas_admin, marcas_publico, admin_vinculos, avatares_admin, avatares_publico, perfil
+from routers import ranking, games, admin, events, event_public, placar_publico, telao_publico, placares_admin, teloes_admin, arenas_admin, arenas_public, memberships, avatares_admin, avatares_publico, perfil
 from auth import router as auth_router
 
 # ── Logging estruturado ───────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ settings = get_settings()
 
 app = FastAPI(
     title="Retro Score Ranking API",
-    description="Backend para eventos de videogame retrô — C4 v1.0",
+    description="Backend para events de videogame retrô — C4 v1.0",
     version="1.0.0",
     docs_url=None if settings.is_production else "/docs",
     redoc_url=None if settings.is_production else "/redoc",
@@ -58,17 +58,17 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(ranking.router)
-app.include_router(jogos.router)
+app.include_router(games.router)
 app.include_router(admin.router)
-app.include_router(eventos.router)
-app.include_router(evento_publico.router)
+app.include_router(events.router)
+app.include_router(event_public.router)
 app.include_router(placar_publico.router)
 app.include_router(telao_publico.router)
 app.include_router(placares_admin.router)
 app.include_router(teloes_admin.router)
-app.include_router(marcas_admin.router)
-app.include_router(marcas_publico.router)
-app.include_router(admin_vinculos.router)
+app.include_router(arenas_admin.router)
+app.include_router(arenas_public.router)
+app.include_router(memberships.router)
 app.include_router(avatares_admin.router)
 app.include_router(avatares_publico.router)
 app.include_router(perfil.router)

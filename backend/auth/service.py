@@ -14,7 +14,7 @@ from fastapi import Depends, HTTPException, Request
 from config import get_settings
 from utils.db import get_pool
 import auth.repository as auth_repo
-import repositories.entrada as entrada_repo
+import repositories.entry as entry_repo
 import services.nick as nick_svc
 
 log = structlog.get_logger()
@@ -256,12 +256,12 @@ async def _processar_novo_claim(pool, nick_norm: str, user_id: str, ja_teve_dono
         qualquer pontuação órfã com esse nick_norm.
       - Já teve dono antes, foi liberado, está sendo reivindicado de
         novo (ja_teve_dono=True): NÃO vincula — só sinaliza pro
-        moderador as entradas sem identificação nenhuma.
+        moderador as entries sem identificação nenhuma.
     """
     if ja_teve_dono:
-        await entrada_repo.marcar_pendente_identificacao_ambigua(pool, nick_norm)
+        await entry_repo.marcar_pendente_identificacao_ambigua(pool, nick_norm)
     else:
-        await entrada_repo.vincular_retroativamente(pool, nick_norm, user_id)
+        await entry_repo.vincular_retroativamente(pool, nick_norm, user_id)
 
 
 async def verificar_e_reivindicar_nick(pool, nick: str, nick_norm: str, user_id: str | None) -> None:

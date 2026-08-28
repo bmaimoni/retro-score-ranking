@@ -17,11 +17,11 @@ def make_uuid():
     return str(uuid.uuid4())
 
 
-def make_entrada(nick="PLAYER1", pontuacao=50000, jogo_id=None,
+def make_entry(nick="PLAYER1", pontuacao=50000, game_id=None,
                  no_ranking=True, pendente=False,
                  foto_url="https://cdn.example.com/foto.jpg"):
     return {
-        "id": make_uuid(), "jogo_id": jogo_id or make_uuid(),
+        "id": make_uuid(), "game_id": game_id or make_uuid(),
         "nick": nick, "nick_norm": nick.lower().strip(),
         "pontuacao": pontuacao, "foto_url": foto_url,
         "no_ranking": no_ranking, "superado": False, "pendente": pendente,
@@ -51,18 +51,18 @@ def clear_pool_override():
 
 @pytest.mark.asyncio
 async def test_ocultar_remove_do_ranking_e_emite_sse(client):
-    jogo_id = make_uuid()
-    entrada = make_entrada(jogo_id=jogo_id, no_ranking=True)
-    entrada_ocultada = {**entrada, "no_ranking": False}
+    game_id = make_uuid()
+    entry = make_entry(game_id=game_id, no_ranking=True)
+    entry_ocultada = {**entry, "no_ranking": False}
     broker_mock = AsyncMock()
 
     app.dependency_overrides[get_pool] = lambda: _pool_com_slug()
 
-    with patch("repositories.entrada.atualizar_visibilidade",
-               AsyncMock(return_value=entrada_ocultada)), \
+    with patch("repositories.entry.atualizar_visibilidade",
+               AsyncMock(return_value=entry_ocultada)), \
          patch("routers.admin.broker.publish", broker_mock):
         resp = await client.patch(
-            f"/api/admin/entradas/{entrada['id']}",
+            f"/api/admin/entries/{entry['id']}",
             json={"no_ranking": False}, headers=AUTH)
 
     assert resp.status_code == 200
@@ -72,40 +72,40 @@ async def test_ocultar_remove_do_ranking_e_emite_sse(client):
 
 @pytest.mark.asyncio
 async def test_reativar_volta_ao_ranking_e_emite_sse(client):
-    jogo_id = make_uuid()
-    entrada = make_entrada(jogo_id=jogo_id, no_ranking=False)
-    entrada_reativada = {**entrada, "no_ranking": True}
+    game_id = make_uuid()
+    entry = make_entry(game_id=game_id, no_ranking=False)
+    entry_reativada = {**entry, "no_ranking": True}
     broker_mock = AsyncMock()
 
     app.dependency_overrides[get_pool] = lambda: _pool_com_slug("galaga")
 
-    with patch("repositories.entrada.atualizar_visibilidade",
-               AsyncMock(return_value=entrada_reativada)), \
+    with patch("repositories.entry.atualizar_visibilidade",
+               AsyncMock(return_value=entry_reativada)), \
          patch("routers.admin.broker.publish", broker_mock):
         resp = await client.patch(
-            f"/api/admin/entradas/{entrada['id']}",
+            f"/api/admin/entries/{entry['id']}",
             json={"no_ranking": True}, headers=AUTH)
 
     assert resp.status_code == 200
     assert broker_mock.call_args[0][1] == "reativar"
     payload = broker_mock.call_args[0][2]
-    assert "entrada" in payload
+    assert "entry" in payload
 
 
 @pytest.mark.asyncio
 async def test_aprovar_pendente_entra_no_ranking_com_sse(client):
-    jogo_id = make_uuid()
-    entrada = make_entrada(jogo_id=jogo_id, pendente=True, no_ranking=False)
-    entrada_aprovada = {**entrada, "pendente": False, "no_ranking": True}
+    game_id = make_uuid()
+    entry = make_entry(game_id=game_id, pendente=True, no_ranking=False)
+    entry_aprovada = {**entry, "pendente": False, "no_ranking": True}
     broker_mock = AsyncMock()
 
     app.dependency_overrides[get_pool] = lambda: _pool_com_slug()
 
-    with patch("repositories.entrada.resolver_pendente",
-               AsyncMock(return_value=entrada_aprovada)), \
+    with patch("repositories.entry.resolver_pendente",
+               AsyncMock(return_value=entry_aprovada)), \
          patch("routers.admin.broker.publish", broker_mock):
         resp = await client.patch(
-            f"/api/admin/entradas/{entrada['id']}/pendente",
+            f"/api/admin/entries/{entry['id']}/pendente",
             json={"aprovar": True}, headers=AUTH)
 
     assert resp.status_code == 200
@@ -115,18 +115,18 @@ async def test_aprovar_pendente_entra_no_ranking_com_sse(client):
 
 @pytest.mark.asyncio
 async def test_rejeitar_pendente_nao_entra_no_ranking(client):
-    jogo_id = make_uuid()
-    entrada = make_entrada(jogo_id=jogo_id, pendente=True, no_ranking=False)
-    entrada_rejeitada = {**entrada, "pendente": False, "no_ranking": False}
+    game_id = make_uuid()
+    entry = make_entry(game_id=game_id, pendente=True, no_ranking=False)
+    entry_rejeitada = {**entry, "pendente": False, "no_ranking": False}
     broker_mock = AsyncMock()
 
     app.dependency_overrides[get_pool] = lambda: _pool_com_slug()
 
-    with patch("repositories.entrada.resolver_pendente",
-               AsyncMock(return_value=entrada_rejeitada)), \
+    with patch("repositories.entry.resolver_pendente",
+               AsyncMock(return_value=entry_rejeitada)), \
          patch("routers.admin.broker.publish", broker_mock):
         resp = await client.patch(
-            f"/api/admin/entradas/{entrada['id']}/pendente",
+            f"/api/admin/entries/{entry['id']}/pendente",
             json={"aprovar": False}, headers=AUTH)
 
     assert resp.status_code == 200
@@ -134,10 +134,10 @@ async def test_rejeitar_pendente_nao_entra_no_ranking(client):
 
 
 @pytest.mark.asyncio
-async def test_ranking_exclui_entradas_ocultas(client):
-    jogo = {"id": make_uuid(), "nome": "Pac-Man", "slug": "pac-man",
+async def test_ranking_exclui_entries_ocultas(client):
+    game = {"id": make_uuid(), "nome": "Pac-Man", "slug": "pac-man",
             "score_max": None, "ativo": True}
-    entradas_visiveis = [
+    entries_visiveis = [
         {"id": make_uuid(), "nick": "P1", "pontuacao": 9000,
          "foto_url": None, "criado_em": "2024-01-01"},
     ]
@@ -145,24 +145,24 @@ async def test_ranking_exclui_entradas_ocultas(client):
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("repositories.jogo.buscar_por_slug", AsyncMock(return_value=jogo)), \
-         patch("repositories.entrada.listar_ranking",
-               AsyncMock(return_value=entradas_visiveis)):
+    with patch("repositories.game.buscar_por_slug", AsyncMock(return_value=game)), \
+         patch("repositories.entry.listar_ranking",
+               AsyncMock(return_value=entries_visiveis)):
         resp = await client.get("/api/ranking/pac-man")
 
     assert resp.status_code == 200
-    assert len(resp.json()["entradas"]) == 1
+    assert len(resp.json()["entries"]) == 1
 
 
 # ── Arquivamento no ranking ───────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_ranking_exclui_entradas_arquivadas(client):
+async def test_ranking_exclui_entries_arquivadas(client):
     """Entradas com arquivado=true não devem aparecer no ranking público."""
-    jogo = {"id": make_uuid(), "nome": "Enduro", "slug": "enduro",
+    game = {"id": make_uuid(), "nome": "Enduro", "slug": "enduro",
             "score_max": None, "ativo": True}
-    # Só retorna entradas não-arquivadas (repository já filtra)
-    entradas_visiveis = [
+    # Só retorna entries não-arquivadas (repository já filtra)
+    entries_visiveis = [
         {"id": make_uuid(), "nick": "ACE", "nome": "Ana Silva",
          "pontuacao": 9000, "foto_url": None, "criado_em": "2024-01-01"},
     ]
@@ -170,21 +170,21 @@ async def test_ranking_exclui_entradas_arquivadas(client):
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("repositories.jogo.buscar_por_slug",     AsyncMock(return_value=jogo)), \
-         patch("repositories.entrada.listar_ranking",    AsyncMock(return_value=entradas_visiveis)):
+    with patch("repositories.game.buscar_por_slug",     AsyncMock(return_value=game)), \
+         patch("repositories.entry.listar_ranking",    AsyncMock(return_value=entries_visiveis)):
         resp = await client.get("/api/ranking/enduro")
 
     assert resp.status_code == 200
-    assert len(resp.json()["entradas"]) == 1
-    assert resp.json()["entradas"][0]["nick"] == "ACE"
+    assert len(resp.json()["entries"]) == 1
+    assert resp.json()["entries"][0]["nick"] == "ACE"
 
 
 @pytest.mark.asyncio
 async def test_ranking_retorna_nome_do_jogador(client):
-    """Campo nome deve aparecer nas entradas do ranking."""
-    jogo = {"id": make_uuid(), "nome": "Enduro", "slug": "enduro",
+    """Campo nome deve aparecer nas entries do ranking."""
+    game = {"id": make_uuid(), "nome": "Enduro", "slug": "enduro",
             "score_max": None, "ativo": True}
-    entradas = [
+    entries = [
         {"id": make_uuid(), "nick": "ACE", "nome": "Ana Silva",
          "pontuacao": 9000, "foto_url": None, "criado_em": "2024-01-01"},
     ]
@@ -192,9 +192,9 @@ async def test_ranking_retorna_nome_do_jogador(client):
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("repositories.jogo.buscar_por_slug",  AsyncMock(return_value=jogo)), \
-         patch("repositories.entrada.listar_ranking", AsyncMock(return_value=entradas)):
+    with patch("repositories.game.buscar_por_slug",  AsyncMock(return_value=game)), \
+         patch("repositories.entry.listar_ranking", AsyncMock(return_value=entries)):
         resp = await client.get("/api/ranking/enduro")
 
     assert resp.status_code == 200
-    assert resp.json()["entradas"][0]["nome"] == "Ana Silva"
+    assert resp.json()["entries"][0]["nome"] == "Ana Silva"

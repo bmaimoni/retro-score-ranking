@@ -1,9 +1,9 @@
 """
-Repository de marcas — CRUD e resolução de herança de identidade visual.
+Repository de arenas — CRUD e resolução de herança de identidade visual.
 
-Ver docs/MARCAS_SPEC.md para o desenho completo. Marca fica acima de
-evento: cor_primaria, tipografia e logo_url herdam pra evento quando o
-evento não define os seus (evento → marca → default da plataforma).
+Ver docs/MARCAS_SPEC.md para o desenho completo. Arena fica acima de
+event: cor_primaria, tipografia e logo_url herdam pra event quando o
+event não define os seus (event → arena → default da plataforma).
 """
 from asyncpg import Pool
 
@@ -12,30 +12,30 @@ async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
     row = await pool.fetchrow(
         """
         SELECT id, nome, slug, cor_primaria, tipografia, logo_url, itens_por_pagina, criado_em
-        FROM marcas WHERE slug = $1
+        FROM arenas WHERE slug = $1
         """,
         slug,
     )
     return dict(row) if row else None
 
 
-async def buscar_por_id(pool: Pool, marca_id: str) -> dict | None:
+async def buscar_por_id(pool: Pool, arena_id: str) -> dict | None:
     row = await pool.fetchrow(
         """
         SELECT id, nome, slug, cor_primaria, tipografia, logo_url, itens_por_pagina, criado_em
-        FROM marcas WHERE id = $1
+        FROM arenas WHERE id = $1
         """,
-        marca_id,
+        arena_id,
     )
     return dict(row) if row else None
 
 
 async def listar_todas(pool: Pool) -> list[dict]:
-    """Todas as marcas — para o painel admin."""
+    """Todas as arenas — para o painel admin."""
     rows = await pool.fetch(
         """
         SELECT id, nome, slug, cor_primaria, tipografia, logo_url, itens_por_pagina, criado_em
-        FROM marcas ORDER BY criado_em DESC
+        FROM arenas ORDER BY criado_em DESC
         """
     )
     return [dict(r) for r in rows]
@@ -51,7 +51,7 @@ async def criar(
 ) -> dict:
     row = await pool.fetchrow(
         """
-        INSERT INTO marcas (nome, slug, cor_primaria, tipografia, logo_url)
+        INSERT INTO arenas (nome, slug, cor_primaria, tipografia, logo_url)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING id, nome, slug, cor_primaria, tipografia, logo_url, criado_em
         """,
@@ -60,11 +60,11 @@ async def criar(
     return dict(row)
 
 
-async def atualizar(pool: Pool, marca_id: str, dados: dict) -> dict | None:
+async def atualizar(pool: Pool, arena_id: str, dados: dict) -> dict | None:
     """Atualiza campos parciais. Chaves não presentes em `dados` ficam inalteradas."""
     row = await pool.fetchrow(
         """
-        UPDATE marcas
+        UPDATE arenas
         SET nome             = COALESCE($2, nome),
             cor_primaria     = COALESCE($3, cor_primaria),
             tipografia       = COALESCE($4, tipografia),
@@ -73,7 +73,7 @@ async def atualizar(pool: Pool, marca_id: str, dados: dict) -> dict | None:
         WHERE id = $1
         RETURNING id, nome, slug, cor_primaria, tipografia, logo_url, itens_por_pagina, criado_em
         """,
-        marca_id,
+        arena_id,
         dados.get("nome"),
         dados.get("cor_primaria"),
         dados.get("tipografia"),
@@ -83,80 +83,80 @@ async def atualizar(pool: Pool, marca_id: str, dados: dict) -> dict | None:
     return dict(row) if row else None
 
 
-async def buscar_dono_user_id(pool: Pool, marca_id: str) -> str | None:
+async def buscar_owner_user_id(pool: Pool, arena_id: str) -> str | None:
     """
-    user_id do titular da marca (marcas.dono_user_id), ou None se a
-    marca não tem titular atribuído ainda (nasce NULL — migration 019).
+    user_id do titular da arena (arenas.owner_user_id), ou None se a
+    arena não tem titular atribuído ainda (nasce NULL — migration 019).
     Usado pela trava de revogação: revogar o vínculo admin do titular
     atual é bloqueado até a titularidade ser transferida (decisão #10
     do docs/PERMISSOES_SPEC.md).
     """
-    row = await pool.fetchrow("SELECT dono_user_id FROM marcas WHERE id = $1", marca_id)
-    if not row or row["dono_user_id"] is None:
+    row = await pool.fetchrow("SELECT owner_user_id FROM arenas WHERE id = $1", arena_id)
+    if not row or row["owner_user_id"] is None:
         return None
-    return str(row["dono_user_id"])
+    return str(row["owner_user_id"])
 
 
 async def listar_onde_e_dono(pool: Pool, user_id: str) -> list[dict]:
     """
-    Marcas onde este user_id é dono_user_id — usado pela trava de
+    Arenas onde este user_id é owner_user_id — usado pela trava de
     exclusão de conta (docs/EXCLUSAO_CONTA_SPEC.md decisão #5): pedido
     de exclusão é bloqueado enquanto a pessoa for titular de qualquer
-    marca. Lista (não só bool) pra dar mensagem de erro específica.
+    arena. Lista (não só bool) pra dar mensagem de erro específica.
     """
     rows = await pool.fetch(
-        "SELECT id, nome FROM marcas WHERE dono_user_id = $1",
+        "SELECT id, nome FROM arenas WHERE owner_user_id = $1",
         user_id,
     )
     return [dict(r) for r in rows]
 
 
-async def transferir_titularidade(pool: Pool, marca_id: str, novo_dono_user_id: str) -> dict | None:
+async def transferir_titularidade(pool: Pool, arena_id: str, novo_owner_user_id: str) -> dict | None:
     """
-    Atualiza marcas.dono_user_id. Não mexe em admin_vinculos — o dono
+    Atualiza arenas.owner_user_id. Não mexe em memberships — o dono
     antigo mantém o vínculo admin (transferir titularidade ≠ revogar
     acesso, decisão #11 do docs/PERMISSOES_SPEC.md). Quem chama já
-    validou que novo_dono_user_id tem vínculo admin ativo na marca.
+    validou que novo_owner_user_id tem vínculo admin ativo na arena.
     """
     row = await pool.fetchrow(
         """
-        UPDATE marcas SET dono_user_id = $2
+        UPDATE arenas SET owner_user_id = $2
         WHERE id = $1
-        RETURNING id, nome, slug, cor_primaria, tipografia, logo_url, dono_user_id, criado_em
+        RETURNING id, nome, slug, cor_primaria, tipografia, logo_url, owner_user_id, criado_em
         """,
-        marca_id, novo_dono_user_id,
+        arena_id, novo_owner_user_id,
     )
     return dict(row) if row else None
 
 
-async def listar_eventos_da_marca(pool: Pool, marca_id: str) -> list[dict]:
-    """Eventos vinculados a uma marca — para o painel admin."""
+async def listar_events_da_arena(pool: Pool, arena_id: str) -> list[dict]:
+    """Eventos vinculados a uma arena — para o painel admin."""
     rows = await pool.fetch(
         """
         SELECT id, nome, slug, ativo, publico, criado_em
-        FROM eventos
-        WHERE marca_id = $1
+        FROM events
+        WHERE arena_id = $1
         ORDER BY criado_em DESC
         """,
-        marca_id,
+        arena_id,
     )
     return [dict(r) for r in rows]
 
 
-async def listar_com_evento_ativo(pool: Pool) -> list[dict]:
+async def listar_com_event_ativo(pool: Pool) -> list[dict]:
     """
-    Marcas com pelo menos um evento ativo+público — critério de "marca
-    válida" pro seletor da tela inicial quando não há ?evento= na URL
+    Arenas com pelo menos um event ativo+público — critério de "arena
+    válida" pro seletor da tela inicial quando não há ?event= na URL
     (docs/BACKLOG_2026.md §2 item 2.1, ponto cego #2: publico=true, não
     precisa estar dentro da janela de envio). Quem chama resolve, por
-    marca, qual evento oferecer (evento_repo.buscar_evento_envio_atual_
-    da_marca) — não é responsabilidade desta query.
+    arena, qual event oferecer (event_repo.buscar_event_envio_atual_
+    da_arena) — não é responsabilidade desta query.
     """
     rows = await pool.fetch(
         """
         SELECT DISTINCT m.id, m.nome, m.slug, m.logo_url
-        FROM marcas m
-        JOIN eventos e ON e.marca_id = m.id
+        FROM arenas m
+        JOIN events e ON e.arena_id = m.id
         WHERE e.ativo = true AND e.publico = true
         ORDER BY m.nome
         """
@@ -164,15 +164,15 @@ async def listar_com_evento_ativo(pool: Pool) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-async def resolver_identidade_visual(pool: Pool, evento_slug: str) -> dict | None:
+async def resolver_identidade_visual(pool: Pool, event_slug: str) -> dict | None:
     """
-    Resolve cor_primaria/tipografia/logo_url de um evento aplicando a
-    cadeia de herança evento → marca → (None, o frontend usa seu
+    Resolve cor_primaria/tipografia/logo_url de um event aplicando a
+    cadeia de herança event → arena → (None, o frontend usa seu
     próprio default) — numa única query com JOIN (ver docs/MARCAS_SPEC.md
     §3: normalizar em tabela separada não compensa nessa escala, a
     resolução já cabe num único round-trip ao banco).
 
-    Retorna None se o evento não existir.
+    Retorna None se o event não existir.
     """
     row = await pool.fetchrow(
         """
@@ -182,10 +182,10 @@ async def resolver_identidade_visual(pool: Pool, evento_slug: str) -> dict | Non
             COALESCE(e.cor_primaria, m.cor_primaria) AS cor_primaria,
             COALESCE(e.tipografia,   m.tipografia)   AS tipografia,
             COALESCE(e.logo_url,     m.logo_url)     AS logo_url
-        FROM eventos e
-        LEFT JOIN marcas m ON m.id = e.marca_id
+        FROM events e
+        LEFT JOIN arenas m ON m.id = e.arena_id
         WHERE e.slug = $1
         """,
-        evento_slug,
+        event_slug,
     )
     return dict(row) if row else None

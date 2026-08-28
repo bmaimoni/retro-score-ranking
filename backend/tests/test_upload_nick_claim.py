@@ -15,9 +15,9 @@ from main import app
 from utils.db import get_pool
 import auth.service as auth_svc
 
-JOGO_ID     = "550e8400-e29b-41d4-a716-446655440000"
-EVENTO_SLUG = "canal3expo"
-URL         = f"/api/e/{EVENTO_SLUG}/upload"
+GAME_ID     = "550e8400-e29b-41d4-a716-446655440000"
+EVENT_SLUG = "canal3expo"
+URL         = f"/api/e/{EVENT_SLUG}/upload"
 FOTO_URL    = "https://cdn.example.com/foto.jpg"
 
 
@@ -30,9 +30,9 @@ def make_jpeg_bytes():
             b"\xff\xd9")
 
 
-def _evento():
+def _event():
     return {
-        "id": make_uuid(), "nome": "Canal3 Expo", "slug": EVENTO_SLUG,
+        "id": make_uuid(), "nome": "Canal3 Expo", "slug": EVENT_SLUG,
         "ativo": True, "publico": True,
         "data_inicio": datetime.now(timezone.utc) - timedelta(days=1),
         "data_fim":    datetime.now(timezone.utc) + timedelta(days=1),
@@ -44,11 +44,11 @@ def _usuario():
             "nome": "Pessoa", "foto_url": None, "status": "ativo"}
 
 
-def _entrada(user_id=None):
+def _entry(user_id=None):
     return {
-        "id": make_uuid(), "jogo_id": JOGO_ID, "nick": "CAMPEAO", "nome": None,
+        "id": make_uuid(), "game_id": GAME_ID, "nick": "CAMPEAO", "nome": None,
         "pontuacao": 5000, "foto_url": FOTO_URL, "no_ranking": True, "pendente": False,
-        "criado_em": "2026-01-01", "evento_id": make_uuid(), "user_id": user_id,
+        "criado_em": "2026-01-01", "event_id": make_uuid(), "user_id": user_id,
     }
 
 
@@ -76,14 +76,14 @@ def _make_pool(entry):
 
 def _base_patches(entry, extra_nick_claim_patches=None):
     patches = [
-        patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento())),
-        patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)),
-        patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)),
-        patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)),
-        patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)),
-        patch("routers.evento_publico.broker.publish",          AsyncMock()),
-        patch("routers.evento_publico.entrada_repo.inserir",    AsyncMock(return_value=entry)),
-        patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")),
+        patch("routers.event_public.event_repo.buscar_por_slug", AsyncMock(return_value=_event())),
+        patch("routers.event_public.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)),
+        patch("routers.event_public.rl.checar_rate_limit",  AsyncMock(return_value=False)),
+        patch("routers.event_public.score_svc.validar_score", AsyncMock(return_value=None)),
+        patch("routers.event_public.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)),
+        patch("routers.event_public.broker.publish",          AsyncMock()),
+        patch("routers.event_public.entry_repo.inserir",    AsyncMock(return_value=entry)),
+        patch("routers.event_public._slug_from_id",           AsyncMock(return_value="pac-man")),
     ]
     if extra_nick_claim_patches:
         patches.extend(extra_nick_claim_patches)
@@ -110,7 +110,7 @@ def clear_overrides():
 async def test_anonimo_nick_livre_funciona_normal(client):
     """Sem cookie de sessão nenhum — comportamento idêntico a antes da
     autenticação existir, desde que o nick não tenha dono."""
-    entry = _entrada()
+    entry = _entry()
     pool = _make_pool(entry)
     app.dependency_overrides[get_pool] = lambda: pool
 
@@ -119,7 +119,7 @@ async def test_anonimo_nick_livre_funciona_normal(client):
     ])
     with _apply(patches):
         resp = await client.post(URL,
-            data={"nick": "NOVATO", "pontuacao": "5000", "jogo_id": JOGO_ID},
+            data={"nick": "NOVATO", "pontuacao": "5000", "game_id": GAME_ID},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     assert resp.status_code == 201
@@ -129,7 +129,7 @@ async def test_anonimo_nick_livre_funciona_normal(client):
 async def test_anonimo_nick_reivindicado_por_outro_bloqueia_409(client):
     """Nick já pertence a uma conta logada em outro momento — visitante
     anônimo tentando usá-lo recebe 409, com mensagem clara."""
-    entry = _entrada()
+    entry = _entry()
     pool = _make_pool(entry)
     app.dependency_overrides[get_pool] = lambda: pool
 
@@ -139,7 +139,7 @@ async def test_anonimo_nick_reivindicado_por_outro_bloqueia_409(client):
     ])
     with _apply(patches):
         resp = await client.post(URL,
-            data={"nick": "CAMPEAO", "pontuacao": "5000", "jogo_id": JOGO_ID},
+            data={"nick": "CAMPEAO", "pontuacao": "5000", "game_id": GAME_ID},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     assert resp.status_code == 409
@@ -151,30 +151,30 @@ async def test_anonimo_nick_reivindicado_por_outro_bloqueia_409(client):
 @pytest.mark.asyncio
 async def test_logado_nick_livre_e_reivindicado(client):
     usuario = _usuario()
-    entry = _entrada(user_id=usuario["id"])
+    entry = _entry(user_id=usuario["id"])
     pool = _make_pool(entry)
     app.dependency_overrides[get_pool] = lambda: pool
     inserir_mock = AsyncMock(return_value=entry)
 
     client.cookies.set("canal3_session", "sessao-valida")
     patches = [
-        patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento())),
-        patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)),
-        patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)),
-        patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)),
-        patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)),
-        patch("routers.evento_publico.broker.publish",          AsyncMock()),
-        patch("routers.evento_publico.entrada_repo.inserir",    inserir_mock),
-        patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")),
+        patch("routers.event_public.event_repo.buscar_por_slug", AsyncMock(return_value=_event())),
+        patch("routers.event_public.storage.upload_foto",   AsyncMock(return_value=FOTO_URL)),
+        patch("routers.event_public.rl.checar_rate_limit",  AsyncMock(return_value=False)),
+        patch("routers.event_public.score_svc.validar_score", AsyncMock(return_value=None)),
+        patch("routers.event_public.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)),
+        patch("routers.event_public.broker.publish",          AsyncMock()),
+        patch("routers.event_public.entry_repo.inserir",    inserir_mock),
+        patch("routers.event_public._slug_from_id",           AsyncMock(return_value="pac-man")),
         patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)),
         patch("auth.repository.buscar_nick_claim", AsyncMock(return_value=None)),
         patch("auth.repository.nick_ja_foi_reivindicado_alguma_vez", AsyncMock(return_value=False)),
         patch("auth.repository.criar_nick_claim", AsyncMock()),
-        patch("repositories.entrada.vincular_retroativamente", AsyncMock()),
+        patch("repositories.entry.vincular_retroativamente", AsyncMock()),
     ]
     with _apply(patches):
         resp = await client.post(URL,
-            data={"nick": "NOVATO", "pontuacao": "5000", "jogo_id": JOGO_ID},
+            data={"nick": "NOVATO", "pontuacao": "5000", "game_id": GAME_ID},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     assert resp.status_code == 201
@@ -186,7 +186,7 @@ async def test_logado_nick_livre_e_reivindicado(client):
 async def test_logado_nick_de_outro_usuario_bloqueia_409(client):
     usuario = _usuario()
     outro_dono_id = make_uuid()
-    entry = _entrada()
+    entry = _entry()
     pool = _make_pool(entry)
     app.dependency_overrides[get_pool] = lambda: pool
 
@@ -198,7 +198,7 @@ async def test_logado_nick_de_outro_usuario_bloqueia_409(client):
     ])
     with _apply(patches):
         resp = await client.post(URL,
-            data={"nick": "CAMPEAO", "pontuacao": "5000", "jogo_id": JOGO_ID},
+            data={"nick": "CAMPEAO", "pontuacao": "5000", "game_id": GAME_ID},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     assert resp.status_code == 409
@@ -209,7 +209,7 @@ async def test_logado_reenvia_com_proprio_nick_ja_reivindicado_funciona(client):
     """Segunda vez que a mesma pessoa logada envia score com o nick que
     ela mesma já reivindicou antes — segue normal, sem re-reivindicar."""
     usuario = _usuario()
-    entry = _entrada(user_id=usuario["id"])
+    entry = _entry(user_id=usuario["id"])
     pool = _make_pool(entry)
     app.dependency_overrides[get_pool] = lambda: pool
 
@@ -223,7 +223,7 @@ async def test_logado_reenvia_com_proprio_nick_ja_reivindicado_funciona(client):
     ])
     with _apply(patches):
         resp = await client.post(URL,
-            data={"nick": "CAMPEAO", "pontuacao": "5000", "jogo_id": JOGO_ID},
+            data={"nick": "CAMPEAO", "pontuacao": "5000", "game_id": GAME_ID},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     assert resp.status_code == 201
@@ -235,7 +235,7 @@ async def test_sessao_invalida_trata_como_anonimo(client):
     """Cookie presente mas sessão expirada/revogada: sessao_opcional
     retorna None, upload segue como anônimo (não quebra, não bloqueia
     à toa)."""
-    entry = _entrada()
+    entry = _entry()
     pool = _make_pool(entry)
     app.dependency_overrides[get_pool] = lambda: pool
 
@@ -246,7 +246,7 @@ async def test_sessao_invalida_trata_como_anonimo(client):
     ])
     with _apply(patches):
         resp = await client.post(URL,
-            data={"nick": "NOVATO", "pontuacao": "5000", "jogo_id": JOGO_ID},
+            data={"nick": "NOVATO", "pontuacao": "5000", "game_id": GAME_ID},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     assert resp.status_code == 201

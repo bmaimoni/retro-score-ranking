@@ -5,10 +5,10 @@ from pydantic import BaseModel, UUID4, field_validator
 from middleware.auth import require_admin, AdminContext
 from utils.db import get_pool
 from services.sse import broker
-import repositories.entrada as entrada_repo
-import repositories.jogo as jogo_repo
-import repositories.admin_vinculo as admin_vinculo_repo
-import repositories.evento_jogo as evento_jogo_repo
+import repositories.entry as entry_repo
+import repositories.game as game_repo
+import repositories.membership as membership_repo
+import repositories.event_game as event_game_repo
 import repositories.usuario as usuario_repo
 import auth.repository as auth_repo
 import auth.service as auth_svc
@@ -63,49 +63,49 @@ class ForcarTrocaNick(BaseModel):
     novo_nick: str
 
 
-async def _resolver_evento_ids_admin(
-    pool, admin: AdminContext, evento_id: str | None,
+async def _resolver_event_ids_admin(
+    pool, admin: AdminContext, event_id: str | None,
 ) -> list[str] | None:
     """
-    Resolve a lista de evento_ids pra filtrar o feed (pendentes é só
+    Resolve a lista de event_ids pra filtrar o feed (pendentes é só
     mais um status dentro dele, não uma rota separada — ver /feed),
     conforme o escopo do admin (docs/MARCAS_SPEC.md §6, "efeito
     colateral necessário"):
-      - super-admin: evento_id é opcional. Informado → filtra só nele;
+      - super-admin: event_id é opcional. Informado → filtra só nele;
         ausente → vê tudo (comportamento de sempre, sem quebra pra quem
         já usa o token ADMIN_SECRET hoje).
-      - admin escopado (marca/evento, via sessão): evento_id é
+      - admin escopado (arena/event, via sessão): event_id é
         OBRIGATÓRIO (400 se ausente) e precisa estar dentro do escopo
         dele (403 se não estiver — nunca vaza dado de fora do escopo).
     """
     if admin.super:
-        return [evento_id] if evento_id else None
+        return [event_id] if event_id else None
 
-    if not evento_id:
+    if not event_id:
         raise HTTPException(
             status_code=400,
-            detail="evento_id é obrigatório para administradores não-super",
+            detail="event_id é obrigatório para administradores não-super",
         )
 
-    tem_acesso = await admin_vinculo_repo.tem_acesso_evento(pool, admin.user_id, evento_id)
+    tem_acesso = await membership_repo.tem_acesso_event(pool, admin.user_id, event_id)
     if not tem_acesso:
-        raise HTTPException(status_code=403, detail="Sem acesso a este evento")
+        raise HTTPException(status_code=403, detail="Sem acesso a este event")
 
-    return [evento_id]
+    return [event_id]
 
 
 # ── FEED ──────────────────────────────────────────────────────────────────────
 
 @router.get("/feed")
-async def feed_entradas(
+async def feed_entries(
     response: Response,
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
-    evento_id: str | None = Query(default=None),
+    event_id: str | None = Query(default=None),
     status: Literal["todos", "visiveis", "ocultos", "pendentes"] | None = Query(default=None),
     data_de: date | None = Query(default=None),
     data_ate: date | None = Query(default=None),
-    jogo_id: str | None = Query(default=None),
+    game_id: str | None = Query(default=None),
     sem_foto: bool = Query(default=False),
     sem_identificacao: bool = Query(default=False),
     busca: str | None = Query(default=None),
@@ -113,26 +113,26 @@ async def feed_entradas(
     admin: AdminContext = Depends(require_admin),
 ):
     """
-    Feed de todas as entradas recentes, incluindo ocultas e pendentes.
+    Feed de todas as entries recentes, incluindo ocultas e pendentes.
     Total de registros disponível no header X-Total-Count, para o
     frontend montar controles de paginação real (ver docs/EVENTOS_SPEC.md §5).
 
-    evento_id: opcional para super-admin (ausente = vê tudo, como
-    sempre); obrigatório para admin escopado por marca/evento — ver
+    event_id: opcional para super-admin (ausente = vê tudo, como
+    sempre); obrigatório para admin escopado por arena/event — ver
     docs/MARCAS_SPEC.md §6.
 
     Filtros combináveis (docs/BACKLOG_2026.md §4.1): status (visibilidade),
-    data_de/data_ate, jogo_id, sem_foto, sem_identificacao — mais busca
-    (item 4.4) sobre nick/jogo/evento. Todos opcionais, aplicáveis juntos.
+    data_de/data_ate, game_id, sem_foto, sem_identificacao — mais busca
+    (item 4.4) sobre nick/game/event. Todos opcionais, aplicáveis juntos.
     """
-    evento_ids = await _resolver_evento_ids_admin(pool, admin, evento_id)
+    event_ids = await _resolver_event_ids_admin(pool, admin, event_id)
     filtros = dict(
-        evento_ids=evento_ids, status=status, data_de=data_de, data_ate=data_ate,
-        jogo_id=jogo_id, sem_foto=sem_foto, sem_identificacao=sem_identificacao, busca=busca,
+        event_ids=event_ids, status=status, data_de=data_de, data_ate=data_ate,
+        game_id=game_id, sem_foto=sem_foto, sem_identificacao=sem_identificacao, busca=busca,
     )
-    total = await entrada_repo.contar_feed_admin(pool, **filtros)
+    total = await entry_repo.contar_feed_admin(pool, **filtros)
     response.headers["X-Total-Count"] = str(total)
-    return await entrada_repo.listar_feed_admin(pool, limit=limit, offset=offset, **filtros)
+    return await entry_repo.listar_feed_admin(pool, limit=limit, offset=offset, **filtros)
 
 
 # ── IDENTIDADE DO ADMIN LOGADO ─────────────────────────────────────────────────
@@ -142,134 +142,134 @@ async def quem_sou_eu(pool=Depends(get_pool), admin: AdminContext = Depends(requ
     """
     Identidade e escopo do admin autenticado nesta requisição — usado
     pelo frontend logo após o login pra saber se é super-admin (vê
-    tudo, sem seletor de evento) ou admin escopado (precisa escolher
-    entre os eventos que ele tem acesso). Cada evento em `eventos` já
-    carrega `nivel` (admin/moderador); `vinculos` traz o mesmo nível por
-    marca_id direto (cobre marca sem evento nenhum ainda, que não
-    apareceria em `eventos`) — o frontend usa isso pra esconder ações
+    tudo, sem seletor de event) ou admin escopado (precisa escolher
+    entre os events que ele tem acesso). Cada event em `events` já
+    carrega `role` (admin/moderador); `vinculos` traz o mesmo nível por
+    arena_id direto (cobre arena sem event nenhum ainda, que não
+    apareceria em `events`) — o frontend usa isso pra esconder ações
     que o nível atual não permite (docs/PERMISSOES_SPEC.md §7 item 5).
     """
     if admin.super:
-        return {"identificador": admin.identificador, "super": True, "eventos": [], "vinculos": []}
+        return {"identificador": admin.identificador, "super": True, "events": [], "vinculos": []}
 
-    eventos = await admin_vinculo_repo.listar_eventos_acessiveis_detalhado(pool, admin.user_id)
+    events = await membership_repo.listar_events_acessiveis_detalhado(pool, admin.user_id)
     return {
         "identificador": admin.identificador, "super": False,
-        "eventos": eventos, "vinculos": admin.vinculos,
+        "events": events, "vinculos": admin.vinculos,
     }
 
 
-# ── MODERAÇÃO DE ENTRADAS ─────────────────────────────────────────────────────
+# ── MODERAÇÃO DE ENTRIES ─────────────────────────────────────────────────────
 
-@router.patch("/entradas/{entrada_id}")
-async def moderar_entrada(
-    entrada_id: UUID4,
+@router.patch("/entries/{entry_id}")
+async def moderar_entry(
+    entry_id: UUID4,
     body: AtualizarVisibilidade,
     pool=Depends(get_pool),
     moderador: AdminContext = Depends(require_admin),
 ):
     """
-    Oculta (no_ranking=false) ou reativa (no_ranking=true) uma entrada.
+    Oculta (no_ranking=false) ou reativa (no_ranking=true) uma entry.
     A foto nunca é deletada — evidência sempre preservada.
-    Emite evento SSE para os clientes do ranking.
+    Emite event SSE para os clientes do ranking.
     """
-    entrada = await entrada_repo.atualizar_visibilidade(
-        pool, str(entrada_id), body.no_ranking, moderador.identificador
+    entry = await entry_repo.atualizar_visibilidade(
+        pool, str(entry_id), body.no_ranking, moderador.identificador
     )
-    if not entrada:
+    if not entry:
         raise HTTPException(status_code=404, detail="Entrada não encontrada")
 
     # Busca o slug para o SSE
-    row = await pool.fetchrow("SELECT slug FROM jogos WHERE id = $1", entrada["jogo_id"])
-    slug = row["slug"] if row else str(entrada["jogo_id"])
+    row = await pool.fetchrow("SELECT slug FROM games WHERE id = $1", entry["game_id"])
+    slug = row["slug"] if row else str(entry["game_id"])
 
     if body.no_ranking:
         await broker.publish(slug, "reativar", {
-            "id": str(entrada_id),
-            "entrada": {
-                "id":        str(entrada["id"]),
-                "nick":      entrada["nick"],
-                "pontuacao": entrada["pontuacao"],
-                "foto_url":  entrada["foto_url"],
+            "id": str(entry_id),
+            "entry": {
+                "id":        str(entry["id"]),
+                "nick":      entry["nick"],
+                "pontuacao": entry["pontuacao"],
+                "foto_url":  entry["foto_url"],
             }
         })
     else:
-        await broker.publish(slug, "ocultar", {"id": str(entrada_id)})
+        await broker.publish(slug, "ocultar", {"id": str(entry_id)})
 
     log.info(
         "moderacao",
-        entrada_id=str(entrada_id),
+        entry_id=str(entry_id),
         no_ranking=body.no_ranking,
         moderador=moderador.identificador,
     )
 
-    return entrada
+    return entry
 
 
-@router.patch("/entradas/{entrada_id}/pendente")
+@router.patch("/entries/{entry_id}/pendente")
 async def resolver_pendente(
-    entrada_id: UUID4,
+    entry_id: UUID4,
     body: ResolverPendente,
     pool=Depends(get_pool),
     moderador: AdminContext = Depends(require_admin),
 ):
     """
-    Resolve uma entrada pendente:
+    Resolve uma entry pendente:
     - aprovar=true  → pendente=false, no_ranking=true  (aparece no ranking)
     - aprovar=false → pendente=false, no_ranking=false (fica oculta)
     """
-    entrada = await entrada_repo.resolver_pendente(
-        pool, str(entrada_id), body.aprovar, moderador.identificador
+    entry = await entry_repo.resolver_pendente(
+        pool, str(entry_id), body.aprovar, moderador.identificador
     )
-    if not entrada:
+    if not entry:
         raise HTTPException(status_code=404, detail="Entrada não encontrada")
 
     if body.aprovar:
-        row = await pool.fetchrow("SELECT slug FROM jogos WHERE id = $1", entrada["jogo_id"])
-        slug = row["slug"] if row else str(entrada["jogo_id"])
+        row = await pool.fetchrow("SELECT slug FROM games WHERE id = $1", entry["game_id"])
+        slug = row["slug"] if row else str(entry["game_id"])
         await broker.publish(slug, "novo_registro", {
-            "id":        str(entrada["id"]),
-            "nick":      entrada["nick"],
-            "pontuacao": entrada["pontuacao"],
-            "foto_url":  entrada["foto_url"],
-            "criado_em": str(entrada["criado_em"]),
+            "id":        str(entry["id"]),
+            "nick":      entry["nick"],
+            "pontuacao": entry["pontuacao"],
+            "foto_url":  entry["foto_url"],
+            "criado_em": str(entry["criado_em"]),
         })
 
     log.info(
         "pendente_resolvido",
-        entrada_id=str(entrada_id),
+        entry_id=str(entry_id),
         aprovado=body.aprovar,
         moderador=moderador.identificador,
     )
 
-    return entrada
+    return entry
 
 
-# ── GESTÃO DE JOGOS ───────────────────────────────────────────────────────────
+# ── GESTÃO DE GAMES ───────────────────────────────────────────────────────────
 
-@router.post("/jogos", status_code=201)
-async def criar_jogo(
+@router.post("/games", status_code=201)
+async def criar_game(
     body: CriarJogo,
     pool=Depends(get_pool),
     admin: AdminContext = Depends(require_admin),
 ):
     """
-    Cria um novo jogo. Moderador nunca cria jogo — decisão #1 do
+    Cria um novo game. Moderador nunca cria game — decisão #1 do
     docs/PERMISSOES_SPEC.md (a primeira versão do backlog dizia o
     contrário; corrigido). Admin não-super: nasce pendente_aprovacao=true
     (fora do catálogo/placar geral até um super-admin aprovar), mas já
-    é auto-vinculado aos eventos que esse admin tem acesso — utilizável
+    é auto-vinculado aos events que esse admin tem acesso — utilizável
     imediatamente ali. Super-admin: comportamento de sempre, aprovado
     direto. Ver docs/SPEC.md §10 / migration 018.
     """
-    if not admin.super and not any(v["nivel"] == "admin" for v in admin.vinculos):
+    if not admin.super and not any(v["role"] == "admin" for v in admin.vinculos):
         raise HTTPException(
             status_code=403,
-            detail="Moderador não pode criar jogos — só admin ou super-admin",
+            detail="Moderador não pode criar games — só admin ou super-admin",
         )
 
     try:
-        jogo = await jogo_repo.criar(
+        game = await game_repo.criar(
             pool, body.nome, body.slug, body.score_max,
             pendente_aprovacao=not admin.super,
             criado_por=admin.identificador,
@@ -281,123 +281,123 @@ async def criar_jogo(
     except Exception as exc:
         if "unique" in str(exc).lower():
             raise HTTPException(status_code=409, detail=f"Slug '{body.slug}' já existe")
-        raise HTTPException(status_code=500, detail="Erro ao criar jogo")
+        raise HTTPException(status_code=500, detail="Erro ao criar game")
 
     if not admin.super and admin.user_id:
-        eventos_ids = await admin_vinculo_repo.listar_eventos_acessiveis(pool, admin.user_id)
-        for evento_id in eventos_ids:
-            await evento_jogo_repo.adicionar(pool, evento_id, str(jogo["id"]))
+        events_ids = await membership_repo.listar_events_acessiveis(pool, admin.user_id)
+        for event_id in events_ids:
+            await event_game_repo.adicionar(pool, event_id, str(game["id"]))
 
-    return jogo
+    return game
 
 
-@router.patch("/jogos/{jogo_id}")
-async def atualizar_jogo(
-    jogo_id: UUID4,
+@router.patch("/games/{game_id}")
+async def atualizar_game(
+    game_id: UUID4,
     body: AtualizarJogo,
     pool=Depends(get_pool),
     admin: AdminContext = Depends(require_admin),
 ):
-    """Ativa/desativa um jogo ou atualiza seu score_max. Mesma regra de
-    criar_jogo — moderador nunca edita jogo (decisão #1 do
+    """Ativa/desativa um game ou atualiza seu score_max. Mesma regra de
+    criar_game — moderador nunca edita game (decisão #1 do
     docs/PERMISSOES_SPEC.md), achado incidental: este endpoint não
     tinha checagem nenhuma além de estar autenticado."""
-    if not admin.super and not any(v["nivel"] == "admin" for v in admin.vinculos):
+    if not admin.super and not any(v["role"] == "admin" for v in admin.vinculos):
         raise HTTPException(
             status_code=403,
-            detail="Moderador não pode editar jogos — só admin ou super-admin",
+            detail="Moderador não pode editar games — só admin ou super-admin",
         )
 
-    jogo = await jogo_repo.atualizar(
-        pool, str(jogo_id), body.ativo, body.score_max,
+    game = await game_repo.atualizar(
+        pool, str(game_id), body.ativo, body.score_max,
         plataforma=body.plataforma, ano_lancamento=body.ano_lancamento,
         capa_url=body.capa_url, gameplay_url=body.gameplay_url,
     )
-    if not jogo:
+    if not game:
         raise HTTPException(status_code=404, detail="Jogo não encontrado ou nada para atualizar")
-    return jogo
+    return game
 
-@router.get("/jogos-todos")
-async def listar_jogos_todos(
+@router.get("/games-todos")
+async def listar_games_todos(
     pool=Depends(get_pool),
     _: str = Depends(require_admin),
 ):
-    """Lista todos os jogos incluindo inativos — para o painel admin."""
-    return await jogo_repo.listar_todos(pool)
+    """Lista todos os games incluindo inativos — para o painel admin."""
+    return await game_repo.listar_todos(pool)
 
 
-def _exigir_super_jogos(admin: AdminContext):
+def _exigir_super_games(admin: AdminContext):
     if not admin.super:
         raise HTTPException(
             status_code=403,
-            detail="Só super-admin pode revisar jogos pendentes de aprovação",
+            detail="Só super-admin pode revisar games pendentes de aprovação",
         )
 
 
-@router.get("/jogos/pendentes")
-async def listar_jogos_pendentes(
+@router.get("/games/pendentes")
+async def listar_games_pendentes(
     pool=Depends(get_pool),
     admin: AdminContext = Depends(require_admin),
 ):
-    """Jogos criados por admin não-super, aguardando aprovação pro
+    """Games criados por admin não-super, aguardando aprovação pro
     catálogo geral — só super-admin revisa (ver migration 018)."""
-    _exigir_super_jogos(admin)
-    return await jogo_repo.listar_pendentes_aprovacao(pool)
+    _exigir_super_games(admin)
+    return await game_repo.listar_pendentes_aprovacao(pool)
 
 
-@router.patch("/jogos/{jogo_id}/aprovar")
-async def aprovar_jogo(
-    jogo_id: UUID4,
+@router.patch("/games/{game_id}/aprovar")
+async def aprovar_game(
+    game_id: UUID4,
     pool=Depends(get_pool),
     admin: AdminContext = Depends(require_admin),
 ):
-    """Aprova um jogo pendente pro catálogo geral — as entradas já
+    """Aprova um game pendente pro catálogo geral — as entries já
     enviadas entram retroativamente, sem precisar tocar nelas."""
-    _exigir_super_jogos(admin)
-    jogo = await jogo_repo.aprovar(pool, str(jogo_id))
-    if not jogo:
+    _exigir_super_games(admin)
+    game = await game_repo.aprovar(pool, str(game_id))
+    if not game:
         raise HTTPException(status_code=404, detail="Jogo não encontrado ou já não está pendente")
-    return jogo
+    return game
 
 
 class MesclarJogo(BaseModel):
-    jogo_destino_id: UUID4
+    game_destino_id: UUID4
 
 
-@router.post("/jogos/{jogo_id}/mesclar")
-async def mesclar_jogo(
-    jogo_id: UUID4,
+@router.post("/games/{game_id}/mesclar")
+async def mesclar_game(
+    game_id: UUID4,
     body: MesclarJogo,
     pool=Depends(get_pool),
     admin: AdminContext = Depends(require_admin),
 ):
     """
-    Mescla jogo_id (origem, geralmente um pendente identificado como
-    duplicata) em jogo_destino_id (o jogo já existente de verdade).
-    Migra entradas e vínculos de evento, arquiva a origem mantendo o
+    Mescla game_id (origem, geralmente um pendente identificado como
+    duplicata) em game_destino_id (o game já existente de verdade).
+    Migra entries e vínculos de event, arquiva a origem mantendo o
     rastro — nunca apaga nada.
     """
-    _exigir_super_jogos(admin)
+    _exigir_super_games(admin)
 
-    if str(jogo_id) == str(body.jogo_destino_id):
-        raise HTTPException(status_code=422, detail="jogo_destino_id não pode ser igual ao jogo de origem")
+    if str(game_id) == str(body.game_destino_id):
+        raise HTTPException(status_code=422, detail="game_destino_id não pode ser igual ao game de origem")
 
-    origem_existe = await pool.fetchval("SELECT 1 FROM jogos WHERE id = $1", str(jogo_id))
-    destino_existe = await pool.fetchval("SELECT 1 FROM jogos WHERE id = $1", str(body.jogo_destino_id))
+    origem_existe = await pool.fetchval("SELECT 1 FROM games WHERE id = $1", str(game_id))
+    destino_existe = await pool.fetchval("SELECT 1 FROM games WHERE id = $1", str(body.game_destino_id))
     if not origem_existe or not destino_existe:
         raise HTTPException(status_code=404, detail="Jogo de origem ou destino não encontrado")
 
     async with pool.acquire() as conn:
         async with conn.transaction():
-            resultado = await jogo_repo.mesclar(conn, str(jogo_id), str(body.jogo_destino_id))
+            resultado = await game_repo.mesclar(conn, str(game_id), str(body.game_destino_id))
 
-    log.info("jogo_mesclado", origem=str(jogo_id), destino=str(body.jogo_destino_id), admin=admin.identificador)
+    log.info("game_mesclado", origem=str(game_id), destino=str(body.game_destino_id), admin=admin.identificador)
     return resultado
 
 
-# ── CONFIGURAÇÃO DO EVENTO ────────────────────────────────────────────────────
+# ── CONFIGURAÇÃO DO EVENT ────────────────────────────────────────────────────
 
-import repositories.evento_config as config_repo
+import repositories.event_config as config_repo
 
 class AtualizarConfig(BaseModel):
     valor: str
@@ -407,7 +407,7 @@ async def listar_config(
     pool=Depends(get_pool),
     _: str = Depends(require_admin),
 ):
-    """Lista todas as configurações do evento."""
+    """Lista todas as configurações do event."""
     return await config_repo.listar(pool)
 
 
@@ -428,22 +428,22 @@ async def atualizar_config(
 # ── MANUTENÇÃO DE RANKINGS ────────────────────────────────────────────────────
 
 class LimparRankingBody(BaseModel):
-    jogo_id: str | None = None        # None = todos os jogos
+    game_id: str | None = None        # None = todos os games
     permanente: bool = False           # False = soft delete, True = DELETE físico
     confirmar: str = ""               # deve ser "CONFIRMAR" para prosseguir
 
 
 def _exigir_super_manutencao(admin: AdminContext):
-    """Limpar/restaurar ranking não tem filtro de marca/evento no corpo
-    da requisição — afeta um jogo (ou TODOS os jogos, de TODAS as
-    marcas) de uma vez. Sem um redesenho que escope por marca, é
+    """Limpar/restaurar ranking não tem filtro de arena/event no corpo
+    da requisição — afeta um game (ou TODOS os games, de TODAS as
+    arenas) de uma vez. Sem um redesenho que escope por arena, é
     ação exclusiva de super-admin (achado incidental, não coberto pela
     tabela de decisões do docs/PERMISSOES_SPEC.md — 'manutenção' não é
     'moderar feed')."""
     if not admin.super:
         raise HTTPException(
             status_code=403,
-            detail="Só super-admin pode limpar ou restaurar ranking — afeta todas as marcas de uma vez",
+            detail="Só super-admin pode limpar ou restaurar ranking — afeta todas as arenas de uma vez",
         )
 
 
@@ -454,7 +454,7 @@ async def limpar_ranking(
     moderador: AdminContext = Depends(require_admin),
 ):
     """
-    Limpa entradas de um jogo ou de todos os jogos.
+    Limpa entries de um game ou de todos os games.
     - permanente=False → soft delete (arquivado=true), reversível
     - permanente=True  → DELETE físico, irreversível
     Exige confirmar="CONFIRMAR" para prosseguir.
@@ -464,36 +464,36 @@ async def limpar_ranking(
         raise HTTPException(status_code=400, detail="Envie confirmar='CONFIRMAR' para prosseguir")
 
     if body.permanente:
-        if body.jogo_id:
+        if body.game_id:
             count = await pool.fetchval(
-                "SELECT COUNT(*) FROM entradas WHERE jogo_id = $1", body.jogo_id
+                "SELECT COUNT(*) FROM entries WHERE game_id = $1", body.game_id
             )
-            await pool.execute("DELETE FROM entradas WHERE jogo_id = $1", body.jogo_id)
+            await pool.execute("DELETE FROM entries WHERE game_id = $1", body.game_id)
         else:
-            count = await pool.fetchval("SELECT COUNT(*) FROM entradas")
-            await pool.execute("DELETE FROM entradas")
-        log.warning("ranking_limpo_permanente", jogo_id=body.jogo_id, total=count, moderador=moderador.identificador)
+            count = await pool.fetchval("SELECT COUNT(*) FROM entries")
+            await pool.execute("DELETE FROM entries")
+        log.warning("ranking_limpo_permanente", game_id=body.game_id, total=count, moderador=moderador.identificador)
     else:
-        if body.jogo_id:
+        if body.game_id:
             count = await pool.fetchval(
-                "SELECT COUNT(*) FROM entradas WHERE jogo_id = $1 AND arquivado = false",
-                body.jogo_id
+                "SELECT COUNT(*) FROM entries WHERE game_id = $1 AND arquivado = false",
+                body.game_id
             )
             await pool.execute(
-                """UPDATE entradas SET arquivado = true, arquivado_em = now(), arquivado_por = $1
-                   WHERE jogo_id = $2 AND arquivado = false""",
-                moderador.identificador, body.jogo_id
+                """UPDATE entries SET arquivado = true, arquivado_em = now(), arquivado_por = $1
+                   WHERE game_id = $2 AND arquivado = false""",
+                moderador.identificador, body.game_id
             )
         else:
             count = await pool.fetchval(
-                "SELECT COUNT(*) FROM entradas WHERE arquivado = false"
+                "SELECT COUNT(*) FROM entries WHERE arquivado = false"
             )
             await pool.execute(
-                """UPDATE entradas SET arquivado = true, arquivado_em = now(), arquivado_por = $1
+                """UPDATE entries SET arquivado = true, arquivado_em = now(), arquivado_por = $1
                    WHERE arquivado = false""",
                 moderador.identificador
             )
-        log.warning("ranking_arquivado", jogo_id=body.jogo_id, total=count, moderador=moderador.identificador)
+        log.warning("ranking_arquivado", game_id=body.game_id, total=count, moderador=moderador.identificador)
 
     return {"ok": True, "total_afetadas": count, "permanente": body.permanente}
 
@@ -504,27 +504,27 @@ async def restaurar_ranking(
     pool=Depends(get_pool),
     moderador: AdminContext = Depends(require_admin),
 ):
-    """Restaura entradas arquivadas de um jogo ou de todos."""
+    """Restaura entries arquivadas de um game ou de todos."""
     _exigir_super_manutencao(moderador)
     if body.confirmar != "CONFIRMAR":
         raise HTTPException(status_code=400, detail="Envie confirmar='CONFIRMAR' para prosseguir")
 
-    if body.jogo_id:
+    if body.game_id:
         count = await pool.fetchval(
-            "SELECT COUNT(*) FROM entradas WHERE jogo_id = $1 AND arquivado = true",
-            body.jogo_id
+            "SELECT COUNT(*) FROM entries WHERE game_id = $1 AND arquivado = true",
+            body.game_id
         )
         await pool.execute(
-            "UPDATE entradas SET arquivado = false, arquivado_em = null, arquivado_por = null WHERE jogo_id = $1 AND arquivado = true",
-            body.jogo_id
+            "UPDATE entries SET arquivado = false, arquivado_em = null, arquivado_por = null WHERE game_id = $1 AND arquivado = true",
+            body.game_id
         )
     else:
-        count = await pool.fetchval("SELECT COUNT(*) FROM entradas WHERE arquivado = true")
+        count = await pool.fetchval("SELECT COUNT(*) FROM entries WHERE arquivado = true")
         await pool.execute(
-            "UPDATE entradas SET arquivado = false, arquivado_em = null, arquivado_por = null WHERE arquivado = true"
+            "UPDATE entries SET arquivado = false, arquivado_em = null, arquivado_por = null WHERE arquivado = true"
         )
 
-    log.info("ranking_restaurado", jogo_id=body.jogo_id, total=count, moderador=moderador.identificador)
+    log.info("ranking_restaurado", game_id=body.game_id, total=count, moderador=moderador.identificador)
     return {"ok": True, "total_restauradas": count}
 
 
@@ -537,7 +537,7 @@ async def historico_nicks(
     _: AdminContext = Depends(require_admin),
 ):
     """Histórico de nicks do usuário — decisão #4: painel de moderação
-    mostra o histórico completo, não só o nick da entrada isolada
+    mostra o histórico completo, não só o nick da entry isolada
     sendo revisada."""
     return await auth_repo.listar_historico_nicks(pool, user_id)
 
@@ -585,7 +585,7 @@ async def forcar_troca_nick(
 
 def _exigir_super_exclusao(admin: AdminContext):
     """Exclusão de conta é LGPD-sensível e atravessa a plataforma
-    inteira (usuário não é escopado por marca) — exclusivo de super,
+    inteira (usuário não é escopado por arena) — exclusivo de super,
     mesma régua de manutenção de ranking."""
     if not admin.super:
         raise HTTPException(status_code=403, detail="Só super-admin gerencia exclusão de conta")
@@ -614,8 +614,8 @@ async def processar_exclusao(
 ):
     """
     Dispara a anonimização de verdade — bloqueado se ainda dentro da
-    janela de 30 dias, ou se a pessoa virou dono_user_id de alguma
-    marca depois de solicitar (checagem repetida aqui, não só na
+    janela de 30 dias, ou se a pessoa virou owner_user_id de alguma
+    arena depois de solicitar (checagem repetida aqui, não só na
     solicitação).
     """
     _exigir_super_exclusao(admin)

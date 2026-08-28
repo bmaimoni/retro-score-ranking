@@ -1,6 +1,6 @@
 """
 Smoke tests: tela de ranking (ranking.html)
-Cobrem: carregamento, abas por jogo, SSE conectado, tema aplicado.
+Cobrem: carregamento, abas por game, SSE conectado, tema aplicado.
 """
 import pytest
 from playwright.sync_api import Page, expect
@@ -17,7 +17,7 @@ def test_pagina_ranking_carrega(page: Page, base_url: str):
     expect(page.locator(".ranking-header")).to_be_visible(timeout=DEFAULT_TIMEOUT)
 
 
-def test_abas_de_jogo_aparecem(page: Page, base_url: str):
+def test_abas_de_game_aparecem(page: Page, base_url: str):
     page.goto(f"{base_url}/ranking.html")
     expect(page.locator(".game-tab").first).to_be_visible(timeout=DEFAULT_TIMEOUT)
     assert page.locator(".game-tab").count() >= 1
@@ -37,24 +37,24 @@ def test_indicador_sse_aparece(page: Page, base_url: str):
     expect(page.locator(".connection-dot")).to_be_visible()
 
 
-def test_trocar_aba_atualiza_jogo_exibido(page: Page, base_url: str):
-    """Clicar em outra aba deve mudar o jogo exibido no header."""
+def test_trocar_aba_atualiza_game_exibido(page: Page, base_url: str):
+    """Clicar em outra aba deve mudar o game exibido no header."""
     page.goto(f"{base_url}/ranking.html")
     abas = page.locator(".game-tab")
     abas.first.wait_for(timeout=DEFAULT_TIMEOUT)
 
     if abas.count() < 2:
-        pytest.skip("Necessário ao menos 2 jogos para este teste")
+        pytest.skip("Necessário ao menos 2 games para este teste")
 
-    nome_antes = page.locator("#jogo-nome").inner_text()
+    nome_antes = page.locator("#game-nome").inner_text()
     abas.nth(1).click()
     page.wait_for_timeout(1_000)
-    nome_depois = page.locator("#jogo-nome").inner_text()
+    nome_depois = page.locator("#game-nome").inner_text()
     assert nome_antes != nome_depois
 
 
-def test_ranking_exibe_cards_se_houver_entradas(page: Page, base_url: str):
-    """Se houver entradas no ranking, deve exibir pelo menos um card."""
+def test_ranking_exibe_cards_se_houver_entries(page: Page, base_url: str):
+    """Se houver entries no ranking, deve exibir pelo menos um card."""
     page.goto(f"{base_url}/ranking.html")
     page.locator(".game-tab").first.wait_for(timeout=DEFAULT_TIMEOUT)
     page.wait_for_timeout(2_000)
@@ -66,24 +66,24 @@ def test_ranking_exibe_cards_se_houver_entradas(page: Page, base_url: str):
     assert cards.count() > 0 or empty.is_visible()
 
 
-def test_parametro_jogo_na_url_seleciona_aba_correta(page: Page, base_url: str, api_url: str):
-    """?jogo=slug deve selecionar a aba correta ao carregar."""
+def test_parametro_game_na_url_seleciona_aba_correta(page: Page, base_url: str, api_url: str):
+    """?game=slug deve selecionar a aba correta ao carregar."""
     import httpx
     try:
-        jogos = httpx.get(f"{api_url}/api/jogos", timeout=10).json()
+        games = httpx.get(f"{api_url}/api/games", timeout=10).json()
     except Exception:
         pytest.skip("API indisponível")
 
-    if len(jogos) < 2:
-        pytest.skip("Necessário ao menos 2 jogos")
+    if len(games) < 2:
+        pytest.skip("Necessário ao menos 2 games")
 
-    segundo_jogo = jogos[1]
-    page.goto(f"{base_url}/ranking.html?jogo={segundo_jogo['slug']}")
+    segundo_game = games[1]
+    page.goto(f"{base_url}/ranking.html?game={segundo_game['slug']}")
     page.locator(".game-tab").first.wait_for(timeout=DEFAULT_TIMEOUT)
     page.wait_for_timeout(1_000)
 
-    nome_exibido = page.locator("#jogo-nome").inner_text()
-    assert segundo_jogo["nome"].lower() in nome_exibido.lower()
+    nome_exibido = page.locator("#game-nome").inner_text()
+    assert segundo_game["nome"].lower() in nome_exibido.lower()
 
 
 def test_footer_tem_url_de_upload(page: Page, base_url: str):

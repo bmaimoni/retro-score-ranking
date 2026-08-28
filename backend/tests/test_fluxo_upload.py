@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from main import app
 from utils.db import get_pool
 
-JOGO_ID = "550e8400-e29b-41d4-a716-446655440000"
+GAME_ID = "550e8400-e29b-41d4-a716-446655440000"
 URL     = "/api/e/canal3expo/upload"
 
 
@@ -17,7 +17,7 @@ def make_uuid():
     return str(uuid.uuid4())
 
 
-def _evento_ok():
+def _event_ok():
     """Evento aberto: publico=true e dentro da janela de envio."""
     return {
         "id": make_uuid(), "nome": "Canal3 Expo", "slug": "canal3expo",
@@ -32,10 +32,10 @@ def make_jpeg_bytes():
             b"\xff\xd9")
 
 
-def _entrada(nick="P1", pontuacao=5000, pendente=False,
+def _entry(nick="P1", pontuacao=5000, pendente=False,
              no_ranking=True, foto_url="https://cdn/f.jpg"):
     return {
-        "id": make_uuid(), "jogo_id": JOGO_ID, "nick": nick,
+        "id": make_uuid(), "game_id": GAME_ID, "nick": nick,
         "pontuacao": pontuacao, "foto_url": foto_url,
         "no_ranking": no_ranking, "pendente": pendente,
         "superado": False, "criado_em": "2024-01-01",
@@ -74,23 +74,23 @@ def clear_overrides():
 
 @pytest.mark.asyncio
 async def test_upload_com_foto_entra_direto_no_ranking(client):
-    entry = _entrada()
+    entry = _entry()
     pool  = _make_pool(entry)
     broker = AsyncMock()
 
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("routers.evento_publico.storage.upload_foto",  AsyncMock(return_value="https://cdn/f.jpg")), \
-         patch("routers.evento_publico.rl.checar_rate_limit", AsyncMock(return_value=False)), \
-         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
-         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
-         patch("routers.evento_publico.broker.publish",        broker), \
-         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
-         patch("routers.evento_publico.entrada_repo.inserir",  AsyncMock(return_value=entry)), \
-         patch("routers.evento_publico._slug_from_id",         AsyncMock(return_value="pac-man")), \
-         patch("routers.evento_publico.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
+    with patch("routers.event_public.storage.upload_foto",  AsyncMock(return_value="https://cdn/f.jpg")), \
+         patch("routers.event_public.rl.checar_rate_limit", AsyncMock(return_value=False)), \
+         patch("routers.event_public.score_svc.validar_score", AsyncMock(return_value=None)), \
+         patch("routers.event_public.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+         patch("routers.event_public.broker.publish",        broker), \
+         patch("routers.event_public.event_repo.buscar_por_slug", AsyncMock(return_value=_event_ok())), \
+         patch("routers.event_public.entry_repo.inserir",  AsyncMock(return_value=entry)), \
+         patch("routers.event_public._slug_from_id",         AsyncMock(return_value="pac-man")), \
+         patch("routers.event_public.game_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
         resp = await client.post(URL,
-            data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
+            data={"nick": "P1", "pontuacao": "5000", "game_id": GAME_ID},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     assert resp.status_code == 201
@@ -100,21 +100,21 @@ async def test_upload_com_foto_entra_direto_no_ranking(client):
 
 @pytest.mark.asyncio
 async def test_upload_sem_foto_vai_para_moderacao(client):
-    entry  = _entrada(pendente=True, no_ranking=False, foto_url=None)
+    entry  = _entry(pendente=True, no_ranking=False, foto_url=None)
     pool   = _make_pool(entry)
     broker = AsyncMock()
 
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
-         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
-         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
-         patch("routers.evento_publico.broker.publish",          broker), \
-         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
-         patch("routers.evento_publico.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
-         patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")):
+    with patch("routers.event_public.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+         patch("routers.event_public.score_svc.validar_score", AsyncMock(return_value=None)), \
+         patch("routers.event_public.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+         patch("routers.event_public.broker.publish",          broker), \
+         patch("routers.event_public.event_repo.buscar_por_slug", AsyncMock(return_value=_event_ok())), \
+         patch("routers.event_public.entry_repo.inserir",    AsyncMock(return_value=entry)), \
+         patch("routers.event_public._slug_from_id",           AsyncMock(return_value="pac-man")):
         resp = await client.post(URL,
-            data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID})
+            data={"nick": "P1", "pontuacao": "5000", "game_id": GAME_ID})
 
     assert resp.status_code == 201
     assert resp.json()["pendente"] is True
@@ -123,22 +123,22 @@ async def test_upload_sem_foto_vai_para_moderacao(client):
 
 @pytest.mark.asyncio
 async def test_rate_limit_ativado_vai_para_moderacao(client):
-    entry  = _entrada(pendente=True, no_ranking=False)
+    entry  = _entry(pendente=True, no_ranking=False)
     pool   = _make_pool(entry)
     broker = AsyncMock()
 
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
-         patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=True)), \
-         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
-         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
-         patch("routers.evento_publico.broker.publish",          broker), \
-         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
-         patch("routers.evento_publico.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
-         patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")):
+    with patch("routers.event_public.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+         patch("routers.event_public.rl.checar_rate_limit",  AsyncMock(return_value=True)), \
+         patch("routers.event_public.score_svc.validar_score", AsyncMock(return_value=None)), \
+         patch("routers.event_public.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+         patch("routers.event_public.broker.publish",          broker), \
+         patch("routers.event_public.event_repo.buscar_por_slug", AsyncMock(return_value=_event_ok())), \
+         patch("routers.event_public.entry_repo.inserir",    AsyncMock(return_value=entry)), \
+         patch("routers.event_public._slug_from_id",           AsyncMock(return_value="pac-man")):
         resp = await client.post(URL,
-            data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
+            data={"nick": "P1", "pontuacao": "5000", "game_id": GAME_ID},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     assert resp.status_code == 201
@@ -147,24 +147,24 @@ async def test_rate_limit_ativado_vai_para_moderacao(client):
 
 
 @pytest.mark.asyncio
-async def test_nick_repetido_marca_anterior_como_superado(client):
-    entry      = _entrada()
+async def test_nick_repetido_arena_anterior_como_superado(client):
+    entry      = _entry()
     pool       = _make_pool(entry)
     marcar_mock = AsyncMock(return_value="uuid-anterior")
 
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
-         patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
-         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
-         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", marcar_mock), \
-         patch("routers.evento_publico.broker.publish",          AsyncMock()), \
-         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
-         patch("routers.evento_publico.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
-         patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")), \
-         patch("routers.evento_publico.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
+    with patch("routers.event_public.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+         patch("routers.event_public.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+         patch("routers.event_public.score_svc.validar_score", AsyncMock(return_value=None)), \
+         patch("routers.event_public.nick_svc.marcar_anterior_como_superado", marcar_mock), \
+         patch("routers.event_public.broker.publish",          AsyncMock()), \
+         patch("routers.event_public.event_repo.buscar_por_slug", AsyncMock(return_value=_event_ok())), \
+         patch("routers.event_public.entry_repo.inserir",    AsyncMock(return_value=entry)), \
+         patch("routers.event_public._slug_from_id",           AsyncMock(return_value="pac-man")), \
+         patch("routers.event_public.game_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
         await client.post(URL,
-            data={"nick": "P1", "pontuacao": "9999", "jogo_id": JOGO_ID},
+            data={"nick": "P1", "pontuacao": "9999", "game_id": GAME_ID},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     marcar_mock.assert_called_once()
@@ -173,17 +173,17 @@ async def test_nick_repetido_marca_anterior_como_superado(client):
 @pytest.mark.asyncio
 async def test_score_acima_do_maximo_retorna_422(client):
     from fastapi import HTTPException
-    pool = _make_pool(_entrada())
+    pool = _make_pool(_entry())
 
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("routers.evento_publico.storage.upload_foto",  AsyncMock(return_value="https://cdn/f.jpg")), \
-         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
-         patch("routers.evento_publico.rl.checar_rate_limit", AsyncMock(return_value=False)), \
-         patch("routers.evento_publico.score_svc.validar_score",
+    with patch("routers.event_public.storage.upload_foto",  AsyncMock(return_value="https://cdn/f.jpg")), \
+         patch("routers.event_public.event_repo.buscar_por_slug", AsyncMock(return_value=_event_ok())), \
+         patch("routers.event_public.rl.checar_rate_limit", AsyncMock(return_value=False)), \
+         patch("routers.event_public.score_svc.validar_score",
                AsyncMock(side_effect=HTTPException(422, "Pontuacao excede o maximo"))):
         resp = await client.post(URL,
-            data={"nick": "P1", "pontuacao": "9999999", "jogo_id": JOGO_ID},
+            data={"nick": "P1", "pontuacao": "9999999", "game_id": GAME_ID},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     assert resp.status_code == 422
@@ -193,25 +193,25 @@ async def test_score_acima_do_maximo_retorna_422(client):
 
 @pytest.mark.asyncio
 async def test_nome_salvo_no_banco(client):
-    """Campo nome deve ser passado ao inserir entrada."""
-    entry = _entrada()
+    """Campo nome deve ser passado ao inserir entry."""
+    entry = _entry()
     entry["nome"] = "Carlos Lima"
     pool  = _make_pool(entry)
     inserir_mock = AsyncMock(return_value=entry)
 
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
-         patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
-         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
-         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
-         patch("routers.evento_publico.broker.publish",          AsyncMock()), \
-         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
-         patch("routers.evento_publico.entrada_repo.inserir",    inserir_mock), \
-         patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")), \
-         patch("routers.evento_publico.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
+    with patch("routers.event_public.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+         patch("routers.event_public.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+         patch("routers.event_public.score_svc.validar_score", AsyncMock(return_value=None)), \
+         patch("routers.event_public.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+         patch("routers.event_public.broker.publish",          AsyncMock()), \
+         patch("routers.event_public.event_repo.buscar_por_slug", AsyncMock(return_value=_event_ok())), \
+         patch("routers.event_public.entry_repo.inserir",    inserir_mock), \
+         patch("routers.event_public._slug_from_id",           AsyncMock(return_value="pac-man")), \
+         patch("routers.event_public.game_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
         resp = await client.post(URL,
-            data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID, "nome": "Carlos Lima"},
+            data={"nick": "P1", "pontuacao": "5000", "game_id": GAME_ID, "nome": "Carlos Lima"},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     assert resp.status_code == 201
@@ -222,22 +222,22 @@ async def test_nome_salvo_no_banco(client):
 @pytest.mark.asyncio
 async def test_upload_sem_nome_funciona(client):
     """nome é opcional — ausência não deve causar erro."""
-    entry = _entrada()
+    entry = _entry()
     pool  = _make_pool(entry)
 
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("routers.evento_publico.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
-         patch("routers.evento_publico.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
-         patch("routers.evento_publico.score_svc.validar_score", AsyncMock(return_value=None)), \
-         patch("routers.evento_publico.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
-         patch("routers.evento_publico.broker.publish",          AsyncMock()), \
-         patch("routers.evento_publico.evento_repo.buscar_por_slug", AsyncMock(return_value=_evento_ok())), \
-         patch("routers.evento_publico.entrada_repo.inserir",    AsyncMock(return_value=entry)), \
-         patch("routers.evento_publico._slug_from_id",           AsyncMock(return_value="pac-man")), \
-         patch("routers.evento_publico.jogo_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
+    with patch("routers.event_public.storage.upload_foto",   AsyncMock(return_value="https://cdn/f.jpg")), \
+         patch("routers.event_public.rl.checar_rate_limit",  AsyncMock(return_value=False)), \
+         patch("routers.event_public.score_svc.validar_score", AsyncMock(return_value=None)), \
+         patch("routers.event_public.nick_svc.marcar_anterior_como_superado", AsyncMock(return_value=None)), \
+         patch("routers.event_public.broker.publish",          AsyncMock()), \
+         patch("routers.event_public.event_repo.buscar_por_slug", AsyncMock(return_value=_event_ok())), \
+         patch("routers.event_public.entry_repo.inserir",    AsyncMock(return_value=entry)), \
+         patch("routers.event_public._slug_from_id",           AsyncMock(return_value="pac-man")), \
+         patch("routers.event_public.game_repo.buscar_por_slug", AsyncMock(return_value={"slug": "pac-man"})):
         resp = await client.post(URL,
-            data={"nick": "P1", "pontuacao": "5000", "jogo_id": JOGO_ID},
+            data={"nick": "P1", "pontuacao": "5000", "game_id": GAME_ID},
             files=[("foto", ("f.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
 
     assert resp.status_code == 201

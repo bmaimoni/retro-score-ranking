@@ -37,9 +37,9 @@ async def test_telao_de_placar_retorna_config_completa(client):
         "nome": "Hall da Fama Geral",
         "slug": "geral",
         "top_n": 10,
-        "evento_slug": None,
+        "event_slug": None,
         "placar_slug": "geral",
-        "jogos": [
+        "games": [
             {"nome": "Donkey Kong", "slug": "donkey-kong", "ordem": 0},
             {"nome": "Galaga",      "slug": "galaga",      "ordem": 1},
         ],
@@ -54,39 +54,39 @@ async def test_telao_de_placar_retorna_config_completa(client):
     data = resp.json()
     assert data["top_n"] == 10
     assert data["placar_slug"] == "geral"
-    assert data["evento_slug"] is None
-    assert len(data["jogos"]) == 2
-    assert data["jogos"][0]["slug"] == "donkey-kong"
+    assert data["event_slug"] is None
+    assert len(data["games"]) == 2
+    assert data["games"][0]["slug"] == "donkey-kong"
 
 
 @pytest.mark.asyncio
-async def test_telao_de_evento_retorna_config_completa(client):
-    """Telão apontando pra um evento específico (não um placar)."""
+async def test_telao_de_event_retorna_config_completa(client):
+    """Telão apontando pra um event específico (não um placar)."""
     config = {
         "nome": "Telão Entrada Principal",
-        "slug": "entrada-principal",
+        "slug": "entry-principal",
         "top_n": 5,
-        "evento_slug": "canal3expo",
+        "event_slug": "canal3expo",
         "placar_slug": None,
-        "jogos": [{"nome": "Pac-Man", "slug": "pac-man", "ordem": 0}],
+        "games": [{"nome": "Pac-Man", "slug": "pac-man", "ordem": 0}],
     }
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.telao.buscar_config_por_slug", AsyncMock(return_value=config)):
-        resp = await client.get("/api/teloes/entrada-principal/config")
+        resp = await client.get("/api/teloes/entry-principal/config")
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["evento_slug"] == "canal3expo"
+    assert data["event_slug"] == "canal3expo"
     assert data["placar_slug"] is None
     assert data["top_n"] == 5
 
 
-# ── Repository: SQL monta jogos ordenados e só ativos ─────────────────────────
+# ── Repository: SQL monta games ordenados e só ativos ─────────────────────────
 
 @pytest.mark.asyncio
-async def test_repository_busca_apenas_jogos_ativos_do_telao():
+async def test_repository_busca_apenas_games_ativos_do_telao():
     """
     telao_jogos.ativo=false não deve aparecer na config — a query do
     repository filtra isso (ver repositories/telao.py).
@@ -95,7 +95,7 @@ async def test_repository_busca_apenas_jogos_ativos_do_telao():
 
     telao_row = {
         "id": make_uuid(), "nome": "Hall da Fama Geral", "slug": "geral",
-        "top_n": 10, "evento_id": None, "evento_slug": None,
+        "top_n": 10, "event_id": None, "event_slug": None,
         "placar_id": make_uuid(), "placar_slug": "geral",
     }
     pool = MagicMock()
@@ -105,10 +105,10 @@ async def test_repository_busca_apenas_jogos_ativos_do_telao():
     resultado = await telao_repo.buscar_config_por_slug(pool, "geral")
 
     assert resultado["nome"] == "Hall da Fama Geral"
-    assert len(resultado["jogos"]) == 1
-    # Confirma que a query de jogos filtra por ativo=true (checando a SQL enviada)
-    sql_jogos = pool.fetch.call_args[0][0]
-    assert "tj.ativo    = true" in sql_jogos or "ativo = true" in " ".join(sql_jogos.split())
+    assert len(resultado["games"]) == 1
+    # Confirma que a query de games filtra por ativo=true (checando a SQL enviada)
+    sql_games = pool.fetch.call_args[0][0]
+    assert "tj.ativo    = true" in sql_games or "ativo = true" in " ".join(sql_games.split())
 
 
 @pytest.mark.asyncio

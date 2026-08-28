@@ -238,11 +238,11 @@ async def test_minhas_pontuacoes_sucesso(client):
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
     usuario = _usuario_sessao()
-    pontuacoes = [{"id": "e1", "nick": "Campeao", "pontuacao": 5000, "jogo_nome": "Pac-Man", "marca_nome": "Canal3"}]
+    pontuacoes = [{"id": "e1", "nick": "Campeao", "pontuacao": 5000, "game_nome": "Pac-Man", "arena_nome": "Canal3"}]
 
     client.cookies.set(SESSION_COOKIE, "sessao-valida")
     with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \
-         patch("repositories.entrada.listar_por_usuario", AsyncMock(return_value=pontuacoes)) as mock:
+         patch("repositories.entry.listar_por_usuario", AsyncMock(return_value=pontuacoes)) as mock:
         resp = await client.get("/api/perfil/pontuacoes")
 
     assert resp.status_code == 200
@@ -480,7 +480,7 @@ async def test_atividade_compila_e_avanca_ultimo_login(client):
     app.dependency_overrides[get_pool] = lambda: pool
     usuario = _usuario_sessao()
     usuario["ultimo_login_em"] = "2026-01-01T00:00:00"
-    atividade = [{"seguido_nome": "Ciclano", "jogo_nome": "Pac-Man", "pontuacao_seguido": 9000, "minha_pontuacao": 5000}]
+    atividade = [{"seguido_nome": "Ciclano", "game_nome": "Pac-Man", "pontuacao_seguido": 9000, "minha_pontuacao": 5000}]
 
     client.cookies.set(SESSION_COOKIE, "sessao-valida")
     with patch("auth.service.obter_usuario_da_sessao", AsyncMock(return_value=usuario)), \

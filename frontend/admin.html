@@ -88,7 +88,7 @@
       min-height: 1em;
     }
 
-    /* ── Identidade do admin + seletor de evento (topbar) ── */
+    /* ── Identidade do admin + seletor de event (topbar) ── */
     .admin-identidade {
       font-size: var(--text-xs);
       color: var(--color-text-muted);
@@ -104,7 +104,7 @@
       font-weight: var(--weight-bold);
       letter-spacing: 0.04em;
     }
-    .evento-selector {
+    .event-selector {
       font-family: var(--font-body);
       font-size: var(--text-xs);
       background: var(--color-bg);
@@ -142,15 +142,15 @@
       letter-spacing: 0.04em;
     }
     .vinculo-tabela tr.inativo { opacity: 0.4; }
-    .vinculo-escopo-tag {
+    .vinculo-scope-tag {
       font-size: 10px;
       padding: 2px 8px;
       border-radius: var(--radius-full, 999px);
       font-weight: var(--weight-bold);
       text-transform: uppercase;
     }
-    .vinculo-escopo-tag.super  { background: var(--color-primary); color: var(--color-bg, #0b1331); }
-    .vinculo-escopo-tag.marca  { background: var(--color-accent, #2a9d8f); color: #fff; }
+    .vinculo-scope-tag.super  { background: var(--color-primary); color: var(--color-bg, #0b1331); }
+    .vinculo-scope-tag.arena  { background: var(--color-accent, #2a9d8f); color: #fff; }
     .vinculo-toggle-btn {
       font-size: var(--text-xs);
       background: none; border: 1px solid var(--color-border);
@@ -270,8 +270,8 @@
       color: var(--color-text-muted);
     }
 
-    /* ── Card de entrada (feed + pendentes) ── */
-    .entrada-card {
+    /* ── Card de entry (feed + pendentes) ── */
+    .entry-card {
       background: var(--color-bg-surface);
       border: var(--border-width) solid var(--color-border);
       border-radius: var(--radius-md);
@@ -283,11 +283,11 @@
       align-items: center;
       transition: border-color var(--transition);
     }
-    .entrada-card:hover { border-color: var(--color-border-hover); }
-    .entrada-card.oculta { opacity: 0.45; }
-    .entrada-card.pendente-card { border-color: rgba(94,43,130,0.4); }
+    .entry-card:hover { border-color: var(--color-border-hover); }
+    .entry-card.oculta { opacity: 0.45; }
+    .entry-card.pendente-card { border-color: rgba(94,43,130,0.4); }
 
-    .entrada-foto {
+    .entry-foto {
       width: 64px; height: 64px;
       border-radius: var(--radius-sm);
       object-fit: cover;
@@ -296,7 +296,7 @@
       cursor: zoom-in;
       transition: opacity 0.15s;
     }
-    .entrada-foto:hover { opacity: 0.8; }
+    .entry-foto:hover { opacity: 0.8; }
 
     .lightbox {
       display: none;
@@ -329,7 +329,7 @@
       cursor: pointer;
       display: flex; align-items: center; justify-content: center;
     }
-    .entrada-foto-placeholder {
+    .entry-foto-placeholder {
       width: 64px; height: 64px;
       border-radius: var(--radius-sm);
       background: var(--color-bg-surface2);
@@ -341,27 +341,27 @@
       flex-shrink: 0;
     }
 
-    .entrada-info { min-width: 0; }
-    .entrada-nick {
+    .entry-info { min-width: 0; }
+    .entry-nick {
       font-size: var(--text-md);
       font-weight: var(--weight-bold);
       color: var(--color-text);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .entrada-meta {
+    .entry-meta {
       font-size: var(--text-xs);
       color: var(--color-text-muted);
       margin-top: 2px;
       display: flex; gap: var(--space-sm); flex-wrap: wrap;
     }
-    .entrada-score {
+    .entry-score {
       font-family: var(--font-mono);
       font-size: var(--text-md);
       color: var(--color-accent);
       font-weight: var(--weight-bold);
     }
 
-    .entrada-actions {
+    .entry-actions {
       display: flex;
       flex-direction: column;
       gap: var(--space-xs);
@@ -463,14 +463,14 @@
     .pag-btn:disabled { opacity: 0.35; cursor: default; }
     .pag-info { font-size: var(--text-xs); color: var(--color-text-muted); }
 
-    /* ── Tabela de jogos ── */
-    .jogos-grid {
+    /* ── Tabela de games ── */
+    .games-grid {
       display: flex;
       flex-direction: column;
       gap: var(--space-sm);
       margin-bottom: var(--space-xl);
     }
-    .jogo-card {
+    .game-card {
       background: var(--color-bg-surface);
       border: var(--border-width) solid var(--color-border);
       border-radius: var(--radius-md);
@@ -480,9 +480,9 @@
       gap: var(--space-md);
       align-items: center;
     }
-    .jogo-card.inativo { opacity: 0.5; }
-    .jogo-nome { font-size: var(--text-md); font-weight: var(--weight-bold); }
-    .badge-pendente-jogo {
+    .game-card.inativo { opacity: 0.5; }
+    .game-nome { font-size: var(--text-md); font-weight: var(--weight-bold); }
+    .badge-pendente-game {
       display: inline-block;
       font-size: 10px;
       font-weight: var(--weight-bold);
@@ -495,25 +495,25 @@
       margin-left: 8px;
       vertical-align: middle;
     }
-    .jogo-pendente-card {
+    .game-pendente-card {
       padding: var(--space-md);
       background: var(--color-bg-surface2);
       border: 1px solid var(--color-warning, #e6a23c);
       border-radius: var(--radius-md);
       margin-bottom: var(--space-sm);
     }
-    .jogo-pendente-meta {
+    .game-pendente-meta {
       font-size: var(--text-xs);
       color: var(--color-text-muted);
       margin: 4px 0 10px;
     }
-    .jogo-pendente-acoes {
+    .game-pendente-acoes {
       display: flex;
       gap: var(--space-sm);
       flex-wrap: wrap;
       align-items: center;
     }
-    .jogo-pendente-mesclar-select {
+    .game-pendente-mesclar-select {
       font-family: var(--font-body);
       font-size: var(--text-xs);
       background: var(--color-bg);
@@ -524,8 +524,8 @@
       flex: 1;
       min-width: 140px;
     }
-    .jogo-meta { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; }
-    .jogo-actions { display: flex; gap: var(--space-xs); align-items: center; }
+    .game-meta { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; }
+    .game-actions { display: flex; gap: var(--space-xs); align-items: center; }
 
     .toggle-ativo {
       width: 44px; height: 24px;
@@ -549,8 +549,8 @@
     }
     .toggle-ativo.on::after { transform: translateX(20px); }
 
-    /* ── Formulário criar jogo ── */
-    .criar-jogo-form {
+    /* ── Formulário criar game ── */
+    .criar-game-form {
       background: var(--color-bg-surface);
       border: var(--border-width) solid var(--color-border);
       border-radius: var(--radius-md);
@@ -576,7 +576,7 @@
       opacity: 1 !important;
     }
 
-    /* ── Config do evento ── */
+    /* ── Config do event ── */
     .config-grid {
       display: flex;
       flex-direction: column;
@@ -697,8 +697,8 @@
     /* ── Responsivo mobile ── */
     @media (max-width: 600px) {
       .tab-content { padding: var(--space-md); }
-      .entrada-card { grid-template-columns: 48px 1fr; }
-      .entrada-actions { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; }
+      .entry-card { grid-template-columns: 48px 1fr; }
+      .entry-actions { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; }
       .admin-tab { padding: var(--space-sm) var(--space-md); font-size: 10px; }
       .config-item { grid-template-columns: 1fr; }
       .btn-salvar-config { width: 100%; }
@@ -741,7 +741,7 @@
     <span class="topbar-title">ADMIN PANEL</span>
     <div class="topbar-right">
       <div class="admin-identidade" id="admin-identidade" style="display:none"></div>
-      <select class="evento-selector" id="evento-selector" style="display:none"></select>
+      <select class="event-selector" id="event-selector" style="display:none"></select>
       <div class="polling-dot" id="polling-dot" title="Atualizando..." style="display:none"></div>
       <span class="countdown-label" id="countdown-label">atualiza em 5:00</span>
       <button class="btn-atualizar" id="btn-atualizar">↻ Atualizar</button>
@@ -756,8 +756,8 @@
       <span class="tab-badge" id="badge-feed" style="display:none">0</span>
     </button>
 
-    <button class="admin-tab" data-tab="jogos">Jogos</button>
-    <button class="admin-tab" data-tab="config">Evento</button>
+    <button class="admin-tab" data-tab="games">Games</button>
+    <button class="admin-tab" data-tab="config">Event</button>
     <button class="admin-tab" data-tab="manutencao">Manutenção</button>
     <button class="admin-tab" data-tab="administradores" id="tab-btn-administradores" style="display:none">Administradores</button>
     <button class="admin-tab" data-tab="exclusoes" id="tab-btn-exclusoes" style="display:none">Exclusões</button>
@@ -766,7 +766,7 @@
   <!-- ── ABA: FEED ── -->
   <div class="tab-content active" id="tab-feed">
     <div class="section-header">
-      <span class="section-title">Entradas recentes</span>
+      <span class="section-title">Entries recentes</span>
       <span class="section-count" id="feed-count"></span>
     </div>
     <div class="feed-filters">
@@ -778,9 +778,9 @@
 
     <!-- Filtros combináveis (docs/BACKLOG_2026.md §4.1/4.4) -->
     <div class="feed-filtros-extra">
-      <input class="field-input" type="search" id="feed-busca" placeholder="Buscar por nick, jogo ou evento…" style="flex:1;min-width:180px">
-      <select class="field-input" id="feed-filtro-jogo" style="max-width:180px">
-        <option value="">Todos os jogos</option>
+      <input class="field-input" type="search" id="feed-busca" placeholder="Buscar por nick, game ou event…" style="flex:1;min-width:180px">
+      <select class="field-input" id="feed-filtro-game" style="max-width:180px">
+        <option value="">Todos os games</option>
       </select>
       <input class="field-input" type="date" id="feed-data-de" title="De" style="max-width:150px">
       <input class="field-input" type="date" id="feed-data-ate" title="Até" style="max-width:150px">
@@ -804,122 +804,122 @@
 
 
 
-  <!-- ── ABA: JOGOS ── -->
-  <div class="tab-content" id="tab-jogos">
-    <div id="jogos-pendentes-secao" style="display:none;margin-bottom:var(--space-lg)">
+  <!-- ── ABA: GAMES ── -->
+  <div class="tab-content" id="tab-games">
+    <div id="games-pendentes-secao" style="display:none;margin-bottom:var(--space-lg)">
       <div class="section-header">
-        <span class="section-title">Jogos aguardando aprovação</span>
+        <span class="section-title">Games aguardando aprovação</span>
       </div>
       <p class="manut-desc" style="margin-bottom:var(--space-md)">
-        Criados por admins de evento/marca — já utilizáveis nos eventos deles,
+        Criados por admins de event/arena — já utilizáveis nos events deles,
         mas fora do catálogo/placar geral até você aprovar ou mesclar com um
-        jogo já existente (caso seja duplicata).
+        game já existente (caso seja duplicata).
       </p>
-      <div id="jogos-pendentes-lista"></div>
+      <div id="games-pendentes-lista"></div>
     </div>
 
     <div class="section-header">
-      <span class="section-title">Jogos cadastrados</span>
+      <span class="section-title">Games cadastrados</span>
     </div>
-    <div class="jogos-grid" id="jogos-list"></div>
+    <div class="games-grid" id="games-list"></div>
 
-    <div class="criar-jogo-form" id="criar-jogo-form">
-      <p class="form-title">+ Novo jogo</p>
+    <div class="criar-game-form" id="criar-game-form">
+      <p class="form-title">+ Novo game</p>
       <div class="form-row">
         <div class="field">
-          <label class="field-label" for="jogo-nome">Nome</label>
-          <input class="field-input" type="text" id="jogo-nome" placeholder="Ex: Pac-Man">
+          <label class="field-label" for="game-nome">Nome</label>
+          <input class="field-input" type="text" id="game-nome" placeholder="Ex: Pac-Man">
         </div>
         <div class="field">
-          <label class="field-label" for="jogo-slug">Slug (URL)</label>
-          <input class="field-input" type="text" id="jogo-slug" placeholder="Ex: pac-man">
+          <label class="field-label" for="game-slug">Slug (URL)</label>
+          <input class="field-input" type="text" id="game-slug" placeholder="Ex: pac-man">
         </div>
       </div>
       <div class="field">
-        <label class="field-label" for="jogo-score-max">Score máximo (opcional)</label>
-        <input class="field-input" type="number" id="jogo-score-max" placeholder="Ex: 999990 — deixe vazio para sem limite">
+        <label class="field-label" for="game-score-max">Score máximo (opcional)</label>
+        <input class="field-input" type="number" id="game-score-max" placeholder="Ex: 999990 — deixe vazio para sem limite">
       </div>
-      <button class="btn-primary" id="criar-jogo-btn">CRIAR JOGO</button>
+      <button class="btn-primary" id="criar-game-btn">CRIAR GAME</button>
     </div>
   </div>
 
   <!-- ── ABA: CONFIG ── -->
   <div class="tab-content" id="tab-config">
     <div class="section-header">
-      <span class="section-title">Marcas</span>
+      <span class="section-title">Arenas</span>
     </div>
 
-    <!-- Marcas -->
+    <!-- Arenas -->
     <div class="manut-card">
-      <h3 class="manut-titulo">Identidade visual por marca</h3>
+      <h3 class="manut-titulo">Identidade visual por arena</h3>
       <p class="manut-desc">
-        Cor, tipografia e logo definidos aqui são herdados por qualquer evento
-        vinculado a esta marca — a menos que o evento defina os seus próprios
-        (evento &gt; marca &gt; default). Ver <code>docs/MARCAS_SPEC.md</code>.
+        Cor, tipografia e logo definidos aqui são herdados por qualquer event
+        vinculado a esta arena — a menos que o event defina os seus próprios
+        (event &gt; arena &gt; default). Ver <code>docs/MARCAS_SPEC.md</code>.
       </p>
-      <div id="marcas-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:var(--space-md)">Carregando...</div>
+      <div id="arenas-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:var(--space-md)">Carregando...</div>
 
-      <details id="marca-form-details" style="margin-top:var(--space-md)">
-        <summary style="cursor:pointer;font-size:var(--text-xs);color:var(--color-text-muted);letter-spacing:0.08em">CRIAR NOVA MARCA</summary>
+      <details id="arena-form-details" style="margin-top:var(--space-md)">
+        <summary style="cursor:pointer;font-size:var(--text-xs);color:var(--color-text-muted);letter-spacing:0.08em">CRIAR NOVA ARENA</summary>
         <div style="margin-top:var(--space-sm);display:flex;flex-direction:column;gap:var(--space-sm)">
-          <input type="hidden" id="marca-id-editando" value="">
-          <input class="field-input" id="marca-nome" placeholder="Nome da marca (ex: Canal3)" maxlength="80">
-          <input class="field-input" id="marca-slug" placeholder="Slug (ex: canal3)" maxlength="40">
+          <input type="hidden" id="arena-id-editando" value="">
+          <input class="field-input" id="arena-nome" placeholder="Nome da arena (ex: Canal3)" maxlength="80">
+          <input class="field-input" id="arena-slug" placeholder="Slug (ex: canal3)" maxlength="40">
           <div style="display:flex;gap:var(--space-sm);align-items:center">
-            <input class="field-input" type="color" id="marca-cor" value="#5fbb50" style="flex:0 0 60px;padding:2px;height:38px">
-            <input class="field-input" id="marca-cor-hex" placeholder="#5fbb50 (cor primária)" style="flex:1" maxlength="7">
+            <input class="field-input" type="color" id="arena-cor" value="#5fbb50" style="flex:0 0 60px;padding:2px;height:38px">
+            <input class="field-input" id="arena-cor-hex" placeholder="#5fbb50 (cor primária)" style="flex:1" maxlength="7">
           </div>
           <div class="field">
-            <label class="field-label" for="marca-tipografia">Tipografia</label>
-            <select class="field-input" id="marca-tipografia">
+            <label class="field-label" for="arena-tipografia">Tipografia</label>
+            <select class="field-input" id="arena-tipografia">
               <option value="">Padrão da plataforma</option>
               <option value="arcade">Arcade (Press Start 2P)</option>
               <option value="futurista">Futurista (Orbitron)</option>
               <option value="terminal">Terminal (Share Tech Mono)</option>
             </select>
           </div>
-          <input class="field-input" id="marca-logo" placeholder="Logo (ex: logo-canal3-2026.png ou URL completa)" maxlength="300">
+          <input class="field-input" id="arena-logo" placeholder="Logo (ex: logo-canal3-2026.png ou URL completa)" maxlength="300">
           <div class="field">
-            <label class="field-label" for="marca-itens-por-pagina">Itens por página no ranking (padrão: 20)</label>
-            <input class="field-input" type="number" id="marca-itens-por-pagina" placeholder="20" min="1" style="max-width:140px">
+            <label class="field-label" for="arena-itens-por-pagina">Itens por página no ranking (padrão: 20)</label>
+            <input class="field-input" type="number" id="arena-itens-por-pagina" placeholder="20" min="1" style="max-width:140px">
           </div>
           <div style="display:flex;gap:var(--space-sm)">
-            <button class="btn-action btn-reativar" style="flex:1" onclick="salvarMarca()" id="marca-salvar-btn">+ Criar marca</button>
-            <button class="btn-action btn-rejeitar" style="flex:0 0 auto;display:none" id="marca-cancelar-btn" onclick="cancelarEdicaoMarca()">Cancelar</button>
+            <button class="btn-action btn-reativar" style="flex:1" onclick="salvarMarca()" id="arena-salvar-btn">+ Criar arena</button>
+            <button class="btn-action btn-rejeitar" style="flex:0 0 auto;display:none" id="arena-cancelar-btn" onclick="cancelarEdicaoMarca()">Cancelar</button>
           </div>
         </div>
       </details>
     </div>
 
     <div class="section-header" style="margin-top:var(--space-lg)">
-      <span class="section-title">Eventos</span>
+      <span class="section-title">Events</span>
     </div>
 
-    <!-- Eventos -->
+    <!-- Events -->
     <div class="manut-card">
-      <h3 class="manut-titulo">Todos os eventos</h3>
+      <h3 class="manut-titulo">Todos os events</h3>
       <p class="manut-desc">
-        Eventos podem rodar simultaneamente. <strong>Ativo</strong> = existe
+        Events podem rodar simultaneamente. <strong>Ativo</strong> = existe
         (não arquivado). <strong>Público</strong> = ranking/telão acessíveis.
         <strong>Janela</strong> = período em que aceita novas pontuações —
-        um evento pode continuar público/consultável mesmo fora da janela.
+        um event pode continuar público/consultável mesmo fora da janela.
       </p>
-      <div id="eventos-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:var(--space-md)"></div>
+      <div id="events-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:var(--space-md)"></div>
 
-      <details style="margin-top:var(--space-md)" id="evento-form-details">
-        <summary style="cursor:pointer;font-size:var(--text-xs);color:var(--color-text-muted);letter-spacing:0.08em">CRIAR NOVO EVENTO</summary>
+      <details style="margin-top:var(--space-md)" id="event-form-details">
+        <summary style="cursor:pointer;font-size:var(--text-xs);color:var(--color-text-muted);letter-spacing:0.08em">CRIAR NOVO EVENT</summary>
         <div style="margin-top:var(--space-sm);display:flex;flex-direction:column;gap:var(--space-sm)">
-          <input class="field-input" id="novo-evento-nome" placeholder="Nome do evento (ex: Canal3 Expo 2026)" maxlength="80">
-          <input class="field-input" id="novo-evento-slug" placeholder="Slug (ex: canal3-expo-2026)" maxlength="40">
+          <input class="field-input" id="novo-event-nome" placeholder="Nome do event (ex: Canal3 Expo 2026)" maxlength="80">
+          <input class="field-input" id="novo-event-slug" placeholder="Slug (ex: canal3-expo-2026)" maxlength="40">
           <div class="field">
-            <label class="field-label" for="novo-evento-marca">Marca (obrigatório — herda cor/tipografia/logo)</label>
-            <select class="field-input" id="novo-evento-marca">
+            <label class="field-label" for="novo-event-arena">Arena (obrigatório — herda cor/tipografia/logo)</label>
+            <select class="field-input" id="novo-event-arena">
               <option value="">Selecione…</option>
             </select>
           </div>
           <div class="field">
-            <label class="field-label" for="novo-evento-modo-ranking">Modo de ranking</label>
-            <select class="field-input" id="novo-evento-modo-ranking">
+            <label class="field-label" for="novo-event-modo-ranking">Modo de ranking</label>
+            <select class="field-input" id="novo-event-modo-ranking">
               <option value="zerado" selected>Zerado — placar próprio, sem herdar nada</option>
               <option value="ultimo_evento">Último evento da marca</option>
               <option value="marca">Toda a marca (todos os eventos não-zerados)</option>
@@ -929,15 +929,15 @@
           </div>
           <div style="display:flex;gap:var(--space-sm)">
             <div class="field" style="flex:1">
-              <label class="field-label" for="novo-evento-inicio">Início dos envios</label>
-              <input class="field-input" type="datetime-local" id="novo-evento-inicio">
+              <label class="field-label" for="novo-event-inicio">Início dos envios</label>
+              <input class="field-input" type="datetime-local" id="novo-event-inicio">
             </div>
             <div class="field" style="flex:1">
-              <label class="field-label" for="novo-evento-fim">Fim dos envios</label>
-              <input class="field-input" type="datetime-local" id="novo-evento-fim">
+              <label class="field-label" for="novo-event-fim">Fim dos envios</label>
+              <input class="field-input" type="datetime-local" id="novo-event-fim">
             </div>
           </div>
-          <button class="btn-action btn-reativar" onclick="criarEvento()">+ Criar evento</button>
+          <button class="btn-action btn-reativar" onclick="criarEvento()">+ Criar event</button>
         </div>
       </details>
     </div>
@@ -978,14 +978,14 @@
       <span class="section-title">Manutenção de Rankings</span>
     </div>
 
-    <!-- Soft delete por jogo -->
-    <div class="manut-card" id="manut-por-jogo">
-      <h3 class="manut-titulo">Arquivar ranking por jogo</h3>
-      <p class="manut-desc">Oculta todas as entradas do jogo selecionado. As entradas podem ser restauradas depois.</p>
+    <!-- Soft delete por game -->
+    <div class="manut-card" id="manut-por-game">
+      <h3 class="manut-titulo">Arquivar ranking por game</h3>
+      <p class="manut-desc">Oculta todas as entries do game selecionado. As entries podem ser restauradas depois.</p>
       <div class="field" style="margin-bottom:var(--space-sm)">
-        <label class="field-label" for="manut-jogo-select">Jogo</label>
-        <select class="field-input" id="manut-jogo-select">
-          <option value="">Carregando jogos...</option>
+        <label class="field-label" for="manut-game-select">Game</label>
+        <select class="field-input" id="manut-game-select">
+          <option value="">Carregando games...</option>
         </select>
       </div>
       <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
@@ -1007,7 +1007,7 @@
 
       <div class="fl">Modo de exibição</div>
       <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap;margin-bottom:var(--space-md)">
-        <button class="btn-action" onclick="setTelaoParam('modo','fixo')"      style="flex:1">Fixo no jogo</button>
+        <button class="btn-action" onclick="setTelaoParam('modo','fixo')"      style="flex:1">Fixo no game</button>
         <button class="btn-action btn-reativar" onclick="setTelaoParam('modo','carrossel')" style="flex:1">Carrossel</button>
       </div>
 
@@ -1030,7 +1030,7 @@
     <!-- Limpeza geral -->
     <div class="manut-card manut-danger" id="manut-geral">
       <h3 class="manut-titulo">⚠️ Limpeza geral</h3>
-      <p class="manut-desc">Afeta <strong>todos os jogos</strong>. Escolha entre arquivar (reversível) ou deletar permanentemente (irreversível).</p>
+      <p class="manut-desc">Afeta <strong>todos os games</strong>. Escolha entre arquivar (reversível) ou deletar permanentemente (irreversível).</p>
 
       <div class="field" style="margin-bottom:var(--space-sm)">
         <label class="field-label">Tipo de limpeza</label>
@@ -1072,19 +1072,19 @@
         <input class="field-input" type="email" id="vinculo-email" placeholder="pessoa@email.com" required>
       </div>
       <div class="field" style="max-width:140px">
-        <label class="field-label" for="vinculo-escopo">Escopo</label>
-        <select class="field-input" id="vinculo-escopo" onchange="atualizarCamposVinculo()">
+        <label class="field-label" for="vinculo-scope">Escopo</label>
+        <select class="field-input" id="vinculo-scope" onchange="atualizarCamposVinculo()">
           <option value="marca">Marca</option>
           <option value="super">Super-admin</option>
         </select>
       </div>
-      <div class="field" id="vinculo-campo-marca" style="max-width:220px">
-        <label class="field-label" for="vinculo-marca">Marca</label>
-        <select class="field-input" id="vinculo-marca"></select>
+      <div class="field" id="vinculo-campo-arena" style="max-width:220px">
+        <label class="field-label" for="vinculo-arena">Arena</label>
+        <select class="field-input" id="vinculo-arena"></select>
       </div>
-      <div class="field" id="vinculo-campo-nivel" style="max-width:160px">
-        <label class="field-label" for="vinculo-nivel">Nível</label>
-        <select class="field-input" id="vinculo-nivel">
+      <div class="field" id="vinculo-campo-role" style="max-width:160px">
+        <label class="field-label" for="vinculo-role">Nível</label>
+        <select class="field-input" id="vinculo-role">
           <option value="admin">Admin</option>
           <option value="moderador">Moderador</option>
         </select>
@@ -1131,49 +1131,49 @@ const API_URL = 'https://retro-score-ranking-production.up.railway.app';
 const POLL_INTERVAL = 300000; // 5 minutos
 let tempoRestante = 300;
 let jogosCarregados = false;
-let jogosCache = [];  // usado pelo select de "mesclar com" em jogos pendentes
+let jogosCache = [];  // usado pelo select de "mesclar com" em games pendentes
 let configCarregada = false;
 
 // ── ESTADO ────────────────────────────────────────────────────────────────────
 let adminSecret = '';
 let authMode    = null;  // 'token' | 'session'
-let meInfo      = null;  // { identificador, super, eventos, vinculos }
-let eventoAtual = null;  // evento_id selecionado (admin escopado)
+let meInfo      = null;  // { identificador, super, events, vinculos }
+let eventoAtual = null;  // event_id selecionado (admin escopado)
 
 // ── NÍVEL (docs/PERMISSOES_SPEC.md) ────────────────────────────────────────────
-// nível é por marca, não global — as funções abaixo resolvem o nível
-// certo pro contexto certo (evento selecionado, ou uma marca específica).
+// nível é por arena, não global — as funções abaixo resolvem o nível
+// certo pro contexto certo (event selecionado, ou uma arena específica).
 
 function ehAdminEmAlgumaMarca() {
   if (!meInfo) return false;
   if (meInfo.super) return true;
-  return (meInfo.vinculos || []).some(v => v.nivel === 'admin');
+  return (meInfo.vinculos || []).some(v => v.role === 'admin');
 }
 
 function nivelDaMarca(marcaId) {
   if (!meInfo) return null;
   if (meInfo.super) return 'admin';
-  const v = (meInfo.vinculos || []).find(v => v.marca_id === marcaId);
-  return v ? v.nivel : null;
+  const v = (meInfo.vinculos || []).find(v => v.arena_id === marcaId);
+  return v ? v.role : null;
 }
 
 // Esconde (não só bloqueia depois do clique) ações que o nível atual
 // não permite — docs/PERMISSOES_SPEC.md §7 item 5. Cobre só os blocos
-// estáticos do HTML; listas renderizadas dinamicamente (jogos, eventos,
-// marcas) já checam nível linha a linha na hora de montar o HTML.
+// estáticos do HTML; listas renderizadas dinamicamente (games, events,
+// arenas) já checam nível linha a linha na hora de montar o HTML.
 function aplicarVisibilidadePorNivel() {
   const super_ = !!(meInfo && meInfo.super);
 
-  const criarJogo = document.getElementById('criar-jogo-form');
+  const criarJogo = document.getElementById('criar-game-form');
   if (criarJogo) criarJogo.style.display = ehAdminEmAlgumaMarca() ? '' : 'none';
 
-  const criarMarca = document.getElementById('marca-form-details');
+  const criarMarca = document.getElementById('arena-form-details');
   if (criarMarca) criarMarca.style.display = super_ ? '' : 'none';
 
-  const criarEvento = document.getElementById('evento-form-details');
+  const criarEvento = document.getElementById('event-form-details');
   if (criarEvento) criarEvento.style.display = ehAdminEmAlgumaMarca() ? '' : 'none';
 
-  const manutPorJogo = document.getElementById('manut-por-jogo');
+  const manutPorJogo = document.getElementById('manut-por-game');
   if (manutPorJogo) manutPorJogo.style.display = super_ ? '' : 'none';
 
   const manutGeral = document.getElementById('manut-geral');
@@ -1186,18 +1186,18 @@ function aplicarVisibilidadePorNivel() {
   if (tabExclusoes) tabExclusoes.style.display = super_ ? 'block' : 'none';
 
   // Aba "Administradores" — visível pra super e pra qualquer admin
-  // (comum ou dono) de pelo menos uma marca, já que ambos concedem
-  // vínculo dentro da própria marca (docs/PERMISSOES_SPEC.md §4/§8.2).
+  // (comum ou dono) de pelo menos uma arena, já que ambos concedem
+  // vínculo dentro da própria arena (docs/PERMISSOES_SPEC.md §4/§8.2).
   // Moderador nunca vê: não tem nenhuma ação de gestão de vínculo.
   const tabAdmins = document.getElementById('tab-btn-administradores');
   if (tabAdmins) tabAdmins.style.display = ehAdminEmAlgumaMarca() ? 'block' : 'none';
 
   // Escopo "Super-admin" no formulário de vínculo só faz sentido pra
-  // quem já é super — admin comum nunca pode conceder esse escopo
+  // quem já é super — admin comum nunca pode conceder esse scope
   // (backend já bloqueia em _pode_conceder; aqui é só não oferecer a
   // opção que resultaria em 403).
-  const optEscopoSuper = document.querySelector('#vinculo-escopo option[value="super"]');
-  if (optEscopoSuper) optEscopoSuper.style.display = super_ ? '' : 'none';
+  const optScopeSuper = document.querySelector('#vinculo-scope option[value="super"]');
+  if (optScopeSuper) optScopeSuper.style.display = super_ ? '' : 'none';
 }
 
 let feedFilter  = 'todos';
@@ -1219,7 +1219,7 @@ async function fazerLogin() {
   btn.textContent = 'VERIFICANDO...';
 
   try {
-    // /api/admin/me valida o token E já devolve o escopo, uma única
+    // /api/admin/me valida o token E já devolve o scope, uma única
     // chamada em vez de duas (antes verificava com /feed separado)
     const resp = await fetch(`${API_URL}/api/admin/me`, {
       headers: { 'Authorization': `Bearer ${senha}` }
@@ -1247,7 +1247,7 @@ async function fazerLogin() {
 
 // ── LOGIN (Google / Magic Link) ────────────────────────────────────────────────
 // Reaproveita o mesmo sistema de login de visitante (AUTH_SPEC.md) — um
-// admin É uma conta comum, só que com um admin_vinculo (MARCAS_SPEC.md §6).
+// admin É uma conta comum, só que com um membership (MARCAS_SPEC.md §6).
 let providersCacheAdmin = null;
 
 async function carregarProvidersAdmin() {
@@ -1362,7 +1362,7 @@ function mostrarPainel() {
 
 function configurarIdentidadeEEscopo() {
   const elIdentidade = document.getElementById('admin-identidade');
-  const elSelector    = document.getElementById('evento-selector');
+  const elSelector    = document.getElementById('event-selector');
 
   if (!meInfo) { elIdentidade.style.display = 'none'; return; }
 
@@ -1379,22 +1379,22 @@ function configurarIdentidadeEEscopo() {
     return;
   }
 
-  // Admin escopado: SEMPRE precisa de um evento selecionado — sem isso
+  // Admin escopado: SEMPRE precisa de um event selecionado — sem isso
   // /api/admin/feed retorna 400 (ver docs/MARCAS_SPEC.md §6).
-  if (meInfo.eventos.length === 0) {
-    elIdentidade.innerHTML += ` <span style="color:var(--color-error)">— sem eventos vinculados</span>`;
+  if (meInfo.events.length === 0) {
+    elIdentidade.innerHTML += ` <span style="color:var(--color-error)">— sem events vinculados</span>`;
     return;
   }
 
   elSelector.style.display = 'inline-block';
-  elSelector.innerHTML = meInfo.eventos.map(e =>
+  elSelector.innerHTML = meInfo.events.map(e =>
     `<option value="${e.id}">${escapar(e.nome)}</option>`
   ).join('');
-  eventoAtual = meInfo.eventos[0].id;
+  eventoAtual = meInfo.events[0].id;
   elSelector.value = eventoAtual;
   elSelector.onchange = () => {
     eventoAtual = elSelector.value;
-    feedOffset = 0;  // troca de evento sempre volta pra primeira página
+    feedOffset = 0;  // troca de event sempre volta pra primeira página
     carregarTudo();
   };
 }
@@ -1425,7 +1425,7 @@ async function carregarTudo() {
   if (btn) { btn.classList.add('loading'); btn.textContent = '↻ Atualizando...'; }
   // Feed já inclui pendentes via filtro
   await carregarFeed();
-  // Jogos e config só carregam uma vez — raramente mudam
+  // Games e config só carregam uma vez — raramente mudam
   if (!jogosCarregados) await carregarJogos();
   if (!configCarregada) await carregarConfig();
   if (btn) { btn.classList.remove('loading'); btn.textContent = '↻ Atualizar'; }
@@ -1441,7 +1441,7 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     if (tab.dataset.tab === 'administradores') carregarVinculos();
     if (tab.dataset.tab === 'exclusoes') carregarExclusoesPendentes();
     if (tab.dataset.tab === 'config') { carregarMarcas(); carregarEventos(); carregarAvatares(); }
-    if (tab.dataset.tab === 'jogos' && meInfo && meInfo.super) carregarJogosPendentes();
+    if (tab.dataset.tab === 'games' && meInfo && meInfo.super) carregarJogosPendentes();
   });
 });
 
@@ -1463,8 +1463,8 @@ function montarQueryFeed(offset) {
   const busca = document.getElementById('feed-busca').value.trim();
   if (busca) params.set('busca', busca);
 
-  const jogoId = document.getElementById('feed-filtro-jogo').value;
-  if (jogoId) params.set('jogo_id', jogoId);
+  const jogoId = document.getElementById('feed-filtro-game').value;
+  if (jogoId) params.set('game_id', jogoId);
 
   const dataDe = document.getElementById('feed-data-de').value;
   if (dataDe) params.set('data_de', dataDe);
@@ -1532,12 +1532,12 @@ document.getElementById('feed-busca').addEventListener('input', () => {
   clearTimeout(feedBuscaTimeout);
   feedBuscaTimeout = setTimeout(() => carregarFeed(0), 350);
 });
-['feed-filtro-jogo', 'feed-data-de', 'feed-data-ate', 'feed-sem-foto', 'feed-sem-identificacao'].forEach(id => {
+['feed-filtro-game', 'feed-data-de', 'feed-data-ate', 'feed-sem-foto', 'feed-sem-identificacao'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => carregarFeed(0));
 });
 document.getElementById('feed-limpar-filtros').addEventListener('click', () => {
   document.getElementById('feed-busca').value = '';
-  document.getElementById('feed-filtro-jogo').value = '';
+  document.getElementById('feed-filtro-game').value = '';
   document.getElementById('feed-data-de').value = '';
   document.getElementById('feed-data-ate').value = '';
   document.getElementById('feed-sem-foto').checked = false;
@@ -1565,10 +1565,10 @@ function renderPaginacaoFeed() {
 function renderFeed() {
   const container = document.getElementById('feed-list');
 
-  document.getElementById('feed-count').textContent = `${feedTotal} entrada${feedTotal !== 1 ? 's' : ''}`;
+  document.getElementById('feed-count').textContent = `${feedTotal} entry${feedTotal !== 1 ? 's' : ''}`;
 
   if (feedData.length === 0) {
-    container.innerHTML = emptyState('Nenhuma entrada encontrada');
+    container.innerHTML = emptyState('Nenhuma entry encontrada');
     return;
   }
 
@@ -1579,47 +1579,47 @@ function renderFeed() {
 // ── PENDENTES ─────────────────────────────────────────────────────────────────
 // carregarPendentes e renderPendentes consolidados no feed
 
-// ── JOGOS ─────────────────────────────────────────────────────────────────────
+// ── GAMES ─────────────────────────────────────────────────────────────────────
 async function carregarJogos() {
   jogosCarregados = true;
   try {
-    const resp = await apiFetch('/api/admin/jogos-todos');
+    const resp = await apiFetch('/api/admin/games-todos');
     if (!resp.ok) {
       // Fallback: usa endpoint público se admin-específico não existir
-      const r2 = await fetch(`${API_URL}/api/jogos`);
-      const jogos = await r2.json();
-      renderJogos(jogos);
+      const r2 = await fetch(`${API_URL}/api/games`);
+      const games = await r2.json();
+      renderJogos(games);
       return;
     }
-    const jogos = await resp.json();
-    renderJogos(jogos);
+    const games = await resp.json();
+    renderJogos(games);
   } catch { /* silencioso */ }
 }
 
-function renderJogos(jogos) {
-  jogosCache = jogos;
-  const container = document.getElementById('jogos-list');
-  if (jogos.length === 0) {
-    container.innerHTML = emptyState('Nenhum jogo cadastrado');
+function renderJogos(games) {
+  jogosCache = games;
+  const container = document.getElementById('games-list');
+  if (games.length === 0) {
+    container.innerHTML = emptyState('Nenhum game cadastrado');
     return;
   }
-  container.innerHTML = jogos.map(j => `
-    <div class="jogo-card ${j.ativo === false ? 'inativo' : ''}" data-id="${j.id}">
+  container.innerHTML = games.map(j => `
+    <div class="game-card ${j.ativo === false ? 'inativo' : ''}" data-id="${j.id}">
       <div>
-        <div class="jogo-nome">
+        <div class="game-nome">
           ${escapar(j.nome)}
-          ${j.pendente_aprovacao ? '<span class="badge-pendente-jogo">Aguardando aprovação</span>' : ''}
+          ${j.pendente_aprovacao ? '<span class="badge-pendente-game">Aguardando aprovação</span>' : ''}
         </div>
-        <div class="jogo-meta">
+        <div class="game-meta">
           slug: ${j.slug}
           ${j.score_max ? ` · máx: ${j.score_max.toLocaleString('pt-BR')}` : ' · sem limite de score'}
         </div>
       </div>
-      <div class="jogo-actions">
+      <div class="game-actions">
         <div style="display:flex;align-items:center;gap:var(--space-sm)">
           ${meInfo && meInfo.super ? `
-          <button class="btn-action btn-rejeitar btn-arquivar-jogo" data-id="${j.id}" data-nome="${j.nome}"
-                  title="Arquivar ranking deste jogo" style="padding:4px 10px;font-size:10px">
+          <button class="btn-action btn-rejeitar btn-arquivar-game" data-id="${j.id}" data-nome="${j.nome}"
+                  title="Arquivar ranking deste game" style="padding:4px 10px;font-size:10px">
             ⬇ Arquivar
           </button>` : ''}
           ${ehAdminEmAlgumaMarca() ? `
@@ -1632,17 +1632,17 @@ function renderJogos(jogos) {
     </div>
   `).join('');
 
-  // Botão arquivar ranking por jogo
-  container.querySelectorAll('.btn-arquivar-jogo').forEach(btn => {
+  // Botão arquivar ranking por game
+  container.querySelectorAll('.btn-arquivar-game').forEach(btn => {
     btn.addEventListener('click', async () => {
       const nome = btn.dataset.nome;
-      if (!confirm(`Arquivar todo o ranking de "${nome}"? As entradas poderão ser restauradas depois.`)) return;
+      if (!confirm(`Arquivar todo o ranking de "${nome}"? As entries poderão ser restauradas depois.`)) return;
       try {
         const resp = await apiFetch('/api/admin/manutencao/limpar-ranking', 'POST', {
-          jogo_id: btn.dataset.id, permanente: false, confirmar: 'CONFIRMAR'
+          game_id: btn.dataset.id, permanente: false, confirmar: 'CONFIRMAR'
         });
         const data = await resp.json();
-        showToast(`${data.total_afetadas} entradas arquivadas de "${nome}"`, 'success');
+        showToast(`${data.total_afetadas} entries arquivadas de "${nome}"`, 'success');
         carregarFeed();
       } catch { showToast('Erro ao arquivar ranking', 'error'); }
     });
@@ -1653,47 +1653,47 @@ function renderJogos(jogos) {
       const id    = toggle.dataset.id;
       const ativo = toggle.dataset.ativo === 'true';
       try {
-        await apiFetch(`/api/admin/jogos/${id}`, 'PATCH', { ativo: !ativo });
-        showToast(!ativo ? 'Jogo ativado' : 'Jogo desativado', 'success');
+        await apiFetch(`/api/admin/games/${id}`, 'PATCH', { ativo: !ativo });
+        showToast(!ativo ? 'Game ativado' : 'Game desativado', 'success');
         carregarJogos();
-      } catch { showToast('Erro ao atualizar jogo', 'error'); }
+      } catch { showToast('Erro ao atualizar game', 'error'); }
     });
   });
 
   // Popula select da aba Manutenção
-  const selManut = document.getElementById('manut-jogo-select');
+  const selManut = document.getElementById('manut-game-select');
   if (selManut) {
-    selManut.innerHTML = jogos.map(j =>
+    selManut.innerHTML = games.map(j =>
       `<option value="${j.id}">${escapar(j.nome)}</option>`
     ).join('');
   }
 
-  // Popula filtro de jogo do feed (docs/BACKLOG_2026.md §4.1) —
-  // preserva a seleção atual, já que jogos podem recarregar sem o
+  // Popula filtro de game do feed (docs/BACKLOG_2026.md §4.1) —
+  // preserva a seleção atual, já que games podem recarregar sem o
   // usuário ter mexido no filtro.
-  const selFeedJogo = document.getElementById('feed-filtro-jogo');
+  const selFeedJogo = document.getElementById('feed-filtro-game');
   if (selFeedJogo) {
     const selecionado = selFeedJogo.value;
-    selFeedJogo.innerHTML = '<option value="">Todos os jogos</option>' +
-      jogos.map(j => `<option value="${j.id}">${escapar(j.nome)}</option>`).join('');
+    selFeedJogo.innerHTML = '<option value="">Todos os games</option>' +
+      games.map(j => `<option value="${j.id}">${escapar(j.nome)}</option>`).join('');
     selFeedJogo.value = selecionado;
   }
 }
 
-// ── JOGOS PENDENTES DE APROVAÇÃO (só super-admin — migration 018) ─────────────
+// ── GAMES PENDENTES DE APROVAÇÃO (só super-admin — migration 018) ─────────────
 
 async function carregarJogosPendentes() {
-  const secao = document.getElementById('jogos-pendentes-secao');
-  const lista = document.getElementById('jogos-pendentes-lista');
+  const secao = document.getElementById('games-pendentes-secao');
+  const lista = document.getElementById('games-pendentes-lista');
   try {
-    const resp = await apiFetch('/api/admin/jogos/pendentes');
+    const resp = await apiFetch('/api/admin/games/pendentes');
     if (!resp.ok) { secao.style.display = 'none'; return; }
     const pendentes = await resp.json();
 
     if (pendentes.length === 0) { secao.style.display = 'none'; return; }
     secao.style.display = 'block';
 
-    // Opções pro select de "mesclar com" — jogos já aprovados (exclui os próprios pendentes)
+    // Opções pro select de "mesclar com" — games já aprovados (exclui os próprios pendentes)
     const idsPendentes = new Set(pendentes.map(p => p.id));
     const opcoesExistentes = (jogosCache || [])
       .filter(j => !idsPendentes.has(j.id) && !j.pendente_aprovacao)
@@ -1701,22 +1701,22 @@ async function carregarJogosPendentes() {
       .join('');
 
     lista.innerHTML = pendentes.map(p => `
-      <div class="jogo-pendente-card">
-        <div class="jogo-nome">${escapar(p.nome)}</div>
-        <div class="jogo-pendente-meta">
+      <div class="game-pendente-card">
+        <div class="game-nome">${escapar(p.nome)}</div>
+        <div class="game-pendente-meta">
           slug: ${escapar(p.slug)}
           · criado por ${escapar(p.criado_por || 'desconhecido')}
-          ${p.eventos_em_uso && p.eventos_em_uso.length
-            ? ` · já em uso em: ${p.eventos_em_uso.map(escapar).join(', ')}`
-            : ' · ainda não vinculado a nenhum evento'}
+          ${p.events_em_uso && p.events_em_uso.length
+            ? ` · já em uso em: ${p.events_em_uso.map(escapar).join(', ')}`
+            : ' · ainda não vinculado a nenhum event'}
         </div>
-        <div class="jogo-pendente-acoes">
+        <div class="game-pendente-acoes">
           <button class="btn-action btn-reativar" style="padding:4px 10px;font-size:10px"
                   onclick="aprovarJogoPendente('${p.id}')">
-            ✓ Aprovar como jogo novo
+            ✓ Aprovar como game novo
           </button>
-          <select class="jogo-pendente-mesclar-select" id="mesclar-select-${p.id}">
-            <option value="">Mesclar com jogo existente...</option>
+          <select class="game-pendente-mesclar-select" id="mesclar-select-${p.id}">
+            <option value="">Mesclar com game existente...</option>
             ${opcoesExistentes}
           </select>
           <button class="btn-action btn-rejeitar" style="padding:4px 10px;font-size:10px"
@@ -1733,71 +1733,71 @@ async function carregarJogosPendentes() {
 
 window.aprovarJogoPendente = async function(jogoId) {
   try {
-    const resp = await apiFetch(`/api/admin/jogos/${jogoId}/aprovar`, 'PATCH');
+    const resp = await apiFetch(`/api/admin/games/${jogoId}/aprovar`, 'PATCH');
     if (resp.ok) {
-      showToast('Jogo aprovado — já faz parte do catálogo geral', 'success');
+      showToast('Game aprovado — já faz parte do catálogo geral', 'success');
       await carregarJogos();
       await carregarJogosPendentes();
     } else {
       const d = await resp.json();
-      showToast(d.detail || 'Erro ao aprovar jogo', 'error');
+      showToast(d.detail || 'Erro ao aprovar game', 'error');
     }
-  } catch { showToast('Erro ao aprovar jogo', 'error'); }
+  } catch { showToast('Erro ao aprovar game', 'error'); }
 };
 
 window.mesclarJogoPendente = async function(jogoOrigemId) {
   const select = document.getElementById(`mesclar-select-${jogoOrigemId}`);
   const destinoId = select.value;
-  if (!destinoId) { showToast('Escolha o jogo existente pra mesclar', 'error'); return; }
+  if (!destinoId) { showToast('Escolha o game existente pra mesclar', 'error'); return; }
 
   const nomeDestino = select.options[select.selectedIndex].textContent;
-  if (!confirm(`Mesclar este jogo em "${nomeDestino}"? Todas as pontuações e vínculos de evento migram — o jogo duplicado fica arquivado.`)) return;
+  if (!confirm(`Mesclar este game em "${nomeDestino}"? Todas as pontuações e vínculos de event migram — o game duplicado fica arquivado.`)) return;
 
   try {
-    const resp = await apiFetch(`/api/admin/jogos/${jogoOrigemId}/mesclar`, 'POST', {
-      jogo_destino_id: destinoId,
+    const resp = await apiFetch(`/api/admin/games/${jogoOrigemId}/mesclar`, 'POST', {
+      game_destino_id: destinoId,
     });
     if (resp.ok) {
-      showToast('Jogos mesclados!', 'success');
+      showToast('Games mesclados!', 'success');
       await carregarJogos();
       await carregarJogosPendentes();
     } else {
       const d = await resp.json();
-      showToast(d.detail || 'Erro ao mesclar jogos', 'error');
+      showToast(d.detail || 'Erro ao mesclar games', 'error');
     }
-  } catch { showToast('Erro ao mesclar jogos', 'error'); }
+  } catch { showToast('Erro ao mesclar games', 'error'); }
 };
 
 // Slug automático ao digitar nome
-document.getElementById('jogo-nome').addEventListener('input', e => {
-  document.getElementById('jogo-slug').value = e.target.value
+document.getElementById('game-nome').addEventListener('input', e => {
+  document.getElementById('game-slug').value = e.target.value
     .toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 });
 
-document.getElementById('criar-jogo-btn').addEventListener('click', async () => {
-  const nome      = document.getElementById('jogo-nome').value.trim();
-  const slug      = document.getElementById('jogo-slug').value.trim();
-  const scoreMax  = parseInt(document.getElementById('jogo-score-max').value) || null;
+document.getElementById('criar-game-btn').addEventListener('click', async () => {
+  const nome      = document.getElementById('game-nome').value.trim();
+  const slug      = document.getElementById('game-slug').value.trim();
+  const scoreMax  = parseInt(document.getElementById('game-score-max').value) || null;
 
   if (!nome || !slug) { showToast('Nome e slug são obrigatórios', 'error'); return; }
 
   try {
-    const resp = await apiFetch('/api/admin/jogos', 'POST', { nome, slug, score_max: scoreMax });
+    const resp = await apiFetch('/api/admin/games', 'POST', { nome, slug, score_max: scoreMax });
     if (!resp.ok) {
       const err = await resp.json();
-      showToast(err.detail || 'Erro ao criar jogo', 'error');
+      showToast(err.detail || 'Erro ao criar game', 'error');
       return;
     }
-    document.getElementById('jogo-nome').value = '';
-    document.getElementById('jogo-slug').value = '';
-    document.getElementById('jogo-score-max').value = '';
-    showToast(`Jogo "${nome}" criado!`, 'success');
+    document.getElementById('game-nome').value = '';
+    document.getElementById('game-slug').value = '';
+    document.getElementById('game-score-max').value = '';
+    showToast(`Game "${nome}" criado!`, 'success');
     jogosCarregados = false;
     carregarJogos();
-  } catch { showToast('Erro ao criar jogo', 'error'); }
+  } catch { showToast('Erro ao criar game', 'error'); }
 });
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
@@ -1846,7 +1846,7 @@ function renderConfig(cfg) {
   });
 }
 
-// ── CARD DE ENTRADA ───────────────────────────────────────────────────────────
+// ── CARD DE ENTRY ───────────────────────────────────────────────────────────
 function motivoModeracao(e) {
   const motivos = [];
   // pendente_motivo (NICKNAME_SPEC.md decisão #7) tem prioridade — é o
@@ -1864,11 +1864,11 @@ function motivoModeracao(e) {
 
 function cardEntrada(e, tipo) {
   const foto = e.foto_url
-    ? `<img class="entrada-foto" src="${e.foto_url}" alt="${e.nick}" loading="lazy" onclick="abrirLightbox('${e.foto_url}')">`
-    : `<div class="entrada-foto-placeholder">${e.nick.charAt(0).toUpperCase()}</div>`;
+    ? `<img class="entry-foto" src="${e.foto_url}" alt="${e.nick}" loading="lazy" onclick="abrirLightbox('${e.foto_url}')">`
+    : `<div class="entry-foto-placeholder">${e.nick.charAt(0).toUpperCase()}</div>`;
 
   const oculta  = !e.no_ranking && !e.pendente;
-  const classes = `entrada-card ${oculta ? 'oculta' : ''} ${e.pendente ? 'pendente-card' : ''}`;
+  const classes = `entry-card ${oculta ? 'oculta' : ''} ${e.pendente ? 'pendente-card' : ''}`;
 
   // Ações: pendentes têm aprovar/ocultar; visíveis têm ocultar; ocultos têm reativar
   let acoes = '';
@@ -1921,8 +1921,8 @@ function cardEntrada(e, tipo) {
   }
 
   // Histórico de nicks do usuário identificado — não só o nick desta
-  // entrada isolada (decisão #4 do NICKNAME_SPEC.md). Só faz sentido
-  // pra entrada com login (user_id); anônima não tem conta pra ver.
+  // entry isolada (decisão #4 do NICKNAME_SPEC.md). Só faz sentido
+  // pra entry com login (user_id); anônima não tem conta pra ver.
   const nicksBtnHtml = e.user_id
     ? `<button class="btn-action" style="padding:4px 10px;font-size:10px" onclick="toggleHistoricoNicks('${e.id}', '${e.user_id}')">🕐 Nicks</button>`
     : '';
@@ -1930,19 +1930,19 @@ function cardEntrada(e, tipo) {
   return `
     <div class="${classes}" data-id="${e.id}">
       ${foto}
-      <div class="entrada-info">
-        <div class="entrada-nick">${escapar(e.nick)} ${status}</div>
+      <div class="entry-info">
+        <div class="entry-nick">${escapar(e.nick)} ${status}</div>
         ${motivoHtml}
         ${rankingCtxHtml}
-        <div class="entrada-meta">
-          <span>${e.jogo_nome || ''}</span>
-          <span class="entrada-score">${(e.pontuacao || 0).toLocaleString('pt-BR')} pts</span>
+        <div class="entry-meta">
+          <span>${e.game_nome || ''}</span>
+          <span class="entry-score">${(e.pontuacao || 0).toLocaleString('pt-BR')} pts</span>
           <span>${tempoRelativo(e.criado_em)}</span>
-          ${e.evento_nome ? `<span style="opacity:0.6">· ${escapar(e.evento_nome)}</span>` : ''}
+          ${e.event_nome ? `<span style="opacity:0.6">· ${escapar(e.event_nome)}</span>` : ''}
         </div>
         <div class="historico-nicks" id="historico-nicks-${e.id}" style="display:none;margin-top:8px"></div>
       </div>
-      <div class="entrada-actions">${acoes}${nicksBtnHtml}</div>
+      <div class="entry-actions">${acoes}${nicksBtnHtml}</div>
     </div>
   `;
 }
@@ -2023,26 +2023,26 @@ function bindCardActions(container) {
 
 async function moderarEntrada(id, noRanking) {
   try {
-    await apiFetch(`/api/admin/entradas/${id}`, 'PATCH', { no_ranking: noRanking });
-    showToast(noRanking ? 'Entrada reativada' : 'Entrada ocultada', 'success');
+    await apiFetch(`/api/admin/entries/${id}`, 'PATCH', { no_ranking: noRanking });
+    showToast(noRanking ? 'Entry reativada' : 'Entry ocultada', 'success');
     carregarFeed();
-  } catch { showToast('Erro ao moderar entrada', 'error'); }
+  } catch { showToast('Erro ao moderar entry', 'error'); }
 }
 
 async function resolverPendente(id, aprovar) {
   try {
-    const resp = await apiFetch(`/api/admin/entradas/${id}/pendente`, 'PATCH', { aprovar });
+    const resp = await apiFetch(`/api/admin/entries/${id}/pendente`, 'PATCH', { aprovar });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       if (resp.status === 409) {
-        showToast('Entrada já foi processada — recarregando lista', 'error');
+        showToast('Entry já foi processada — recarregando lista', 'error');
       } else {
         showToast(err.detail || `Erro ${resp.status}`, 'error');
       }
       carregarFeed();
       return;
     }
-    showToast(aprovar ? '✓ Entrada aprovada!' : 'Entrada ocultada', aprovar ? 'success' : 'error');
+    showToast(aprovar ? '✓ Entry aprovada!' : 'Entry ocultada', aprovar ? 'success' : 'error');
     carregarFeed();
   } catch { showToast('Erro ao resolver pendente', 'error'); }
 }
@@ -2074,9 +2074,9 @@ function setTelaoParam(chave, valor) {
   showToast(`Telão: ${chave} = ${valor}`, 'success');
 }
 
-// Marca defaults ao carregar
+// Arena defaults ao carregar
 document.addEventListener('DOMContentLoaded', () => {
-  // Marca 'normal' e 'fixo' como selecionados por padrão
+  // Arena 'normal' e 'fixo' como selecionados por padrão
   setTimeout(() => {
     setTelaoParam('tamanho', _telaoParams.tamanho);
     setTelaoParam('modo',    _telaoParams.modo);
@@ -2084,31 +2084,31 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function arquivarJogo() {
-  const jogoId = document.getElementById('manut-jogo-select').value;
-  const nome   = document.getElementById('manut-jogo-select').selectedOptions[0]?.text || '';
-  if (!jogoId) { showToast('Selecione um jogo', 'error'); return; }
+  const jogoId = document.getElementById('manut-game-select').value;
+  const nome   = document.getElementById('manut-game-select').selectedOptions[0]?.text || '';
+  if (!jogoId) { showToast('Selecione um game', 'error'); return; }
   if (!confirm(`Arquivar todo o ranking de "${nome}"? Reversível.`)) return;
   try {
     const resp = await apiFetch('/api/admin/manutencao/limpar-ranking', 'POST', {
-      jogo_id: jogoId, permanente: false, confirmar: 'CONFIRMAR'
+      game_id: jogoId, permanente: false, confirmar: 'CONFIRMAR'
     });
     const data = await resp.json();
-    showToast(`${data.total_afetadas} entradas arquivadas`, 'success');
+    showToast(`${data.total_afetadas} entries arquivadas`, 'success');
     carregarFeed();
   } catch { showToast('Erro ao arquivar', 'error'); }
 }
 
 async function restaurarJogo() {
-  const jogoId = document.getElementById('manut-jogo-select').value;
-  const nome   = document.getElementById('manut-jogo-select').selectedOptions[0]?.text || '';
-  if (!jogoId) { showToast('Selecione um jogo', 'error'); return; }
-  if (!confirm(`Restaurar entradas arquivadas de "${nome}"?`)) return;
+  const jogoId = document.getElementById('manut-game-select').value;
+  const nome   = document.getElementById('manut-game-select').selectedOptions[0]?.text || '';
+  if (!jogoId) { showToast('Selecione um game', 'error'); return; }
+  if (!confirm(`Restaurar entries arquivadas de "${nome}"?`)) return;
   try {
     const resp = await apiFetch('/api/admin/manutencao/restaurar-ranking', 'POST', {
-      jogo_id: jogoId, confirmar: 'CONFIRMAR'
+      game_id: jogoId, confirmar: 'CONFIRMAR'
     });
     const data = await resp.json();
-    showToast(`${data.total_restauradas} entradas restauradas`, 'success');
+    showToast(`${data.total_restauradas} entries restauradas`, 'success');
     carregarFeed();
   } catch { showToast('Erro ao restaurar', 'error'); }
 }
@@ -2120,8 +2120,8 @@ async function limparGeral() {
   if (confirmar !== 'CONFIRMAR') { showToast('Digite CONFIRMAR no campo acima', 'error'); return; }
 
   const aviso = permanente
-    ? '⚠️ ATENÇÃO: Esta ação é IRREVERSÍVEL! Todas as entradas serão deletadas permanentemente. Tem certeza?'
-    : 'Arquivar TODOS os rankings de todos os jogos? Poderá ser restaurado depois.';
+    ? '⚠️ ATENÇÃO: Esta ação é IRREVERSÍVEL! Todas as entries serão deletadas permanentemente. Tem certeza?'
+    : 'Arquivar TODOS os rankings de todos os games? Poderá ser restaurado depois.';
   if (!confirm(aviso)) return;
 
   try {
@@ -2130,19 +2130,19 @@ async function limparGeral() {
     });
     const data = await resp.json();
     document.getElementById('manut-confirmar').value = '';
-    showToast(`${data.total_afetadas} entradas ${permanente ? 'deletadas' : 'arquivadas'}`, permanente ? 'error' : 'success');
+    showToast(`${data.total_afetadas} entries ${permanente ? 'deletadas' : 'arquivadas'}`, permanente ? 'error' : 'success');
     carregarFeed();
   } catch { showToast('Erro na limpeza', 'error'); }
 }
 
 async function restaurarGeral() {
-  if (!confirm('Restaurar TODAS as entradas arquivadas de todos os jogos?')) return;
+  if (!confirm('Restaurar TODAS as entries arquivadas de todos os games?')) return;
   try {
     const resp = await apiFetch('/api/admin/manutencao/restaurar-ranking', 'POST', {
       confirmar: 'CONFIRMAR'
     });
     const data = await resp.json();
-    showToast(`${data.total_restauradas} entradas restauradas`, 'success');
+    showToast(`${data.total_restauradas} entries restauradas`, 'success');
     carregarFeed();
   } catch { showToast('Erro ao restaurar', 'error'); }
 }
@@ -2162,12 +2162,12 @@ async function apiFetch(path, method = 'GET', body = null) {
   return fetch(`${API_URL}${path}`, opts);
 }
 
-// Injeta evento_id na URL quando o admin é escopado (obrigatório nesse
+// Injeta event_id na URL quando o admin é escopado (obrigatório nesse
 // caso — ver docs/MARCAS_SPEC.md §6). Super-admin não precisa, vê tudo.
 function comEventoId(path) {
   if (meInfo && !meInfo.super && eventoAtual) {
     const sep = path.includes('?') ? '&' : '?';
-    return `${path}${sep}evento_id=${eventoAtual}`;
+    return `${path}${sep}event_id=${eventoAtual}`;
   }
   return path;
 }
@@ -2229,26 +2229,26 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') window.fecharLightbox();
 });
 
-// ── MARCAS ───────────────────────────────────────────────────
-// Cor/tipografia/logo aqui são herdados por eventos vinculados —
+// ── ARENAS ───────────────────────────────────────────────────
+// Cor/tipografia/logo aqui são herdados por events vinculados —
 // ver docs/MARCAS_SPEC.md §3. marcasCacheEventos (definida abaixo, em
-// EVENTOS) é reaproveitada pelo <select> de marca do form de evento.
+// EVENTS) é reaproveitada pelo <select> de arena do form de event.
 
 async function carregarMarcas() {
-  const lista = document.getElementById('marcas-lista');
+  const lista = document.getElementById('arenas-lista');
   try {
-    const resp = await apiFetch('/api/admin/marcas');
-    if (!resp.ok) { lista.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar marcas</div>`; return; }
-    const marcas = await resp.json();
+    const resp = await apiFetch('/api/admin/arenas');
+    if (!resp.ok) { lista.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar arenas</div>`; return; }
+    const arenas = await resp.json();
 
-    if (marcas.length === 0) {
-      lista.innerHTML = `<div style="color:var(--color-text-muted);font-size:var(--text-sm)">Nenhuma marca cadastrada ainda</div>`;
+    if (arenas.length === 0) {
+      lista.innerHTML = `<div style="color:var(--color-text-muted);font-size:var(--text-sm)">Nenhuma arena cadastrada ainda</div>`;
       return;
     }
 
-    marcasCacheParcerias = marcas;
+    marcasCacheParcerias = arenas;
 
-    lista.innerHTML = marcas.map(m => {
+    lista.innerHTML = arenas.map(m => {
       const podeGerenciar = (meInfo && meInfo.super) || nivelDaMarca(m.id) === 'admin';
       return `
       <div>
@@ -2278,14 +2278,14 @@ async function carregarMarcas() {
     `;
     }).join('');
   } catch {
-    lista.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar marcas</div>`;
+    lista.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar arenas</div>`;
   }
 }
 
-// ── Parcerias entre marcas (docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.2) ──
-// "Qualquer admin da marca" gerencia (decisão #3) — mesma régua de
+// ── Parcerias entre arenas (docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.2) ──
+// "Qualquer admin da arena" gerencia (decisão #3) — mesma régua de
 // podeGerenciar usada pro botão Editar. Painel carrega sob demanda
-// (só ao abrir), não junto com a lista — evita N+1 pra cada marca
+// (só ao abrir), não junto com a lista — evita N+1 pra cada arena
 // visível na aba.
 let marcasCacheParcerias = [];
 
@@ -2301,38 +2301,38 @@ async function carregarParcerias(marcaId) {
   const painel = document.getElementById(`parcerias-panel-${marcaId}`);
   painel.innerHTML = `<div style="font-size:var(--text-xs);color:var(--color-text-muted)">Carregando…</div>`;
   try {
-    const resp = await apiFetch(`/api/admin/marcas/${marcaId}/parcerias`);
+    const resp = await apiFetch(`/api/admin/arenas/${marcaId}/parcerias`);
     if (!resp.ok) { painel.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-xs)">Erro ao carregar parcerias</div>`; return; }
     const { concedidas, recebidas } = await resp.json();
 
     const outrasMarcas = marcasCacheParcerias.filter(m => m.id !== marcaId);
-    const jaConcedidasIds = new Set(concedidas.filter(p => p.ativo).map(p => p.marca_destino_id));
+    const jaConcedidasIds = new Set(concedidas.filter(p => p.ativo).map(p => p.arena_destino_id));
     const disponiveis = outrasMarcas.filter(m => !jaConcedidasIds.has(m.id));
 
     painel.innerHTML = `
       <div style="font-size:var(--text-xs);color:var(--color-text-muted);margin-bottom:8px">
-        Liberar = esta marca deixa a outra ver o próprio placar em "marca + parceiras".
+        Liberar = esta arena deixa a outra ver o próprio placar em "arena + parceiras".
         Aceitar fecha a mutualidade (docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.2).
       </div>
 
-      <div style="font-size:11px;font-weight:600;color:var(--color-secondary);margin-bottom:4px">Concedidas por esta marca</div>
+      <div style="font-size:11px;font-weight:600;color:var(--color-secondary);margin-bottom:4px">Concedidas por esta arena</div>
       <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">
         ${concedidas.length === 0 ? `<div style="font-size:var(--text-xs);color:var(--color-text-muted)">Nenhuma</div>` : ''}
         ${concedidas.map(p => `
           <div style="display:flex;align-items:center;gap:8px;font-size:var(--text-xs)">
-            <span style="flex:1">${escapar(p.marca_destino_nome)} ${p.ativo ? '' : '<span style="color:var(--color-text-muted)">(revogada)</span>'}</span>
-            ${p.ativo ? `<button class="btn-action btn-ocultar" style="padding:2px 8px;font-size:10px" onclick="revogarParceria('${marcaId}', '${p.marca_destino_id}')">Revogar</button>` : ''}
+            <span style="flex:1">${escapar(p.arena_destino_nome)} ${p.ativo ? '' : '<span style="color:var(--color-text-muted)">(revogada)</span>'}</span>
+            ${p.ativo ? `<button class="btn-action btn-ocultar" style="padding:2px 8px;font-size:10px" onclick="revogarParceria('${marcaId}', '${p.arena_destino_id}')">Revogar</button>` : ''}
           </div>
         `).join('')}
       </div>
 
-      <div style="font-size:11px;font-weight:600;color:var(--color-secondary);margin-bottom:4px">Recebidas de outras marcas</div>
+      <div style="font-size:11px;font-weight:600;color:var(--color-secondary);margin-bottom:4px">Recebidas de outras arenas</div>
       <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px">
         ${recebidas.length === 0 ? `<div style="font-size:var(--text-xs);color:var(--color-text-muted)">Nenhuma</div>` : ''}
         ${recebidas.map(p => `
           <div style="display:flex;align-items:center;gap:8px;font-size:var(--text-xs)">
-            <span style="flex:1">${escapar(p.marca_origem_nome)} ${p.reciproca ? '<span style="color:var(--color-success)">· mútua</span>' : '<span style="color:var(--color-warning,#e6a23c)">· aguardando aceite</span>'}</span>
-            ${!p.reciproca ? `<button class="btn-action btn-reativar" style="padding:2px 8px;font-size:10px" onclick="aceitarParceria('${marcaId}', '${p.marca_origem_id}')">Aceitar</button>` : ''}
+            <span style="flex:1">${escapar(p.arena_origem_nome)} ${p.reciproca ? '<span style="color:var(--color-success)">· mútua</span>' : '<span style="color:var(--color-warning,#e6a23c)">· aguardando aceite</span>'}</span>
+            ${!p.reciproca ? `<button class="btn-action btn-reativar" style="padding:2px 8px;font-size:10px" onclick="aceitarParceria('${marcaId}', '${p.arena_origem_id}')">Aceitar</button>` : ''}
           </div>
         `).join('')}
       </div>
@@ -2355,72 +2355,72 @@ async function carregarParcerias(marcaId) {
 
 window.liberarParceria = async function(marcaId, destinoId) {
   if (!destinoId) return;
-  const resp = await apiFetch(`/api/admin/marcas/${marcaId}/parcerias/${destinoId}/liberar`, 'POST');
+  const resp = await apiFetch(`/api/admin/arenas/${marcaId}/parcerias/${destinoId}/liberar`, 'POST');
   if (resp.ok) { showToast('Parceria liberada!', 'success'); carregarParcerias(marcaId); }
   else { const d = await resp.json(); showToast(d.detail || 'Erro ao liberar parceria', 'error'); }
 };
 
 window.aceitarParceria = async function(marcaId, origemId) {
-  const resp = await apiFetch(`/api/admin/marcas/${marcaId}/parcerias/${origemId}/aceitar`, 'POST');
+  const resp = await apiFetch(`/api/admin/arenas/${marcaId}/parcerias/${origemId}/aceitar`, 'POST');
   if (resp.ok) { showToast('Parceria aceita — agora é mútua!', 'success'); carregarParcerias(marcaId); }
   else { const d = await resp.json(); showToast(d.detail || 'Erro ao aceitar parceria', 'error'); }
 };
 
 window.revogarParceria = async function(marcaId, destinoId) {
-  const resp = await apiFetch(`/api/admin/marcas/${marcaId}/parcerias/${destinoId}/revogar`, 'POST');
+  const resp = await apiFetch(`/api/admin/arenas/${marcaId}/parcerias/${destinoId}/revogar`, 'POST');
   if (resp.ok) { showToast('Parceria revogada', 'success'); carregarParcerias(marcaId); }
   else { const d = await resp.json(); showToast(d.detail || 'Erro ao revogar parceria', 'error'); }
 };
 
 // Sincroniza o color picker com o campo de texto hex, nos dois sentidos
-document.getElementById('marca-cor').addEventListener('input', (e) => {
-  document.getElementById('marca-cor-hex').value = e.target.value;
+document.getElementById('arena-cor').addEventListener('input', (e) => {
+  document.getElementById('arena-cor-hex').value = e.target.value;
 });
-document.getElementById('marca-cor-hex').addEventListener('input', (e) => {
+document.getElementById('arena-cor-hex').addEventListener('input', (e) => {
   if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-    document.getElementById('marca-cor').value = e.target.value;
+    document.getElementById('arena-cor').value = e.target.value;
   }
 });
 
-window.editarMarca = function(marca) {
-  document.getElementById('marca-id-editando').value = marca.id;
-  document.getElementById('marca-nome').value = marca.nome;
-  document.getElementById('marca-slug').value = marca.slug;
-  document.getElementById('marca-slug').disabled = true; // slug não muda após criado
-  const cor = marca.cor_primaria || '#5fbb50';
-  document.getElementById('marca-cor').value = cor;
-  document.getElementById('marca-cor-hex').value = marca.cor_primaria || '';
-  document.getElementById('marca-tipografia').value = marca.tipografia || '';
-  document.getElementById('marca-logo').value = marca.logo_url || '';
-  document.getElementById('marca-itens-por-pagina').value = marca.itens_por_pagina || '';
-  document.getElementById('marca-salvar-btn').textContent = '✓ Salvar alterações';
-  document.getElementById('marca-cancelar-btn').style.display = 'block';
-  document.getElementById('marca-form-details').open = true;
-  document.getElementById('marca-form-details').scrollIntoView({ behavior: 'smooth' });
+window.editarMarca = function(arena) {
+  document.getElementById('arena-id-editando').value = arena.id;
+  document.getElementById('arena-nome').value = arena.nome;
+  document.getElementById('arena-slug').value = arena.slug;
+  document.getElementById('arena-slug').disabled = true; // slug não muda após criado
+  const cor = arena.cor_primaria || '#5fbb50';
+  document.getElementById('arena-cor').value = cor;
+  document.getElementById('arena-cor-hex').value = arena.cor_primaria || '';
+  document.getElementById('arena-tipografia').value = arena.tipografia || '';
+  document.getElementById('arena-logo').value = arena.logo_url || '';
+  document.getElementById('arena-itens-por-pagina').value = arena.itens_por_pagina || '';
+  document.getElementById('arena-salvar-btn').textContent = '✓ Salvar alterações';
+  document.getElementById('arena-cancelar-btn').style.display = 'block';
+  document.getElementById('arena-form-details').open = true;
+  document.getElementById('arena-form-details').scrollIntoView({ behavior: 'smooth' });
 };
 
 window.cancelarEdicaoMarca = function() {
-  document.getElementById('marca-id-editando').value = '';
-  document.getElementById('marca-nome').value = '';
-  document.getElementById('marca-slug').value = '';
-  document.getElementById('marca-slug').disabled = false;
-  document.getElementById('marca-cor').value = '#5fbb50';
-  document.getElementById('marca-cor-hex').value = '';
-  document.getElementById('marca-tipografia').value = '';
-  document.getElementById('marca-logo').value = '';
-  document.getElementById('marca-itens-por-pagina').value = '';
-  document.getElementById('marca-salvar-btn').textContent = '+ Criar marca';
-  document.getElementById('marca-cancelar-btn').style.display = 'none';
+  document.getElementById('arena-id-editando').value = '';
+  document.getElementById('arena-nome').value = '';
+  document.getElementById('arena-slug').value = '';
+  document.getElementById('arena-slug').disabled = false;
+  document.getElementById('arena-cor').value = '#5fbb50';
+  document.getElementById('arena-cor-hex').value = '';
+  document.getElementById('arena-tipografia').value = '';
+  document.getElementById('arena-logo').value = '';
+  document.getElementById('arena-itens-por-pagina').value = '';
+  document.getElementById('arena-salvar-btn').textContent = '+ Criar arena';
+  document.getElementById('arena-cancelar-btn').style.display = 'none';
 };
 
 window.salvarMarca = async function() {
-  const id       = document.getElementById('marca-id-editando').value;
-  const nome     = document.getElementById('marca-nome').value.trim();
-  const slug     = document.getElementById('marca-slug').value.trim();
-  const cor      = document.getElementById('marca-cor-hex').value.trim();
-  const tipo     = document.getElementById('marca-tipografia').value;
-  const logo     = document.getElementById('marca-logo').value.trim();
-  const itensPag = document.getElementById('marca-itens-por-pagina').value.trim();
+  const id       = document.getElementById('arena-id-editando').value;
+  const nome     = document.getElementById('arena-nome').value.trim();
+  const slug     = document.getElementById('arena-slug').value.trim();
+  const cor      = document.getElementById('arena-cor-hex').value.trim();
+  const tipo     = document.getElementById('arena-tipografia').value;
+  const logo     = document.getElementById('arena-logo').value.trim();
+  const itensPag = document.getElementById('arena-itens-por-pagina').value.trim();
 
   if (!nome || (!id && !slug)) { showToast('Nome (e slug, se nova) são obrigatórios', 'error'); return; }
   if (cor && !/^#[0-9a-fA-F]{6}$/.test(cor)) { showToast('Cor precisa ser um hex válido (#rrggbb)', 'error'); return; }
@@ -2436,19 +2436,19 @@ window.salvarMarca = async function() {
 
   let resp;
   if (id) {
-    resp = await apiFetch(`/api/admin/marcas/${id}`, 'PATCH', dados);
+    resp = await apiFetch(`/api/admin/arenas/${id}`, 'PATCH', dados);
   } else {
     dados.slug = slug;
-    resp = await apiFetch('/api/admin/marcas', 'POST', dados);
+    resp = await apiFetch('/api/admin/arenas', 'POST', dados);
   }
 
   if (resp.ok) {
-    showToast(id ? 'Marca atualizada!' : 'Marca criada!', 'success');
+    showToast(id ? 'Arena atualizada!' : 'Arena criada!', 'success');
     cancelarEdicaoMarca();
     carregarMarcas();
   } else {
     const d = await resp.json();
-    showToast(d.detail || 'Erro ao salvar marca', 'error');
+    showToast(d.detail || 'Erro ao salvar arena', 'error');
   }
 };
 
@@ -2511,9 +2511,9 @@ window.toggleAvatarAtivo = async function(id, novoAtivo) {
   }
 };
 
-// ── EVENTOS ──────────────────────────────────────────────────
-// Não existe mais "o evento ativo" (conceito antigo, pré-EVENTOS_SPEC.md)
-// — vários eventos podem rodar simultaneamente. 'ativo' e 'publico' são
+// ── EVENTS ──────────────────────────────────────────────────
+// Não existe mais "o event ativo" (conceito antigo, pré-EVENTOS_SPEC.md)
+// — vários events podem rodar simultaneamente. 'ativo' e 'publico' são
 // dimensões independentes (ver docs/EVENTOS_SPEC.md §3).
 let marcasCacheEventos = [];
 
@@ -2528,31 +2528,31 @@ const MODOS_RANKING = {
 async function carregarEventos() {
   try {
     const [rEventos, rMarcas] = await Promise.all([
-      apiFetch('/api/admin/eventos'),
-      apiFetch('/api/admin/marcas'),
+      apiFetch('/api/admin/events'),
+      apiFetch('/api/admin/arenas'),
     ]);
     if (!rEventos.ok) return;
-    const eventos = await rEventos.json();
+    const events = await rEventos.json();
     marcasCacheEventos = rMarcas.ok ? await rMarcas.json() : [];
 
-    // Popula o <select> de marca no formulário de criação — só com as
-    // marcas onde a pessoa é admin (moderador nunca cria evento; admin
-    // só na própria marca — docs/PERMISSOES_SPEC.md §4)
+    // Popula o <select> de arena no formulário de criação — só com as
+    // arenas onde a pessoa é admin (moderador nunca cria event; admin
+    // só na própria arena — docs/PERMISSOES_SPEC.md §4)
     const marcasCriaveis = meInfo && meInfo.super
       ? marcasCacheEventos
       : marcasCacheEventos.filter(m => nivelDaMarca(m.id) === 'admin');
-    const selectMarca = document.getElementById('novo-evento-marca');
+    const selectMarca = document.getElementById('novo-event-arena');
     selectMarca.innerHTML = '<option value="">Selecione…</option>' +
       marcasCriaveis.map(m => `<option value="${m.id}">${escapar(m.nome)}</option>`).join('');
 
-    const lista = document.getElementById('eventos-lista');
-    if (eventos.length === 0) {
-      lista.innerHTML = `<div style="color:var(--color-text-muted);font-size:var(--text-sm)">Nenhum evento cadastrado ainda</div>`;
+    const lista = document.getElementById('events-lista');
+    if (events.length === 0) {
+      lista.innerHTML = `<div style="color:var(--color-text-muted);font-size:var(--text-sm)">Nenhum event cadastrado ainda</div>`;
       return;
     }
 
-    lista.innerHTML = eventos.map(e => {
-      const marca = marcasCacheEventos.find(m => m.id === e.marca_id);
+    lista.innerHTML = events.map(e => {
+      const arena = marcasCacheEventos.find(m => m.id === e.arena_id);
       const inicio = e.data_inicio ? new Date(e.data_inicio).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
       const fim    = e.data_fim    ? new Date(e.data_fim).toLocaleString('pt-BR',    {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
       return `
@@ -2561,7 +2561,7 @@ async function carregarEventos() {
             <div style="flex:1;min-width:0">
               <div style="font-size:var(--text-sm);font-weight:600">
                 ${escapar(e.nome)}
-                ${marca ? `<span style="font-size:10px;color:var(--color-text-muted)">· ${escapar(marca.nome)}</span>` : ''}
+                ${arena ? `<span style="font-size:10px;color:var(--color-text-muted)">· ${escapar(arena.nome)}</span>` : ''}
               </div>
               <div style="font-size:var(--text-xs);color:var(--color-text-muted)">${escapar(e.slug)} · envios: ${inicio} → ${fim}</div>
             </div>
@@ -2570,7 +2570,7 @@ async function carregarEventos() {
             <span style="font-size:10px;color:var(--color-text-muted);padding:4px 10px">
               ${e.ativo ? '● Ativo' : '○ Arquivado'}
             </span>
-            ${(meInfo && meInfo.super) || nivelDaMarca(e.marca_id) === 'admin' ? `
+            ${(meInfo && meInfo.super) || nivelDaMarca(e.arena_id) === 'admin' ? `
             <button class="btn-action ${e.publico ? 'btn-reativar' : 'btn-rejeitar'}" style="padding:4px 10px;font-size:10px"
                     onclick="togglePublicoEvento('${e.id}', ${!e.publico})">
               ${e.publico ? '👁 Público' : '🚫 Inacessível'} — clique pra ${e.publico ? 'ocultar' : 'tornar público'}
@@ -2592,46 +2592,46 @@ async function carregarEventos() {
 }
 
 async function togglePublicoEvento(id, publico) {
-  const resp = await apiFetch(`/api/admin/eventos/${id}`, 'PATCH', { publico });
-  if (resp.ok) { showToast(publico ? 'Evento tornado público' : 'Evento ocultado', 'success'); carregarEventos(); }
-  else showToast('Erro ao atualizar evento', 'error');
+  const resp = await apiFetch(`/api/admin/events/${id}`, 'PATCH', { publico });
+  if (resp.ok) { showToast(publico ? 'Event tornado público' : 'Event ocultado', 'success'); carregarEventos(); }
+  else showToast('Erro ao atualizar event', 'error');
 }
 
 async function atualizarModoRanking(id, modoRanking) {
-  const resp = await apiFetch(`/api/admin/eventos/${id}`, 'PATCH', { modo_ranking: modoRanking });
+  const resp = await apiFetch(`/api/admin/events/${id}`, 'PATCH', { modo_ranking: modoRanking });
   if (resp.ok) { showToast(`Modo de ranking: ${MODOS_RANKING[modoRanking]}`, 'success'); carregarEventos(); }
   else { const d = await resp.json(); showToast(d.detail || 'Erro ao atualizar modo de ranking', 'error'); }
 }
 
 async function criarEvento() {
-  const nome     = document.getElementById('novo-evento-nome').value.trim();
-  const slug     = document.getElementById('novo-evento-slug').value.trim();
-  const marcaId  = document.getElementById('novo-evento-marca').value || null;
-  const modoRanking = document.getElementById('novo-evento-modo-ranking').value;
-  const inicioEl = document.getElementById('novo-evento-inicio').value;
-  const fimEl    = document.getElementById('novo-evento-fim').value;
+  const nome     = document.getElementById('novo-event-nome').value.trim();
+  const slug     = document.getElementById('novo-event-slug').value.trim();
+  const marcaId  = document.getElementById('novo-event-arena').value || null;
+  const modoRanking = document.getElementById('novo-event-modo-ranking').value;
+  const inicioEl = document.getElementById('novo-event-inicio').value;
+  const fimEl    = document.getElementById('novo-event-fim').value;
 
   if (!nome || !slug) { showToast('Nome e slug são obrigatórios', 'error'); return; }
-  if (!marcaId) { showToast('Marca é obrigatória — todo evento precisa de uma', 'error'); return; }
+  if (!marcaId) { showToast('Arena é obrigatória — todo event precisa de uma', 'error'); return; }
   if (!inicioEl || !fimEl) { showToast('Início e fim da janela de envio são obrigatórios', 'error'); return; }
 
   const dados = {
     nome, slug,
-    marca_id: marcaId,
+    arena_id: marcaId,
     modo_ranking: modoRanking,
     data_inicio: new Date(inicioEl).toISOString(),
     data_fim:    new Date(fimEl).toISOString(),
   };
 
-  const resp = await apiFetch('/api/admin/eventos', 'POST', dados);
+  const resp = await apiFetch('/api/admin/events', 'POST', dados);
   if (resp.ok) {
-    showToast('Evento criado!', 'success');
-    document.getElementById('novo-evento-nome').value = '';
-    document.getElementById('novo-evento-slug').value = '';
-    document.getElementById('novo-evento-marca').value = '';
-    document.getElementById('novo-evento-modo-ranking').value = 'zerado';
-    document.getElementById('novo-evento-inicio').value = '';
-    document.getElementById('novo-evento-fim').value = '';
+    showToast('Event criado!', 'success');
+    document.getElementById('novo-event-nome').value = '';
+    document.getElementById('novo-event-slug').value = '';
+    document.getElementById('novo-event-arena').value = '';
+    document.getElementById('novo-event-modo-ranking').value = 'zerado';
+    document.getElementById('novo-event-inicio').value = '';
+    document.getElementById('novo-event-fim').value = '';
     carregarEventos();
   } else {
     const d = await resp.json();
@@ -2639,23 +2639,23 @@ async function criarEvento() {
   }
 }
 
-// ── ADMINISTRADORES (ver docs/PERMISSOES_SPEC.md — nível por marca) ───────────
-// Escopo 'evento' foi eliminado na migration 019 — só restam 'super' e
+// ── ADMINISTRADORES (ver docs/PERMISSOES_SPEC.md — nível por arena) ───────────
+// Escopo 'event' foi eliminado na migration 019 — só restam 'super' e
 // 'marca', e 'marca' sempre exige um nível (admin/moderador).
 
 window.atualizarCamposVinculo = function() {
-  const escopo = document.getElementById('vinculo-escopo').value;
-  document.getElementById('vinculo-campo-marca').style.display = escopo === 'marca' ? 'block' : 'none';
-  document.getElementById('vinculo-campo-nivel').style.display = escopo === 'marca' ? 'block' : 'none';
+  const scope = document.getElementById('vinculo-scope').value;
+  document.getElementById('vinculo-campo-arena').style.display = scope === 'marca' ? 'block' : 'none';
+  document.getElementById('vinculo-campo-role').style.display = scope === 'marca' ? 'block' : 'none';
 };
 
 async function popularSelectsVinculo() {
   try {
-    const rMarcas = await apiFetch('/api/admin/marcas');
+    const rMarcas = await apiFetch('/api/admin/arenas');
     if (rMarcas.ok) {
-      const marcas = await rMarcas.json();
-      document.getElementById('vinculo-marca').innerHTML =
-        marcas.map(m => `<option value="${m.id}">${escapar(m.nome)}</option>`).join('');
+      const arenas = await rMarcas.json();
+      document.getElementById('vinculo-arena').innerHTML =
+        arenas.map(m => `<option value="${m.id}">${escapar(m.nome)}</option>`).join('');
     }
   } catch {}
 }
@@ -2675,11 +2675,11 @@ async function carregarVinculos() {
       return;
     }
     tbody.innerHTML = vinculos.map(v => {
-      const alvo = v.escopo === 'super' ? '—' : escapar(v.marca_nome || v.marca_id);
+      const alvo = v.scope === 'super' ? '—' : escapar(v.arena_nome || v.arena_id);
       return `
         <tr class="${v.ativo ? '' : 'inativo'}">
           <td>${escapar(v.email || v.user_id)}${v.nome ? ` <span style="color:var(--color-text-muted)">(${escapar(v.nome)})</span>` : ''}</td>
-          <td><span class="vinculo-escopo-tag ${v.escopo}">${v.escopo}${v.nivel ? ` · ${v.nivel}` : ''}</span></td>
+          <td><span class="vinculo-scope-tag ${v.scope}">${v.scope}${v.role ? ` · ${v.role}` : ''}</span></td>
           <td>${alvo}</td>
           <td>${v.ativo ? 'Ativo' : 'Inativo'}</td>
           <td>
@@ -2698,11 +2698,11 @@ async function carregarVinculos() {
 window.criarVinculo = async function(event) {
   event.preventDefault();
   const email  = document.getElementById('vinculo-email').value.trim();
-  const escopo = document.getElementById('vinculo-escopo').value;
-  const dados  = { email, escopo };
-  if (escopo === 'marca') {
-    dados.marca_id = document.getElementById('vinculo-marca').value;
-    dados.nivel    = document.getElementById('vinculo-nivel').value;
+  const scope = document.getElementById('vinculo-scope').value;
+  const dados  = { email, scope };
+  if (scope === 'marca') {
+    dados.arena_id = document.getElementById('vinculo-arena').value;
+    dados.role    = document.getElementById('vinculo-role').value;
   }
 
   const resp = await apiFetch('/api/admin/vinculos', 'POST', dados);

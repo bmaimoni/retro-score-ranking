@@ -176,8 +176,8 @@ async def test_logado_nick_livre_reivindica(fake_pool):
     with patch("auth.repository.buscar_nick_claim", AsyncMock(return_value=None)), \
          patch("auth.repository.nick_ja_foi_reivindicado_alguma_vez", AsyncMock(return_value=False)), \
          patch("auth.repository.criar_nick_claim", AsyncMock()) as criar_mock, \
-         patch("repositories.entrada.vincular_retroativamente", AsyncMock()) as vincular_mock, \
-         patch("repositories.entrada.marcar_pendente_identificacao_ambigua", AsyncMock()) as marcar_mock:
+         patch("repositories.entry.vincular_retroativamente", AsyncMock()) as vincular_mock, \
+         patch("repositories.entry.marcar_pendente_identificacao_ambigua", AsyncMock()) as marcar_mock:
         await auth_svc.verificar_e_reivindicar_nick(fake_pool, "Novato", "novato", user_id=user_id)
 
     criar_mock.assert_called_once_with(fake_pool, "Novato", "novato", user_id)
@@ -193,8 +193,8 @@ async def test_logado_nick_liberado_reivindicado_de_novo_nao_vincula_so_sinaliza
     with patch("auth.repository.buscar_nick_claim", AsyncMock(return_value=None)), \
          patch("auth.repository.nick_ja_foi_reivindicado_alguma_vez", AsyncMock(return_value=True)), \
          patch("auth.repository.criar_nick_claim", AsyncMock()), \
-         patch("repositories.entrada.vincular_retroativamente", AsyncMock()) as vincular_mock, \
-         patch("repositories.entrada.marcar_pendente_identificacao_ambigua", AsyncMock()) as marcar_mock:
+         patch("repositories.entry.vincular_retroativamente", AsyncMock()) as vincular_mock, \
+         patch("repositories.entry.marcar_pendente_identificacao_ambigua", AsyncMock()) as marcar_mock:
         await auth_svc.verificar_e_reivindicar_nick(fake_pool, "Veterano", "veterano", user_id=user_id)
 
     vincular_mock.assert_not_called()
@@ -239,7 +239,7 @@ async def test_trocar_nick_primeira_vez_sem_cooldown(fake_pool):
          patch("auth.repository.nick_ja_foi_reivindicado_alguma_vez", AsyncMock(return_value=False)), \
          patch("auth.repository.liberar_claim", AsyncMock()) as liberar_mock, \
          patch("auth.repository.criar_nick_claim", AsyncMock(return_value=nova_claim)), \
-         patch("repositories.entrada.vincular_retroativamente", AsyncMock()):
+         patch("repositories.entry.vincular_retroativamente", AsyncMock()):
         resultado = await auth_svc.trocar_nick(fake_pool, user_id, "Estreante")
 
     liberar_mock.assert_not_called()
@@ -280,7 +280,7 @@ async def test_trocar_nick_fora_do_cooldown_libera_e_reivindica(fake_pool):
          patch("auth.repository.nick_ja_foi_reivindicado_alguma_vez", AsyncMock(return_value=False)), \
          patch("auth.repository.liberar_claim", AsyncMock()) as liberar_mock, \
          patch("auth.repository.criar_nick_claim", AsyncMock(return_value=nova_claim)), \
-         patch("repositories.entrada.vincular_retroativamente", AsyncMock()):
+         patch("repositories.entry.vincular_retroativamente", AsyncMock()):
         resultado = await auth_svc.trocar_nick(fake_pool, user_id, "NovoNick")
 
     liberar_mock.assert_called_once_with(fake_pool, claim_atual["id"])
@@ -313,7 +313,7 @@ async def test_trocar_nick_ignorar_cooldown_usado_por_forca_troca(fake_pool):
          patch("auth.repository.nick_ja_foi_reivindicado_alguma_vez", AsyncMock(return_value=False)), \
          patch("auth.repository.liberar_claim", AsyncMock()), \
          patch("auth.repository.criar_nick_claim", AsyncMock(return_value=nova_claim)), \
-         patch("repositories.entrada.vincular_retroativamente", AsyncMock()):
+         patch("repositories.entry.vincular_retroativamente", AsyncMock()):
         resultado = await auth_svc.trocar_nick(fake_pool, user_id, "Corrigido", ignorar_cooldown=True)
 
     assert resultado == nova_claim

@@ -1,7 +1,7 @@
 """
 Testes do serviço de rate limit.
 O limite padrão agora é 10/hora (config.py).
-Os testes de lógica usam limite configurado via evento_config (valor "10").
+Os testes de lógica usam limite configurado via event_config (valor "10").
 """
 import pytest
 from unittest.mock import AsyncMock, patch

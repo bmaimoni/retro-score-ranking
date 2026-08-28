@@ -105,10 +105,10 @@ async def test_compilar_atividade_aceita_desde_none(fake_pool):
 
 
 @pytest.mark.asyncio
-async def test_compilar_atividade_compara_melhor_score_por_jogo(fake_pool):
+async def test_compilar_atividade_compara_melhor_score_por_game(fake_pool):
     fake_pool.set_fetch([{
         "seguido_id": make_uuid(), "seguido_nome": "Ciclano", "seguido_email": "c@x.com",
-        "jogo_id": make_uuid(), "jogo_nome": "Pac-Man", "jogo_slug": "pac-man",
+        "game_id": make_uuid(), "game_nome": "Pac-Man", "game_slug": "pac-man",
         "pontuacao_seguido": 9000, "minha_pontuacao": 5000, "criado_em": "2026-02-01",
     }])
 
@@ -118,4 +118,4 @@ async def test_compilar_atividade_compara_melhor_score_por_jogo(fake_pool):
     sql = " ".join(fake_pool.fetch.call_args[0][0].split())
     assert "ms.pontuacao_seguido > mm.minha_pontuacao" in sql
     assert "GREATEST(ms.seguindo_desde, $2)" in sql
-    assert "DISTINCT ON (e.user_id, e.jogo_id)" in sql
+    assert "DISTINCT ON (e.user_id, e.game_id)" in sql

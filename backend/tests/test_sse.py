@@ -12,22 +12,22 @@ def broker():
 async def test_subscriber_recebe_ping_inicial(broker):
     gen = broker.subscribe("pac-man")
     try:
-        evento = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
-        assert "ping" in evento or "data" in evento
+        event = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
+        assert "ping" in event or "data" in event
     finally:
         await gen.aclose()
 
 
 @pytest.mark.asyncio
-async def test_publish_entrega_evento_para_subscriber(broker):
+async def test_publish_entrega_event_para_subscriber(broker):
     gen = broker.subscribe("pac-man")
     try:
         # Consome o ping inicial
         await asyncio.wait_for(gen.__anext__(), timeout=1.0)
-        # Publica evento
+        # Publica event
         await broker.publish("pac-man", "novo_registro", {"nick": "P1", "pontuacao": 999})
-        evento = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
-        assert "novo_registro" in evento
+        event = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
+        assert "novo_registro" in event
     finally:
         await gen.aclose()
 
@@ -45,8 +45,8 @@ async def test_publish_nao_afeta_outro_slug(broker):
         await broker.publish("pac-man", "novo_registro", {"nick": "P1"})
 
         # pac-man recebe
-        evento_pac = await asyncio.wait_for(gen_pac.__anext__(), timeout=1.0)
-        assert "novo_registro" in evento_pac
+        event_pac = await asyncio.wait_for(gen_pac.__anext__(), timeout=1.0)
+        assert "novo_registro" in event_pac
 
         # galaga NÃO deve receber — timeout esperado
         with pytest.raises(asyncio.TimeoutError):
@@ -59,11 +59,11 @@ async def test_publish_nao_afeta_outro_slug(broker):
 @pytest.mark.asyncio
 async def test_publish_sem_subscribers_nao_falha(broker):
     # Não deve levantar exceção
-    await broker.publish("jogo-sem-subscribers", "evento", {"dado": 1})
+    await broker.publish("game-sem-subscribers", "event", {"dado": 1})
 
 
 @pytest.mark.asyncio
-async def test_multiplos_subscribers_recebem_mesmo_evento(broker):
+async def test_multiplos_subscribers_recebem_mesmo_event(broker):
     gen1 = broker.subscribe("pac-man")
     gen2 = broker.subscribe("pac-man")
     try:
@@ -83,14 +83,14 @@ async def test_multiplos_subscribers_recebem_mesmo_evento(broker):
 
 
 @pytest.mark.asyncio
-async def test_evento_formatado_corretamente(broker):
+async def test_event_formatado_corretamente(broker):
     gen = broker.subscribe("pac-man")
     try:
         await asyncio.wait_for(gen.__anext__(), timeout=1.0)
         await broker.publish("pac-man", "novo_registro", {"nick": "P1", "pontuacao": 5000})
-        evento = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
-        assert "event:" in evento
-        assert "data:" in evento
-        assert "novo_registro" in evento
+        event = await asyncio.wait_for(gen.__anext__(), timeout=1.0)
+        assert "event:" in event
+        assert "data:" in event
+        assert "novo_registro" in event
     finally:
         await gen.aclose()

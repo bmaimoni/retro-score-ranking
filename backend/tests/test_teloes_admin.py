@@ -1,8 +1,8 @@
 """
 Testes do router admin de telões — /api/admin/teloes.
-Ver docs/EVENTOS_SPEC.md §3: exatamente um entre evento_id/placar_id.
-Ver docs/PERMISSOES_SPEC.md §4: telão de evento_id usa a marca do
-evento; telão de placar_id usa a marca comum dos eventos vinculados
+Ver docs/EVENTOS_SPEC.md §3: exatamente um entre event_id/placar_id.
+Ver docs/PERMISSOES_SPEC.md §4: telão de event_id usa a arena do
+event; telão de placar_id usa a arena comum dos events vinculados
 (None se ambígua/global — aí só super opera).
 """
 import uuid
@@ -15,21 +15,21 @@ from middleware.auth import require_admin, AdminContext
 ADMIN_SECRET = "test-secret"
 AUTH_HEADER  = {"Authorization": f"Bearer {ADMIN_SECRET}"}
 SUPER_CTX    = AdminContext(identificador="admin", user_id=None, super=True)
-MARCA_A      = str(uuid.uuid4())
-MARCA_B      = str(uuid.uuid4())
+ARENA_A      = str(uuid.uuid4())
+ARENA_B      = str(uuid.uuid4())
 
 
-def admin_ctx(marca_id=MARCA_A):
+def admin_ctx(arena_id=ARENA_A):
     return AdminContext(
         identificador="admin-a@x.com", user_id=str(uuid.uuid4()), super=False,
-        vinculos=[{"marca_id": marca_id, "nivel": "admin"}],
+        vinculos=[{"arena_id": arena_id, "role": "admin"}],
     )
 
 
-def moderador_ctx(marca_id=MARCA_A):
+def moderador_ctx(arena_id=ARENA_A):
     return AdminContext(
         identificador="mod-a@x.com", user_id=str(uuid.uuid4()), super=False,
-        vinculos=[{"marca_id": marca_id, "nivel": "moderador"}],
+        vinculos=[{"arena_id": arena_id, "role": "moderador"}],
     )
 
 
@@ -37,18 +37,18 @@ def make_uuid():
     return str(uuid.uuid4())
 
 
-def _telao(evento_id=None, placar_id=None):
-    if evento_id is None and placar_id is None:
+def _telao(event_id=None, placar_id=None):
+    if event_id is None and placar_id is None:
         placar_id = make_uuid()  # default só quando nenhum dos dois foi informado
     return {
         "id": make_uuid(), "nome": "Telão Teste", "slug": "telao-teste", "top_n": 10,
-        "evento_id": evento_id, "placar_id": placar_id,
+        "event_id": event_id, "placar_id": placar_id,
         "criado_em": "2026-01-01T00:00:00",
     }
 
 
-def _evento(marca_id=MARCA_A):
-    return {"id": make_uuid(), "nome": "Evento", "slug": "evento", "marca_id": marca_id}
+def _event(arena_id=ARENA_A):
+    return {"id": make_uuid(), "nome": "Evento", "slug": "event", "arena_id": arena_id}
 
 
 def _placar():
@@ -63,10 +63,10 @@ def clear_overrides():
     app.dependency_overrides.pop(require_admin, None)
 
 
-# ── Validação evento_id XOR placar_id (Pydantic, antes do banco) ─────────────
+# ── Validação event_id XOR placar_id (Pydantic, antes do banco) ─────────────
 
 @pytest.mark.asyncio
-async def test_criar_telao_sem_evento_nem_placar_retorna_422(client):
+async def test_criar_telao_sem_event_nem_placar_retorna_422(client):
     app.dependency_overrides[get_pool] = lambda: MagicMock()
     resp = await client.post("/api/admin/teloes",
         json={"nome": "Telão Órfão", "slug": "telao-orfao"},
@@ -75,41 +75,41 @@ async def test_criar_telao_sem_evento_nem_placar_retorna_422(client):
 
 
 @pytest.mark.asyncio
-async def test_criar_telao_com_evento_e_placar_ao_mesmo_tempo_retorna_422(client):
+async def test_criar_telao_com_event_e_placar_ao_mesmo_tempo_retorna_422(client):
     app.dependency_overrides[get_pool] = lambda: MagicMock()
     resp = await client.post("/api/admin/teloes",
         json={
             "nome": "Telão Ambíguo", "slug": "telao-ambiguo",
-            "evento_id": make_uuid(), "placar_id": make_uuid(),
+            "event_id": make_uuid(), "placar_id": make_uuid(),
         },
         headers=AUTH_HEADER)
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_criar_telao_apontando_pra_evento(client):
+async def test_criar_telao_apontando_pra_event(client):
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
-    evento_id = make_uuid()
+    event_id = make_uuid()
 
-    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=_evento(marca_id=MARCA_A))), \
-         patch("repositories.telao.criar", AsyncMock(return_value=_telao(evento_id=evento_id, placar_id=None))):
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=_event(arena_id=ARENA_A))), \
+         patch("repositories.telao.criar", AsyncMock(return_value=_telao(event_id=event_id, placar_id=None))):
         resp = await client.post("/api/admin/teloes",
-            json={"nome": "Telão do Evento", "slug": "telao-evento", "evento_id": evento_id},
+            json={"nome": "Telão do Evento", "slug": "telao-event", "event_id": event_id},
             headers=AUTH_HEADER)
 
     assert resp.status_code == 201
-    assert resp.json()["evento_id"] == evento_id
+    assert resp.json()["event_id"] == event_id
     assert resp.json()["placar_id"] is None
 
 
 @pytest.mark.asyncio
-async def test_criar_telao_evento_inexistente_retorna_404(client):
+async def test_criar_telao_event_inexistente_retorna_404(client):
     app.dependency_overrides[get_pool] = lambda: MagicMock()
 
-    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=None)):
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=None)):
         resp = await client.post("/api/admin/teloes",
-            json={"nome": "Telão Órfão", "slug": "telao-orfao", "evento_id": make_uuid()},
+            json={"nome": "Telão Órfão", "slug": "telao-orfao", "event_id": make_uuid()},
             headers=AUTH_HEADER)
 
     assert resp.status_code == 404
@@ -122,7 +122,7 @@ async def test_criar_telao_apontando_pra_placar(client):
     placar_id = make_uuid()
 
     with patch("repositories.placar.buscar_por_id", AsyncMock(return_value=_placar())), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=MARCA_A)), \
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=ARENA_A)), \
          patch("repositories.telao.criar", AsyncMock(return_value=_telao(placar_id=placar_id))):
         resp = await client.post("/api/admin/teloes",
             json={"nome": "Hall da Fama Geral", "slug": "geral", "placar_id": placar_id},
@@ -150,7 +150,7 @@ async def test_criar_telao_slug_duplicado_retorna_409(client):
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.placar.buscar_por_id", AsyncMock(return_value=_placar())), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=MARCA_A)), \
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=ARENA_A)), \
          patch("repositories.telao.criar",
                AsyncMock(side_effect=Exception("duplicate key value violates unique constraint"))):
         resp = await client.post("/api/admin/teloes",
@@ -160,60 +160,60 @@ async def test_criar_telao_slug_duplicado_retorna_409(client):
     assert resp.status_code == 409
 
 
-# ── Criar telão — escopo por marca ──────────────────────────────
+# ── Criar telão — escopo por arena ──────────────────────────────
 
 @pytest.mark.asyncio
-async def test_admin_cria_telao_de_evento_da_propria_marca(client):
-    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+async def test_admin_cria_telao_de_event_da_propria_arena(client):
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
-    evento_id = make_uuid()
+    event_id = make_uuid()
 
-    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=_evento(marca_id=MARCA_A))), \
-         patch("repositories.telao.criar", AsyncMock(return_value=_telao(evento_id=evento_id))):
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=_event(arena_id=ARENA_A))), \
+         patch("repositories.telao.criar", AsyncMock(return_value=_telao(event_id=event_id))):
         resp = await client.post("/api/admin/teloes",
-            json={"nome": "Telão A", "slug": "telao-a", "evento_id": evento_id})
+            json={"nome": "Telão A", "slug": "telao-a", "event_id": event_id})
 
     assert resp.status_code == 201
 
 
 @pytest.mark.asyncio
-async def test_admin_nao_cria_telao_de_evento_de_outra_marca(client):
-    """Adversarial: admin de A não cria telão apontando pra um evento de B."""
-    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+async def test_admin_nao_cria_telao_de_event_de_outra_arena(client):
+    """Adversarial: admin de A não cria telão apontando pra um event de B."""
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=_evento(marca_id=MARCA_B))):
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=_event(arena_id=ARENA_B))):
         resp = await client.post("/api/admin/teloes",
-            json={"nome": "Telão B", "slug": "telao-b", "evento_id": make_uuid()})
+            json={"nome": "Telão B", "slug": "telao-b", "event_id": make_uuid()})
 
     assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
 async def test_moderador_nao_cria_telao(client):
-    app.dependency_overrides[require_admin] = lambda: moderador_ctx(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    with patch("repositories.evento.buscar_por_id", AsyncMock(return_value=_evento(marca_id=MARCA_A))):
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=_event(arena_id=ARENA_A))):
         resp = await client.post("/api/admin/teloes",
-            json={"nome": "Telão A", "slug": "telao-a", "evento_id": make_uuid()})
+            json={"nome": "Telão A", "slug": "telao-a", "event_id": make_uuid()})
 
     assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_admin_cria_telao_de_placar_com_marca_unica(client):
-    """Placar customizado curado só com eventos da própria marca —
+async def test_admin_cria_telao_de_placar_com_arena_unica(client):
+    """Placar customizado curado só com events da própria arena —
     caso comum de uso real (ex: Hall da Fama da Canal3)."""
-    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.placar.buscar_por_id", AsyncMock(return_value=_placar())), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=MARCA_A)), \
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=ARENA_A)), \
          patch("repositories.telao.criar", AsyncMock(return_value=_telao(placar_id=make_uuid()))):
         resp = await client.post("/api/admin/teloes",
             json={"nome": "Hall Canal3", "slug": "hall-canal3", "placar_id": make_uuid()})
@@ -222,15 +222,15 @@ async def test_admin_cria_telao_de_placar_com_marca_unica(client):
 
 
 @pytest.mark.asyncio
-async def test_admin_nao_cria_telao_de_placar_multi_marca(client):
-    """Placar cujos eventos vinculados são de marcas diferentes —
-    resolver_marca_id retorna None (ambíguo) — só super opera."""
-    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+async def test_admin_nao_cria_telao_de_placar_multi_arena(client):
+    """Placar cujos events vinculados são de arenas diferentes —
+    resolver_arena_id retorna None (ambíguo) — só super opera."""
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.placar.buscar_por_id", AsyncMock(return_value=_placar())), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=None)):
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=None)):
         resp = await client.post("/api/admin/teloes",
             json={"nome": "Hall Misto", "slug": "hall-misto", "placar_id": make_uuid()})
 
@@ -239,14 +239,14 @@ async def test_admin_nao_cria_telao_de_placar_multi_marca(client):
 
 @pytest.mark.asyncio
 async def test_admin_nao_cria_telao_de_placar_global(client):
-    """Placar global agrega tudo (todas as marcas) — resolver_marca_id
+    """Placar global agrega tudo (todas as arenas) — resolver_arena_id
     retorna None (não usa placar_eventos) — só super opera."""
-    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.placar.buscar_por_id", AsyncMock(return_value={**_placar(), "escopo": "global"})), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=None)):
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=None)):
         resp = await client.post("/api/admin/teloes",
             json={"nome": "Hall Geral", "slug": "hall-geral", "placar_id": make_uuid()})
 
@@ -260,7 +260,7 @@ async def test_super_cria_telao_de_placar_global(client):
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.placar.buscar_por_id", AsyncMock(return_value={**_placar(), "escopo": "global"})), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=None)), \
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=None)), \
          patch("repositories.telao.criar", AsyncMock(return_value=_telao(placar_id=make_uuid()))):
         resp = await client.post("/api/admin/teloes",
             json={"nome": "Hall Geral", "slug": "hall-geral", "placar_id": make_uuid()})
@@ -278,7 +278,7 @@ async def test_atualizar_top_n_do_telao(client):
 
     atualizado = {**telao_atual, "top_n": 20}
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=telao_atual)), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=MARCA_A)), \
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=ARENA_A)), \
          patch("repositories.telao.atualizar", AsyncMock(return_value=atualizado)):
         resp = await client.patch(f"/api/admin/teloes/{telao_atual['id']}",
             json={"top_n": 20},
@@ -302,14 +302,14 @@ async def test_atualizar_telao_inexistente_retorna_404(client):
 
 
 @pytest.mark.asyncio
-async def test_admin_edita_telao_da_propria_marca(client):
-    telao_atual = _telao(evento_id=make_uuid())
-    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+async def test_admin_edita_telao_da_propria_arena(client):
+    telao_atual = _telao(event_id=make_uuid())
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=telao_atual)), \
-         patch("repositories.evento.buscar_por_id", AsyncMock(return_value=_evento(marca_id=MARCA_A))), \
+         patch("repositories.event.buscar_por_id", AsyncMock(return_value=_event(arena_id=ARENA_A))), \
          patch("repositories.telao.atualizar", AsyncMock(return_value={**telao_atual, "top_n": 5})):
         resp = await client.patch(f"/api/admin/teloes/{telao_atual['id']}", json={"top_n": 5})
 
@@ -317,15 +317,15 @@ async def test_admin_edita_telao_da_propria_marca(client):
 
 
 @pytest.mark.asyncio
-async def test_admin_nao_edita_telao_de_outra_marca(client):
-    """Adversarial: admin de A não edita telão cujo evento é de B."""
-    telao_atual = _telao(evento_id=make_uuid())
-    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+async def test_admin_nao_edita_telao_de_outra_arena(client):
+    """Adversarial: admin de A não edita telão cujo event é de B."""
+    telao_atual = _telao(event_id=make_uuid())
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=telao_atual)), \
-         patch("repositories.evento.buscar_por_id", AsyncMock(return_value=_evento(marca_id=MARCA_B))):
+         patch("repositories.event.buscar_por_id", AsyncMock(return_value=_event(arena_id=ARENA_B))):
         resp = await client.patch(f"/api/admin/teloes/{telao_atual['id']}", json={"top_n": 5})
 
     assert resp.status_code == 403
@@ -333,33 +333,33 @@ async def test_admin_nao_edita_telao_de_outra_marca(client):
 
 @pytest.mark.asyncio
 async def test_moderador_nao_edita_telao(client):
-    telao_atual = _telao(evento_id=make_uuid())
-    app.dependency_overrides[require_admin] = lambda: moderador_ctx(marca_id=MARCA_A)
+    telao_atual = _telao(event_id=make_uuid())
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=telao_atual)), \
-         patch("repositories.evento.buscar_por_id", AsyncMock(return_value=_evento(marca_id=MARCA_A))):
+         patch("repositories.event.buscar_por_id", AsyncMock(return_value=_event(arena_id=ARENA_A))):
         resp = await client.patch(f"/api/admin/teloes/{telao_atual['id']}", json={"top_n": 5})
 
     assert resp.status_code == 403
 
 
-# ── Gestão de jogos do telão ───────────────────────────────────────────────────
+# ── Gestão de games do telão ───────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_adicionar_jogo_ao_telao(client):
+async def test_adicionar_game_ao_telao(client):
     telao_atual = _telao(placar_id=make_uuid())
     telao_id = telao_atual["id"]
-    jogo_id  = make_uuid()
+    game_id  = make_uuid()
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    vinculo = {"telao_id": telao_id, "jogo_id": jogo_id, "ativo": True, "ordem": 0, "criado_em": "2026-01-01"}
+    vinculo = {"telao_id": telao_id, "game_id": game_id, "ativo": True, "ordem": 0, "criado_em": "2026-01-01"}
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=telao_atual)), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=MARCA_A)), \
-         patch("repositories.telao.adicionar_jogo", AsyncMock(return_value=vinculo)):
-        resp = await client.post(f"/api/admin/teloes/{telao_id}/jogos/{jogo_id}",
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=ARENA_A)), \
+         patch("repositories.telao.adicionar_game", AsyncMock(return_value=vinculo)):
+        resp = await client.post(f"/api/admin/teloes/{telao_id}/games/{game_id}",
             headers=AUTH_HEADER)
 
     assert resp.status_code == 201
@@ -367,55 +367,55 @@ async def test_adicionar_jogo_ao_telao(client):
 
 
 @pytest.mark.asyncio
-async def test_moderador_nao_adiciona_jogo_ao_telao(client):
+async def test_moderador_nao_adiciona_game_ao_telao(client):
     telao_atual = _telao(placar_id=make_uuid())
-    app.dependency_overrides[require_admin] = lambda: moderador_ctx(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=telao_atual)), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=MARCA_A)):
-        resp = await client.post(f"/api/admin/teloes/{telao_atual['id']}/jogos/{make_uuid()}")
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=ARENA_A)):
+        resp = await client.post(f"/api/admin/teloes/{telao_atual['id']}/games/{make_uuid()}")
 
     assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_reordenar_jogo_do_telao(client):
+async def test_reordenar_game_do_telao(client):
     telao_atual = _telao(placar_id=make_uuid())
     telao_id = telao_atual["id"]
-    jogo_id  = make_uuid()
+    game_id  = make_uuid()
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    vinculo = {"telao_id": telao_id, "jogo_id": jogo_id, "ativo": True, "ordem": 3, "criado_em": "2026-01-01"}
+    vinculo = {"telao_id": telao_id, "game_id": game_id, "ativo": True, "ordem": 3, "criado_em": "2026-01-01"}
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=telao_atual)), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=MARCA_A)), \
-         patch("repositories.telao.atualizar_jogo", AsyncMock(return_value=vinculo)) as mock:
-        resp = await client.patch(f"/api/admin/teloes/{telao_id}/jogos/{jogo_id}",
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=ARENA_A)), \
+         patch("repositories.telao.atualizar_game", AsyncMock(return_value=vinculo)) as mock:
+        resp = await client.patch(f"/api/admin/teloes/{telao_id}/games/{game_id}",
             json={"ordem": 3},
             headers=AUTH_HEADER)
 
     assert resp.status_code == 200
     assert resp.json()["ordem"] == 3
-    mock.assert_called_once_with(pool, telao_id, jogo_id, {"ordem": 3})
+    mock.assert_called_once_with(pool, telao_id, game_id, {"ordem": 3})
 
 
 @pytest.mark.asyncio
-async def test_desativar_jogo_do_telao_sem_delete(client):
-    """Remover jogo do carrossel é ativo=false — telao_jogos tem a coluna
+async def test_desativar_game_do_telao_sem_delete(client):
+    """Remover game do carrossel é ativo=false — telao_jogos tem a coluna
     ativo justamente para isso, sem precisar de DELETE."""
     telao_atual = _telao(placar_id=make_uuid())
     telao_id = telao_atual["id"]
-    jogo_id  = make_uuid()
+    game_id  = make_uuid()
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    vinculo = {"telao_id": telao_id, "jogo_id": jogo_id, "ativo": False, "ordem": 0, "criado_em": "2026-01-01"}
+    vinculo = {"telao_id": telao_id, "game_id": game_id, "ativo": False, "ordem": 0, "criado_em": "2026-01-01"}
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=telao_atual)), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=MARCA_A)), \
-         patch("repositories.telao.atualizar_jogo", AsyncMock(return_value=vinculo)):
-        resp = await client.patch(f"/api/admin/teloes/{telao_id}/jogos/{jogo_id}",
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=ARENA_A)), \
+         patch("repositories.telao.atualizar_game", AsyncMock(return_value=vinculo)):
+        resp = await client.patch(f"/api/admin/teloes/{telao_id}/games/{game_id}",
             json={"ativo": False},
             headers=AUTH_HEADER)
 
@@ -424,15 +424,15 @@ async def test_desativar_jogo_do_telao_sem_delete(client):
 
 
 @pytest.mark.asyncio
-async def test_vinculo_jogo_telao_inexistente_retorna_404(client):
+async def test_vinculo_game_telao_inexistente_retorna_404(client):
     telao_atual = _telao(placar_id=make_uuid())
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=telao_atual)), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=MARCA_A)), \
-         patch("repositories.telao.atualizar_jogo", AsyncMock(return_value=None)):
-        resp = await client.patch(f"/api/admin/teloes/{telao_atual['id']}/jogos/{make_uuid()}",
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=ARENA_A)), \
+         patch("repositories.telao.atualizar_game", AsyncMock(return_value=None)):
+        resp = await client.patch(f"/api/admin/teloes/{telao_atual['id']}/games/{make_uuid()}",
             json={"ativo": False},
             headers=AUTH_HEADER)
 
@@ -440,12 +440,12 @@ async def test_vinculo_jogo_telao_inexistente_retorna_404(client):
 
 
 @pytest.mark.asyncio
-async def test_telao_inexistente_em_jogos_retorna_404(client):
+async def test_telao_inexistente_em_games_retorna_404(client):
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=None)):
-        resp = await client.patch(f"/api/admin/teloes/{make_uuid()}/jogos/{make_uuid()}",
+        resp = await client.patch(f"/api/admin/teloes/{make_uuid()}/games/{make_uuid()}",
             json={"ativo": False},
             headers=AUTH_HEADER)
 
@@ -453,52 +453,52 @@ async def test_telao_inexistente_em_jogos_retorna_404(client):
 
 
 @pytest.mark.asyncio
-async def test_listar_jogos_do_telao(client):
+async def test_listar_games_do_telao(client):
     telao_atual = _telao(placar_id=make_uuid())
     telao_id = telao_atual["id"]
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    jogos = [
+    games = [
         {"id": make_uuid(), "nome": "Pac-Man", "slug": "pac-man", "ativo": True, "ordem": 0},
         {"id": make_uuid(), "nome": "Galaga",  "slug": "galaga",  "ativo": False, "ordem": 1},
     ]
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=telao_atual)), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=MARCA_A)), \
-         patch("repositories.telao.listar_jogos_do_telao", AsyncMock(return_value=jogos)):
-        resp = await client.get(f"/api/admin/teloes/{telao_id}/jogos", headers=AUTH_HEADER)
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=ARENA_A)), \
+         patch("repositories.telao.listar_games_do_telao", AsyncMock(return_value=games)):
+        resp = await client.get(f"/api/admin/teloes/{telao_id}/games", headers=AUTH_HEADER)
 
     assert resp.status_code == 200
     assert len(resp.json()) == 2
 
 
 @pytest.mark.asyncio
-async def test_moderador_le_jogos_do_telao_com_acesso(client):
-    """Leitura é liberada pra moderador com acesso à marca — só a
+async def test_moderador_le_games_do_telao_com_acesso(client):
+    """Leitura é liberada pra moderador com acesso à arena — só a
     edição é restrita a admin."""
     telao_atual = _telao(placar_id=make_uuid())
-    app.dependency_overrides[require_admin] = lambda: moderador_ctx(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=telao_atual)), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=MARCA_A)), \
-         patch("repositories.telao.listar_jogos_do_telao", AsyncMock(return_value=[])):
-        resp = await client.get(f"/api/admin/teloes/{telao_atual['id']}/jogos")
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=ARENA_A)), \
+         patch("repositories.telao.listar_games_do_telao", AsyncMock(return_value=[])):
+        resp = await client.get(f"/api/admin/teloes/{telao_atual['id']}/games")
 
     assert resp.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_admin_nao_le_jogos_de_telao_de_outra_marca(client):
+async def test_admin_nao_le_games_de_telao_de_outra_arena(client):
     telao_atual = _telao(placar_id=make_uuid())
-    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.telao.buscar_por_id", AsyncMock(return_value=telao_atual)), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=MARCA_B)):
-        resp = await client.get(f"/api/admin/teloes/{telao_atual['id']}/jogos")
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=ARENA_B)):
+        resp = await client.get(f"/api/admin/teloes/{telao_atual['id']}/games")
 
     assert resp.status_code == 403
 
@@ -518,20 +518,20 @@ async def test_super_lista_todos_os_teloes(client):
 
 
 @pytest.mark.asyncio
-async def test_admin_so_ve_teloes_da_propria_marca(client):
-    telao_a = _telao(evento_id=make_uuid())
-    telao_b = _telao(evento_id=make_uuid())
-    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+async def test_admin_so_ve_teloes_da_propria_arena(client):
+    telao_a = _telao(event_id=make_uuid())
+    telao_b = _telao(event_id=make_uuid())
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
-    async def _buscar_evento(pool, evento_id):
-        if evento_id == telao_a["evento_id"]:
-            return _evento(marca_id=MARCA_A)
-        return _evento(marca_id=MARCA_B)
+    async def _buscar_event(pool, event_id):
+        if event_id == telao_a["event_id"]:
+            return _event(arena_id=ARENA_A)
+        return _event(arena_id=ARENA_B)
 
     with patch("repositories.telao.listar_todos", AsyncMock(return_value=[telao_a, telao_b])), \
-         patch("repositories.evento.buscar_por_id", AsyncMock(side_effect=_buscar_evento)):
+         patch("repositories.event.buscar_por_id", AsyncMock(side_effect=_buscar_event)):
         resp = await client.get("/api/admin/teloes")
 
     assert resp.status_code == 200
@@ -541,15 +541,15 @@ async def test_admin_so_ve_teloes_da_propria_marca(client):
 
 @pytest.mark.asyncio
 async def test_admin_nao_ve_teloes_de_placar_global_na_listagem(client):
-    """Telão de placar global (marca ambígua) fica fora da lista de um
+    """Telão de placar global (arena ambígua) fica fora da lista de um
     admin escopado — não tem como agir nele mesmo."""
     telao_global = _telao(placar_id=make_uuid())
-    app.dependency_overrides[require_admin] = lambda: admin_ctx(marca_id=MARCA_A)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.telao.listar_todos", AsyncMock(return_value=[telao_global])), \
-         patch("repositories.placar.resolver_marca_id", AsyncMock(return_value=None)):
+         patch("repositories.placar.resolver_arena_id", AsyncMock(return_value=None)):
         resp = await client.get("/api/admin/teloes")
 
     assert resp.status_code == 200

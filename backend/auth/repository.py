@@ -184,7 +184,7 @@ async def liberar_claim(pool: Pool, claim_id: str) -> None:
 async def listar_historico_nicks(pool: Pool, user_id: str) -> list[dict]:
     """Histórico completo de nicks do usuário (ativos e liberados),
     mais recente primeiro — decisão #4 do docs/NICKNAME_SPEC.md: painel
-    de moderação mostra o histórico, não só o nick da entrada isolada."""
+    de moderação mostra o histórico, não só o nick da entry isolada."""
     rows = await pool.fetch(
         """
         SELECT id, nick, nick_norm, ativo, criado_em
@@ -267,7 +267,7 @@ async def revogar_todas_sessoes_usuario(pool, user_id: str) -> None:
     """Revoga toda sessão ativa do usuário — usado na anonimização de
     conta (docs/EXCLUSAO_CONTA_SPEC.md decisão #3). `pool` aceita tanto
     o Pool quanto uma conn dentro de transação (mesma convenção de
-    repositories.entrada.inserir)."""
+    repositories.entry.inserir)."""
     await pool.execute(
         "UPDATE sessions SET revogada_em = now() WHERE user_id = $1 AND revogada_em IS NULL",
         user_id,

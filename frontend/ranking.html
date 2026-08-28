@@ -85,21 +85,21 @@
       font-weight: var(--weight-bold);
     }
 
-    .jogo-metadado {
+    .game-metadado {
       font-size: var(--text-xs);
       color: var(--color-text-muted);
       display: flex;
       align-items: center;
       gap: var(--space-xs);
     }
-    .jogo-metadado:empty { display: none; }
-    .jogo-metadado a {
+    .game-metadado:empty { display: none; }
+    .game-metadado a {
       color: var(--color-secondary);
       text-decoration: none;
     }
-    .jogo-metadado a:hover { text-decoration: underline; }
+    .game-metadado a:hover { text-decoration: underline; }
 
-    /* ── Seletor de jogo ── */
+    /* ── Seletor de game ── */
     .game-tabs {
       display: flex;
       gap: var(--space-sm);
@@ -166,7 +166,7 @@
     }
     .player-card:hover { border-color: var(--color-border-hover); }
 
-    /* Destaque para novas entradas */
+    /* Destaque para novas entries */
     .player-card.new-entry {
       animation: newEntry 1.5s ease both;
       border-color: var(--color-secondary);
@@ -558,11 +558,11 @@
     <a href="index.html" class="btn-back" id="link-voltar">◂ VOLTAR</a>
     <div class="ranking-header">
       <div class="ranking-meta" style="flex-direction:row;align-items:center;gap:var(--space-sm)">
-        <img id="jogo-capa" alt="" style="display:none;width:32px;height:32px;object-fit:cover;border-radius:var(--radius-sm);border:var(--border-width) solid var(--color-border)">
+        <img id="game-capa" alt="" style="display:none;width:32px;height:32px;object-fit:cover;border-radius:var(--radius-sm);border:var(--border-width) solid var(--color-border)">
         <div style="display:flex;flex-direction:column;gap:var(--space-xs)">
           <span class="meta-label">Jogo atual</span>
-          <span class="meta-value" id="jogo-nome">—</span>
-          <span class="jogo-metadado" id="jogo-metadado"></span>
+          <span class="meta-value" id="game-nome">—</span>
+          <span class="game-metadado" id="game-metadado"></span>
         </div>
       </div>
 
@@ -576,7 +576,7 @@
       </div>
     </div>
 
-    <!-- Tabs de jogos -->
+    <!-- Tabs de games -->
     <div class="game-tabs" id="game-tabs" role="tablist">
       <span class="meta-label" style="align-self:center">Carregando...</span>
     </div>
@@ -634,50 +634,50 @@ import { inserirNav } from './nav.js';
 const API_URL      = 'https://retro-score-ranking-production.up.railway.app';
 const UPLOAD_URL   = 'https://retro-score-ranking.vercel.app';
 
-// Evento — opcional, SEM fallback (diferente de index.html). Ausente =
-// comportamento de sempre (placar geral, sem filtro de evento) — nenhum
+// Event — opcional, SEM fallback (diferente de index.html). Ausente =
+// comportamento de sempre (placar geral, sem filtro de event) — nenhum
 // QR/link já publicado quebra. Ver docs/MARCAS_SPEC.md §4.5.
-const EVENTO_SLUG = new URLSearchParams(location.search).get('evento');
+const EVENT_SLUG = new URLSearchParams(location.search).get('evento');
 
-inserirNav('ranking', { index: EVENTO_SLUG ? `index.html?evento=${EVENTO_SLUG}` : 'index.html' });
-// id de entrada vindo de perfil.html ("ver no ranking") — navega até a
+inserirNav('ranking', { index: EVENT_SLUG ? `index.html?evento=${EVENT_SLUG}` : 'index.html' });
+// id de entry vindo de perfil.html ("ver no ranking") — navega até a
 // página certa e destaca o card, uma única vez (docs/BACKLOG_2026.md §3.6).
 const DESTAQUE_ID = new URLSearchParams(location.search).get('destaque');
 let destaqueAplicado = false;
 
 function buildRankingUrl(jogoSlug) {
-  return EVENTO_SLUG
-    ? `${API_URL}/api/e/${EVENTO_SLUG}/ranking/${jogoSlug}`
+  return EVENT_SLUG
+    ? `${API_URL}/api/e/${EVENT_SLUG}/ranking/${jogoSlug}`
     : `${API_URL}/api/ranking/${jogoSlug}`;
 }
 
 function buildJogosUrl() {
-  return EVENTO_SLUG
-    ? `${API_URL}/api/e/${EVENTO_SLUG}/jogos`
-    : `${API_URL}/api/jogos`;
+  return EVENT_SLUG
+    ? `${API_URL}/api/e/${EVENT_SLUG}/games`
+    : `${API_URL}/api/games`;
 }
 
-// Delay entre animações de entrada (ms)
+// Delay entre animações de entry (ms)
 const STAGGER_DELAY = 60;
 
 // Paginação e busca (client-side — volume esperado é dezenas/centenas de
-// entradas por jogo, não justifica busca no backend ainda; ver EVENTOS_SPEC.md §5)
+// entries por game, não justifica busca no backend ainda; ver EVENTOS_SPEC.md §5)
 const PAGE_SIZE = 20;
 let paginaAtual = 1;
 let buscaQuery  = '';
 
 // ── ESTADO ────────────────────────────────────────────────────────────────────
 let jogoAtual = null;   // { id, nome, slug }
-let entradas  = [];     // lista completa e não-filtrada do jogo atual
+let entries  = [];     // lista completa e não-filtrada do game atual
 let sseSource = null;   // EventSource ativo
 let usuarioAtual = null; // sessão de visitante (docs/SEGUIR_SPEC.md) — null = deslogado
 let seguindoIds  = new Set(); // ids que o visitante logado já segue
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  // Preserva o contexto de evento ao navegar de volta pro index.html
-  if (EVENTO_SLUG) {
-    const hrefComEvento = `index.html?evento=${EVENTO_SLUG}`;
+  // Preserva o contexto de event ao navegar de volta pro index.html
+  if (EVENT_SLUG) {
+    const hrefComEvento = `index.html?evento=${EVENT_SLUG}`;
     document.getElementById('link-voltar').href = hrefComEvento;
     document.getElementById('link-participar').href = hrefComEvento;
   }
@@ -689,17 +689,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ── QR Code ───────────────────────────────────────────────────────────────────
 // Mesmo padrão de telao.html: aponta pro fluxo de envio, escopado pro
-// evento atual quando há um (?evento=), senão cai no envio padrão da
+// event atual quando há um (?evento=), senão cai no envio padrão da
 // plataforma — nunca ficava vazio antes por falta de geração real.
-// Em ranking agregado (modo_ranking != 'zerado'), não usa o evento da
-// URL direto — pede ao backend qual é o evento mais recente/ativo da
-// marca dona da página (docs/BACKLOG_2026.md §3 item 3.3), pra não
-// apontar pro envio de um evento cuja janela já fechou.
+// Em ranking agregado (modo_ranking != 'zerado'), não usa o event da
+// URL direto — pede ao backend qual é o event mais recente/ativo da
+// arena dona da página (docs/BACKLOG_2026.md §3 item 3.3), pra não
+// apontar pro envio de um event cuja janela já fechou.
 async function gerarQR() {
-  let slugAlvo = EVENTO_SLUG;
-  if (EVENTO_SLUG) {
+  let slugAlvo = EVENT_SLUG;
+  if (EVENT_SLUG) {
     try {
-      const resp = await fetch(`${API_URL}/api/e/${EVENTO_SLUG}/evento-envio-atual`);
+      const resp = await fetch(`${API_URL}/api/e/${EVENT_SLUG}/event-envio-atual`);
       if (resp.ok) slugAlvo = (await resp.json()).slug;
     } catch {}
   }
@@ -745,29 +745,29 @@ function conectarControlesBuscaEPaginacao() {
   });
 }
 
-// ── JOGOS ─────────────────────────────────────────────────────────────────────
+// ── GAMES ─────────────────────────────────────────────────────────────────────
 async function carregarJogos() {
   try {
     const resp = await fetch(buildJogosUrl());
     if (!resp.ok) throw new Error();
-    const jogos = await resp.json();
-    renderTabs(jogos);
-    // Se vier com ?jogo=slug na URL, abre esse jogo direto
+    const games = await resp.json();
+    renderTabs(games);
+    // Se vier com ?game=slug na URL, abre esse game direto
     const params  = new URLSearchParams(window.location.search);
     const slugUrl = params.get('jogo');
     const inicial = slugUrl
-      ? jogos.find(j => j.slug === slugUrl) || jogos[0]
-      : jogos[0];
+      ? games.find(j => j.slug === slugUrl) || games[0]
+      : games[0];
     if (inicial) selecionarJogo(inicial);
   } catch {
     document.getElementById('game-tabs').innerHTML =
-      '<span class="meta-label" style="color:var(--color-error)">Erro ao carregar jogos</span>';
+      '<span class="meta-label" style="color:var(--color-error)">Erro ao carregar games</span>';
   }
 }
 
-function renderTabs(jogos) {
+function renderTabs(games) {
   const container = document.getElementById('game-tabs');
-  container.innerHTML = jogos.map(j => `
+  container.innerHTML = games.map(j => `
     <button class="game-tab" role="tab" data-slug="${j.slug}" data-id="${j.id}" data-nome="${j.nome}">
       ${j.nome}
     </button>
@@ -780,45 +780,45 @@ function renderTabs(jogos) {
   });
 }
 
-async function selecionarJogo(jogo) {
-  jogoAtual = jogo;
+async function selecionarJogo(game) {
+  jogoAtual = game;
 
-  // Reseta busca e página ao trocar de jogo
+  // Reseta busca e página ao trocar de game
   buscaQuery = '';
   paginaAtual = 1;
   document.getElementById('busca-input').value = '';
 
-  // Aplica tema do jogo
-  aplicarTema(jogo.slug);
+  // Aplica tema do game
+  aplicarTema(game.slug);
   // No ranking, usa contain em vez de auto 70vh para não esticar
   document.body.style.backgroundSize       = 'contain';
   document.body.style.backgroundPosition   = 'center top';
 
   // Atualiza tabs
   document.querySelectorAll('.game-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.slug === jogo.slug);
+    t.classList.toggle('active', t.dataset.slug === game.slug);
   });
 
   // Atualiza header
-  document.getElementById('jogo-nome').textContent = jogo.nome;
+  document.getElementById('game-nome').textContent = game.nome;
 
   // Desconecta SSE anterior
   desconectarSSE();
 
   // Carrega snapshot + conecta SSE
-  await carregarRanking(jogo);
-  conectarSSE(jogo.slug);
+  await carregarRanking(game);
+  conectarSSE(game.slug);
 }
 
 // ── RANKING SNAPSHOT ──────────────────────────────────────────────────────────
-async function carregarRanking(jogo) {
+async function carregarRanking(game) {
   renderLoading();
   try {
-    const resp = await fetch(buildRankingUrl(jogo.slug));
+    const resp = await fetch(buildRankingUrl(game.slug));
     if (!resp.ok) throw new Error();
     const data = await resp.json();
-    entradas = data.entradas || [];
-    renderJogoMetadado(data.jogo);
+    entries = data.entries || [];
+    renderJogoMetadado(data.game);
     aplicarDestaqueSeNecessario();
     atualizarView();
   } catch {
@@ -826,42 +826,42 @@ async function carregarRanking(jogo) {
   }
 }
 
-// Metadado opcional do jogo (docs/BACKLOG_2026.md §3.1) — plataforma,
+// Metadado opcional do game (docs/BACKLOG_2026.md §3.1) — plataforma,
 // ano de lançamento e link de gameplay, quando o admin preencheu.
-function renderJogoMetadado(jogo) {
-  const el   = document.getElementById('jogo-metadado');
-  const capa = document.getElementById('jogo-capa');
-  if (!jogo) { el.innerHTML = ''; capa.style.display = 'none'; return; }
+function renderJogoMetadado(game) {
+  const el   = document.getElementById('game-metadado');
+  const capa = document.getElementById('game-capa');
+  if (!game) { el.innerHTML = ''; capa.style.display = 'none'; return; }
 
-  if (jogo.capa_url) {
-    capa.src = jogo.capa_url;
-    capa.alt = `Capa de ${jogo.nome}`;
+  if (game.capa_url) {
+    capa.src = game.capa_url;
+    capa.alt = `Capa de ${game.nome}`;
     capa.style.display = 'block';
   } else {
     capa.style.display = 'none';
   }
 
   const partes = [];
-  if (jogo.plataforma) partes.push(escapar(jogo.plataforma));
-  if (jogo.ano_lancamento) partes.push(String(jogo.ano_lancamento));
+  if (game.plataforma) partes.push(escapar(game.plataforma));
+  if (game.ano_lancamento) partes.push(String(game.ano_lancamento));
   let html = partes.join(' · ');
-  if (jogo.gameplay_url) {
-    html += `${html ? ' · ' : ''}<a href="${escapar(jogo.gameplay_url)}" target="_blank" rel="noopener">▶ gameplay</a>`;
+  if (game.gameplay_url) {
+    html += `${html ? ' · ' : ''}<a href="${escapar(game.gameplay_url)}" target="_blank" rel="noopener">▶ gameplay</a>`;
   }
   el.innerHTML = html;
 }
 
-// Se veio de perfil.html com ?destaque=<entrada_id>, pula pra página onde
-// aquela entrada está — só na primeira carga do jogo certo, não a cada
+// Se veio de perfil.html com ?destaque=<entry_id>, pula pra página onde
+// aquela entry está — só na primeira carga do game certo, não a cada
 // atualização de SSE (senão "puxaria" quem já está navegando de volta).
 function aplicarDestaqueSeNecessario() {
   if (!DESTAQUE_ID || destaqueAplicado) return;
-  const idx = entradas.findIndex(e => e.id === DESTAQUE_ID);
+  const idx = entries.findIndex(e => e.id === DESTAQUE_ID);
   if (idx === -1) return;
   destaqueAplicado = true;
   paginaAtual = Math.floor(idx / PAGE_SIZE) + 1;
   setTimeout(() => {
-    const card = document.querySelector(`.player-card[data-entrada-id="${DESTAQUE_ID}"]`);
+    const card = document.querySelector(`.player-card[data-entry-id="${DESTAQUE_ID}"]`);
     if (!card) return;
     card.classList.add('destaque-proprio');
     card.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -875,39 +875,39 @@ function conectarSSE(slug) {
   sseSource.addEventListener('novo_registro', e => {
     const nova = JSON.parse(e.data);
 
-    // O SSE é por jogo, não por evento (o backend não sabe filtrar por
-    // evento nesse canal) — se a página está escopada por evento, mesclar
-    // a entrada direto no cliente poderia mostrar um score de OUTRO
-    // evento. Mais seguro: revalida buscando do servidor, que já filtra
+    // O SSE é por game, não por event (o backend não sabe filtrar por
+    // event nesse canal) — se a página está escopada por event, mesclar
+    // a entry direto no cliente poderia mostrar um score de OUTRO
+    // event. Mais seguro: revalida buscando do servidor, que já filtra
     // certo. Sem ?evento=, mantém o merge otimista de sempre.
-    if (EVENTO_SLUG) {
+    if (EVENT_SLUG) {
       carregarRanking(jogoAtual);
       return;
     }
 
-    // Remove entrada anterior do mesmo nick se existir
-    entradas = entradas.filter(en => en.nick.toLowerCase().trim() !== nova.nick.toLowerCase().trim());
-    entradas.push(nova);
-    entradas.sort((a, b) => b.pontuacao - a.pontuacao);
+    // Remove entry anterior do mesmo nick se existir
+    entries = entries.filter(en => en.nick.toLowerCase().trim() !== nova.nick.toLowerCase().trim());
+    entries.push(nova);
+    entries.sort((a, b) => b.pontuacao - a.pontuacao);
     // Mantém a página em que a pessoa está — um score novo não deve
     // "puxar" quem está navegando de volta pra página 1
     atualizarView(nova.id);
   });
 
   sseSource.addEventListener('ocultar', e => {
-    if (EVENTO_SLUG) { carregarRanking(jogoAtual); return; }
+    if (EVENT_SLUG) { carregarRanking(jogoAtual); return; }
     const { id } = JSON.parse(e.data);
-    entradas = entradas.filter(en => en.id !== id);
+    entries = entries.filter(en => en.id !== id);
     atualizarView();
   });
 
   sseSource.addEventListener('reativar', e => {
-    if (EVENTO_SLUG) { carregarRanking(jogoAtual); return; }
-    const { entrada } = JSON.parse(e.data);
-    entradas = entradas.filter(en => en.id !== entrada.id);
-    entradas.push(entrada);
-    entradas.sort((a, b) => b.pontuacao - a.pontuacao);
-    atualizarView(entrada.id);
+    if (EVENT_SLUG) { carregarRanking(jogoAtual); return; }
+    const { entry } = JSON.parse(e.data);
+    entries = entries.filter(en => en.id !== entry.id);
+    entries.push(entry);
+    entries.sort((a, b) => b.pontuacao - a.pontuacao);
+    atualizarView(entry.id);
   });
 
   sseSource.onopen = () => setConexao(true);
@@ -947,14 +947,14 @@ function filtrarEntradas(lista, query) {
 }
 
 function atualizarView(novaEntradaId = null) {
-  if (entradas.length === 0) {
+  if (entries.length === 0) {
     renderVazio();
     document.getElementById('footer-count').textContent = '';
     document.getElementById('ranking-paginacao').style.display = 'none';
     return;
   }
 
-  const filtradas = filtrarEntradas(entradas, buscaQuery);
+  const filtradas = filtrarEntradas(entries, buscaQuery);
 
   if (filtradas.length === 0) {
     renderSemResultado();
@@ -973,8 +973,8 @@ function atualizarView(novaEntradaId = null) {
 
   const count = document.getElementById('footer-count');
   count.textContent = buscaQuery.trim()
-    ? `${filtradas.length} de ${entradas.length} participante${entradas.length !== 1 ? 's' : ''}`
-    : `${entradas.length} participante${entradas.length !== 1 ? 's' : ''}`;
+    ? `${filtradas.length} de ${entries.length} participante${entries.length !== 1 ? 's' : ''}`
+    : `${entries.length} participante${entries.length !== 1 ? 's' : ''}`;
 }
 
 function renderPaginacao(totalPaginas, totalFiltrado) {
@@ -1006,7 +1006,7 @@ function renderRanking(lista, novaEntradaId = null, offset = 0) {
     return `
       <div class="player-card ${posClass} ${isNew ? 'new-entry' : ''}"
            role="listitem"
-           data-entrada-id="${entry.id}"
+           data-entry-id="${entry.id}"
            style="animation-delay: ${delay}ms">
         <div class="player-pos ${posClass}">${posLabel}</div>
         ${foto}
@@ -1029,7 +1029,7 @@ function renderRanking(lista, novaEntradaId = null, offset = 0) {
 
 // ── SEGUIR (docs/SEGUIR_SPEC.md) ────────────────────────────────────────────
 // entry.user_id só existe pra quem enviou o score logado — placar
-// anônimo não tem conta pra seguir. Visibilidade cross-marca é
+// anônimo não tem conta pra seguir. Visibilidade cross-arena é
 // aceitável (decisão #7): é o mesmo dado de ranking já público.
 
 async function carregarSessaoESeguindo() {

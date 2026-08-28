@@ -21,7 +21,7 @@ def _placar_customizado():
     return {"id": make_uuid(), "nome": "Temporada 2026", "slug": "temporada-2026", "escopo": "customizado"}
 
 
-def _jogo():
+def _game():
     return {"id": make_uuid(), "nome": "Pac-Man", "slug": "pac-man", "score_max": 999990}
 
 
@@ -47,43 +47,43 @@ async def test_placar_inexistente_retorna_404(client):
 # ── Ranking por placar ─────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_ranking_placar_global_sem_filtro_de_evento(client):
+async def test_ranking_placar_global_sem_filtro_de_event(client):
     """
-    Placar global: a query não filtra por evento (repositories.placar.listar_ranking
+    Placar global: a query não filtra por event (repositories.placar.listar_ranking
     decide isso sozinha) — o teste garante que o router repassa o placar certo
     e devolve o que o repository retornar.
     """
     placar = _placar_global()
-    jogo   = _jogo()
-    entradas = [
-        {"id": make_uuid(), "nick": "A", "pontuacao": 99000, "evento_id": make_uuid()},
-        {"id": make_uuid(), "nick": "B", "pontuacao": 88000, "evento_id": make_uuid()},
+    game   = _game()
+    entries = [
+        {"id": make_uuid(), "nick": "A", "pontuacao": 99000, "event_id": make_uuid()},
+        {"id": make_uuid(), "nick": "B", "pontuacao": 88000, "event_id": make_uuid()},
     ]
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.placar.buscar_por_slug", AsyncMock(return_value=placar)), \
-         patch("repositories.jogo.buscar_por_slug",   AsyncMock(return_value=jogo)), \
-         patch("repositories.placar.listar_ranking",  AsyncMock(return_value=entradas)) as listar_mock:
+         patch("repositories.game.buscar_por_slug",   AsyncMock(return_value=game)), \
+         patch("repositories.placar.listar_ranking",  AsyncMock(return_value=entries)) as listar_mock:
         resp = await client.get("/api/p/geral/ranking/pac-man")
 
     assert resp.status_code == 200
     data = resp.json()
     assert data["placar"] == "geral"
-    assert len(data["entradas"]) == 2
+    assert len(data["entries"]) == 2
     # Garante que o placar (com escopo) foi repassado ao repository
-    listar_mock.assert_called_once_with(pool, jogo["id"], placar)
+    listar_mock.assert_called_once_with(pool, game["id"], placar)
 
 
 @pytest.mark.asyncio
 async def test_ranking_placar_customizado(client):
     placar = _placar_customizado()
-    jogo   = _jogo()
+    game   = _game()
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.placar.buscar_por_slug", AsyncMock(return_value=placar)), \
-         patch("repositories.jogo.buscar_por_slug",   AsyncMock(return_value=jogo)), \
+         patch("repositories.game.buscar_por_slug",   AsyncMock(return_value=game)), \
          patch("repositories.placar.listar_ranking",  AsyncMock(return_value=[])):
         resp = await client.get("/api/p/temporada-2026/ranking/pac-man")
 
@@ -92,13 +92,13 @@ async def test_ranking_placar_customizado(client):
 
 
 @pytest.mark.asyncio
-async def test_ranking_placar_jogo_inexistente_retorna_404(client):
+async def test_ranking_placar_game_inexistente_retorna_404(client):
     placar = _placar_global()
     pool = MagicMock()
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.placar.buscar_por_slug", AsyncMock(return_value=placar)), \
-         patch("repositories.jogo.buscar_por_slug",   AsyncMock(return_value=None)):
+         patch("repositories.game.buscar_por_slug",   AsyncMock(return_value=None)):
         resp = await client.get("/api/p/geral/ranking/nao-existe")
 
     assert resp.status_code == 404
@@ -107,7 +107,7 @@ async def test_ranking_placar_jogo_inexistente_retorna_404(client):
 # ── Líderes do placar ──────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_lideres_placar_retorna_top1_por_jogo(client):
+async def test_lideres_placar_retorna_top1_por_game(client):
     placar = _placar_global()
     lideres = {make_uuid(): {"slug": "pac-man", "nick": "CAMPEAO", "pontuacao": 99000}}
     pool = MagicMock()
@@ -122,11 +122,11 @@ async def test_lideres_placar_retorna_top1_por_jogo(client):
 
 
 @pytest.mark.asyncio
-async def test_rota_lideres_nao_e_capturada_como_jogo_slug(client):
+async def test_rota_lideres_nao_e_capturada_como_game_slug(client):
     """
     Regressão da armadilha já documentada em SPEC.md §8: /ranking/lideres
     precisa ser resolvida pela rota específica, não pela genérica
-    /ranking/{jogo_slug} tratando 'lideres' como se fosse um jogo.
+    /ranking/{game_slug} tratando 'lideres' como se fosse um game.
     """
     placar = _placar_global()
     pool = MagicMock()
@@ -134,28 +134,28 @@ async def test_rota_lideres_nao_e_capturada_como_jogo_slug(client):
 
     with patch("repositories.placar.buscar_por_slug", AsyncMock(return_value=placar)), \
          patch("repositories.placar.listar_lideres",  AsyncMock(return_value={})) as lideres_mock, \
-         patch("repositories.jogo.buscar_por_slug",   AsyncMock(return_value=None)) as jogo_mock:
+         patch("repositories.game.buscar_por_slug",   AsyncMock(return_value=None)) as game_mock:
         resp = await client.get("/api/p/geral/ranking/lideres")
 
     assert resp.status_code == 200
     lideres_mock.assert_called_once()
-    jogo_mock.assert_not_called()
+    game_mock.assert_not_called()
 
 
 # ── Repository: SQL muda de verdade entre global e customizado ────────────────
 
 @pytest.mark.asyncio
-async def test_repository_ranking_global_nao_filtra_evento(fake_pool):
+async def test_repository_ranking_global_nao_filtra_event(fake_pool):
     import repositories.placar as placar_repo
 
     fake_pool.set_fetch([])
     placar = _placar_global()
 
-    await placar_repo.listar_ranking(fake_pool, "jogo-id", placar)
+    await placar_repo.listar_ranking(fake_pool, "game-id", placar)
 
     sql = " ".join(fake_pool.fetch.call_args[0][0].split())
     assert "placar_eventos" not in sql
-    assert "evento_id" not in sql or "IN (SELECT evento_id" not in sql
+    assert "event_id" not in sql or "IN (SELECT event_id" not in sql
 
 
 @pytest.mark.asyncio
@@ -165,13 +165,13 @@ async def test_repository_ranking_customizado_filtra_por_placar_eventos(fake_poo
     fake_pool.set_fetch([])
     placar = _placar_customizado()
 
-    await placar_repo.listar_ranking(fake_pool, "jogo-id", placar)
+    await placar_repo.listar_ranking(fake_pool, "game-id", placar)
 
     sql = " ".join(fake_pool.fetch.call_args[0][0].split())
     assert "placar_eventos" in sql
     assert "WHERE placar_id = $2" in sql
-    # jogo_id e placar_id são os dois parâmetros posicionais
-    assert fake_pool.fetch.call_args[0][1:] == ("jogo-id", placar["id"])
+    # game_id e placar_id são os dois parâmetros posicionais
+    assert fake_pool.fetch.call_args[0][1:] == ("game-id", placar["id"])
 
 
 @pytest.mark.asyncio

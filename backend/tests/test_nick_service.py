@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 
-@pytest.mark.parametrize("entrada, esperado", [
+@pytest.mark.parametrize("entry, esperado", [
     ("Joao",           "joao"),
     ("  Joao  ",       "joao"),
     ("JOAO",           "joao"),
@@ -11,9 +11,9 @@ from unittest.mock import AsyncMock, MagicMock
     ("j",              "j"),
     ("123",            "123"),
 ])
-def test_normalizar_nick(entrada, esperado):
+def test_normalizar_nick(entry, esperado):
     from services.nick import normalizar_nick
-    assert normalizar_nick(entrada) == esperado
+    assert normalizar_nick(entry) == esperado
 
 
 def test_normalizar_nick_strip_tabs():
@@ -22,7 +22,7 @@ def test_normalizar_nick_strip_tabs():
 
 
 @pytest.mark.asyncio
-async def test_marca_anterior_quando_existe():
+async def test_arena_anterior_quando_existe():
     from services.nick import marcar_anterior_como_superado
     # marcar_anterior usa UPDATE...RETURNING — simula row com id
     fake_row = {"id": "uuid-anterior"}
@@ -30,7 +30,7 @@ async def test_marca_anterior_quando_existe():
     conn.fetchrow = AsyncMock(return_value=fake_row)
     pool = MagicMock()
 
-    resultado = await marcar_anterior_como_superado(pool, "player1", "jogo-id", conn=conn)
+    resultado = await marcar_anterior_como_superado(pool, "player1", "game-id", conn=conn)
     assert resultado == "uuid-anterior"
     conn.fetchrow.assert_called_once()
 
@@ -42,7 +42,7 @@ async def test_retorna_none_quando_nao_existe():
     conn.fetchrow = AsyncMock(return_value=None)
     pool = MagicMock()
 
-    resultado = await marcar_anterior_como_superado(pool, "player1", "jogo-id", conn=conn)
+    resultado = await marcar_anterior_como_superado(pool, "player1", "game-id", conn=conn)
     assert resultado is None
 
 
@@ -54,7 +54,7 @@ async def test_query_usa_conn_quando_fornecido():
     pool = MagicMock()
     pool.fetchrow = AsyncMock(return_value=None)
 
-    await marcar_anterior_como_superado(pool, "player1", "jogo-id", conn=conn)
+    await marcar_anterior_como_superado(pool, "player1", "game-id", conn=conn)
 
     # conn deve ser usado, não pool
     conn.fetchrow.assert_called_once()
@@ -68,6 +68,6 @@ async def test_query_contem_superado():
     conn.fetchrow = AsyncMock(return_value=None)
     pool = MagicMock()
 
-    await marcar_anterior_como_superado(pool, "player1", "jogo-id", conn=conn)
+    await marcar_anterior_como_superado(pool, "player1", "game-id", conn=conn)
     query = conn.fetchrow.call_args[0][0]
     assert "superado" in query.lower()

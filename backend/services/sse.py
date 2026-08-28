@@ -9,10 +9,10 @@ log = structlog.get_logger()
 
 class SSEBroker:
     """
-    Gerencia conexões SSE ativas por slug de jogo.
+    Gerencia conexões SSE ativas por slug de game.
 
-    Cada cliente conectado ao ranking de um jogo recebe um asyncio.Queue.
-    Ao publicar um evento, todos os queues daquele jogo são notificados.
+    Cada cliente conectado ao ranking de um game recebe um asyncio.Queue.
+    Ao publicar um event, todos os queues daquele game são notificados.
     Conexões mortas são limpas automaticamente quando o gerador encerra.
     """
 
@@ -22,7 +22,7 @@ class SSEBroker:
 
     async def subscribe(self, slug: str) -> AsyncGenerator[str, None]:
         """
-        Generator que produz eventos SSE para um cliente.
+        Generator que produz events SSE para um cliente.
         Deve ser usado como response do endpoint SSE.
         """
         queue: asyncio.Queue = asyncio.Queue(maxsize=50)
@@ -35,7 +35,7 @@ class SSEBroker:
 
             while True:
                 try:
-                    # Aguarda próximo evento com timeout para detectar clientes mortos
+                    # Aguarda próximo event com timeout para detectar clientes mortos
                     event = await asyncio.wait_for(queue.get(), timeout=30)
                     yield event
                 except asyncio.TimeoutError:
@@ -47,7 +47,7 @@ class SSEBroker:
 
     async def publish(self, slug: str, tipo: str, dados: dict) -> None:
         """
-        Envia um evento para todos os clientes conectados ao slug.
+        Envia um event para todos os clientes conectados ao slug.
         Tipos: novo_registro | ocultar | reativar
         """
         if slug not in self._subscribers:

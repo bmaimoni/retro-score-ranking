@@ -16,8 +16,8 @@ const LINKS = [
 
 // paginaAtual: 'index' | 'ranking' | 'perfil' — destaca o link ativo.
 // overrides: { [id]: href } — permite a página chamadora preservar
-// contexto na navegação (ex: index.html passando 'ranking.html?evento=X'
-// pra manter o evento atual em vez do link genérico).
+// contexto na navegação (ex: index.html passando 'ranking.html?event=X'
+// pra manter o event atual em vez do link genérico).
 export function inserirNav(paginaAtual, overrides = {}) {
   if (document.getElementById('site-nav-btn')) return; // evita duplicar
 

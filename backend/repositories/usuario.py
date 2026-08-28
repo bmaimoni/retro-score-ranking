@@ -24,7 +24,7 @@ async def buscar_perfil(pool: Pool, user_id: str) -> dict | None:
 
 async def atualizar_perfil(pool: Pool, user_id: str, dados: dict) -> dict | None:
     """Atualiza campos parciais. Chaves não presentes em `dados` ficam
-    inalteradas (mesmo padrão de marca_repo.atualizar/evento_repo.atualizar)."""
+    inalteradas (mesmo padrão de arena_repo.atualizar/event_repo.atualizar)."""
     row = await pool.fetchrow(
         """
         UPDATE users
@@ -111,7 +111,7 @@ async def anonimizar(conn, user_id: str, email_atual: str | None) -> dict | None
     Anonimização de verdade (decisão #6 do docs/EXCLUSAO_CONTA_SPEC.md
     §5 — não é só `users`): limpa dado pessoal de `users`, `identities`
     e `magic_link_tokens` (email é NOT NULL nas duas últimas, por isso
-    placeholder em vez de NULL). Nick em `entradas` nunca é tocado
+    placeholder em vez de NULL). Nick em `entries` nunca é tocado
     (decisão #6). `conn` é sempre uma conexão dentro de transação — quem
     chama garante isso (ver services/exclusao_conta.py).
     """
@@ -146,11 +146,11 @@ async def desativar_pontuacoes(pool: Pool, user_id: str, identificador: str) -> 
     'Desativar pontuações' (item 1.5 do BACKLOG_2026.md §1) — ação leve
     e reversível, distinta de excluir conta (decisão #4 do
     EXCLUSAO_CONTA_SPEC.md §4: nunca no mesmo botão/fluxo). Reaproveita
-    entradas.arquivado, só em massa. Retorna quantas foram afetadas.
+    entries.arquivado, só em massa. Retorna quantas foram afetadas.
     """
     result = await pool.execute(
         """
-        UPDATE entradas SET arquivado = true, arquivado_em = now(), arquivado_por = $2
+        UPDATE entries SET arquivado = true, arquivado_em = now(), arquivado_por = $2
         WHERE user_id = $1 AND arquivado = false
         """,
         user_id, identificador,

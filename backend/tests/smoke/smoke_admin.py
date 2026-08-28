@@ -36,7 +36,7 @@ def test_login_correto_abre_painel(page: Page, base_url: str, admin_secret: str)
 def test_abas_do_painel_existem(page: Page, base_url: str, admin_secret: str):
     _fazer_login(page, base_url, admin_secret)
     expect(page.locator("[data-tab='feed']")).to_be_visible()
-    expect(page.locator("[data-tab='jogos']")).to_be_visible()
+    expect(page.locator("[data-tab='games']")).to_be_visible()
     expect(page.locator("[data-tab='config']")).to_be_visible()
     # Aba pendentes não deve mais existir (foi consolidada no feed)
     assert page.locator("[data-tab='pendentes']").count() == 0
@@ -60,7 +60,7 @@ def test_filtro_pendentes_filtra_corretamente(page: Page, base_url: str, admin_s
     page.locator("[data-filter='pendentes']").click()
     page.wait_for_timeout(500)
     # Ou mostra cards pendentes ou mostra empty state — nunca cards normais
-    cards = page.locator(".entrada-card.pendente-card")
+    cards = page.locator(".entry-card.pendente-card")
     empty = page.locator(".empty-admin")
     assert cards.count() > 0 or empty.is_visible()
 
@@ -84,12 +84,12 @@ def test_contador_regressivo_aparece(page: Page, base_url: str, admin_secret: st
     assert ":" in texto  # formato M:SS
 
 
-def test_aba_jogos_lista_jogos(page: Page, base_url: str, admin_secret: str):
+def test_aba_games_lista_games(page: Page, base_url: str, admin_secret: str):
     _fazer_login(page, base_url, admin_secret)
-    page.locator("[data-tab='jogos']").click()
-    expect(page.locator("#jogos-list")).to_be_visible()
+    page.locator("[data-tab='games']").click()
+    expect(page.locator("#games-list")).to_be_visible()
     page.wait_for_timeout(1_000)
-    assert page.locator(".jogo-card").count() >= 1
+    assert page.locator(".game-card").count() >= 1
 
 
 def test_aba_config_lista_configuracoes(page: Page, base_url: str, admin_secret: str):

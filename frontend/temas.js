@@ -1,17 +1,17 @@
 // ============================================================
-// RETRO SCORE RANKING — Temas por jogo
+// RETRO SCORE RANKING — Temas por game
 // ============================================================
 // Como adicionar um novo tema:
-// 1. Adicione uma entrada neste objeto com o slug exato do jogo
-//    cadastrado no banco (ex: "meu-jogo")
+// 1. Adicione uma entry neste objeto com o slug exato do game
+//    cadastrado no banco (ex: "meu-game")
 // 2. Preencha as três seções: cores, tipografia e assets
 // 3. Faça git push — o Vercel aplica automaticamente
 //
-// Jogo sem tema definido aqui usa o TEMA_PADRAO automaticamente.
+// Game sem tema definido aqui usa o TEMA_PADRAO automaticamente.
 // ============================================================
 
 // ── Tema padrão Canal3 ────────────────────────────────────────
-// Usado quando o jogo não tem tema próprio definido abaixo.
+// Usado quando o game não tem tema próprio definido abaixo.
 export const TEMA_PADRAO = {
   cores: {
     bg:        "#0b1331",
@@ -34,7 +34,7 @@ export const TEMA_PADRAO = {
   },
 };
 
-// ── Temas por jogo ────────────────────────────────────────────
+// ── Temas por game ────────────────────────────────────────────
 const TEMAS = {
 
   "pac-man": {
@@ -194,7 +194,7 @@ const TEMAS = {
 };
 
 // ── Função principal ──────────────────────────────────────────
-// Retorna o tema do jogo pelo slug.
+// Retorna o tema do game pelo slug.
 // Se não encontrar, retorna o tema padrão.
 export function getTema(slug) {
   return TEMAS[slug] || TEMA_PADRAO;

@@ -13,7 +13,7 @@ import auth.service as auth_svc
 import auth.repository as auth_repo
 import repositories.usuario as usuario_repo
 import repositories.avatar as avatar_repo
-import repositories.entrada as entrada_repo
+import repositories.entry as entry_repo
 import repositories.seguidor as seguidor_repo
 import services.exclusao_conta as exclusao_svc
 
@@ -94,9 +94,9 @@ async def minhas_pontuacoes(
     pool=Depends(get_pool),
     usuario: dict = Depends(auth_svc.sessao_obrigatoria),
 ):
-    """Detalhamento de todas as próprias pontuações — jogo, evento e
-    marca de cada uma, pra tela de perfil linkar direto pro jogo."""
-    return await entrada_repo.listar_por_usuario(pool, usuario["id"])
+    """Detalhamento de todas as próprias pontuações — game, event e
+    arena de cada uma, pra tela de perfil linkar direto pro game."""
+    return await entry_repo.listar_por_usuario(pool, usuario["id"])
 
 
 # ── Desativar pontuações — leve, reversível (BACKLOG_2026.md item 1.5) ─────────
@@ -125,7 +125,7 @@ async def solicitar_exclusao(
     """
     Inicia a janela de 30 dias de cancelamento — a conta continua
     normal até lá. Bloqueado na hora se a pessoa for titular de
-    qualquer marca (decisão #5).
+    qualquer arena (decisão #5).
     """
     try:
         return await exclusao_svc.solicitar(pool, usuario["id"])

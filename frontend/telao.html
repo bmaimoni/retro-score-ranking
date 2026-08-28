@@ -50,13 +50,13 @@
       line-height: 1.2;
       text-shadow: 0 0 30px rgba(94,43,130,0.6);
     }
-    .tv-jogo-atual {
+    .tv-game-atual {
       text-align: right;
       font-size: clamp(0.5rem,1.2vw,0.85rem);
       color: var(--color-text-muted);
       line-height: 2;
     }
-    .tv-jogo-nome {
+    .tv-game-nome {
       color: var(--color-accent);
       font-size: clamp(0.7rem,1.6vw,1.1rem);
       display: block;
@@ -105,7 +105,7 @@
       gap: clamp(6px,1vh,12px);
       overflow: hidden;
     }
-    .tv-entrada {
+    .tv-entry {
       display: flex;
       align-items: center;
       gap: clamp(8px,1.5vw,20px);
@@ -116,7 +116,7 @@
       transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
       overflow: hidden;
     }
-    .tv-entrada.novo {
+    .tv-entry.novo {
       animation: entradaNova 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
       border-left-color: var(--color-accent);
     }
@@ -273,9 +273,9 @@
 <header class="tv-header">
   <img src="logo-principal.png" alt="Canal3" class="tv-logo" onerror="this.style.display='none'">
   <h1 class="tv-titulo">HIGH<br>SCORES</h1>
-  <div class="tv-jogo-atual">
+  <div class="tv-game-atual">
     <span style="display:block">JOGO ATUAL</span>
-    <span class="tv-jogo-nome" id="tv-jogo-nome">—</span>
+    <span class="tv-game-nome" id="tv-game-nome">—</span>
   </div>
 </header>
 
@@ -314,8 +314,8 @@
 
   // Slug do telão — vem da URL (?telao=slug), default 'geral' (Hall da
   // Fama Geral, seedado pela migration 011 com o comportamento que já
-  // existia antes: todos os jogos ativos, top 10, ranking sem filtro de
-  // evento). Ver docs/EVENTOS_SPEC.md §3-5.
+  // existia antes: todos os games ativos, top 10, ranking sem filtro de
+  // event). Ver docs/EVENTOS_SPEC.md §3-5.
   const TELAO_SLUG = new URLSearchParams(location.search).get('telao') || 'geral';
 
   let jogoAtual = null;
@@ -323,7 +323,7 @@
   let rankingAtual = [];
 
   // Preenchidos por carregarConfigTelao() — um telão aponta pra
-  // exatamente um evento OU um placar, nunca os dois.
+  // exatamente um event OU um placar, nunca os dois.
   let topN        = 10;
   let eventoSlug  = null;
   let placarSlug  = null;
@@ -334,9 +334,9 @@
       : `${API_URL}/api/p/${placarSlug}/ranking/${jogoSlug}`;
   }
 
-  // QR aponta pro evento certo quando o telão é de um evento específico —
+  // QR aponta pro event certo quando o telão é de um event específico —
   // um telão de placar (Hall da Fama, várias edições) não tem um único
-  // evento "ativo agora" pra apontar, então cai no envio padrão.
+  // event "ativo agora" pra apontar, então cai no envio padrão.
   function urlUpload() {
     return eventoSlug
       ? `${UPLOAD_URL}/index.html?evento=${eventoSlug}`
@@ -395,7 +395,7 @@
   };
   document.body.appendChild(btnPausar);
 
-  // ── Carrega config do telão (top_n, evento/placar, jogos ordenados) ──
+  // ── Carrega config do telão (top_n, event/placar, games ordenados) ──
   async function carregarConfigTelao() {
     try {
       const resp = await fetch(`${API_URL}/api/teloes/${TELAO_SLUG}/config`);
@@ -403,11 +403,11 @@
       const config = await resp.json();
 
       topN       = config.top_n;
-      eventoSlug = config.evento_slug;
+      eventoSlug = config.event_slug;
       placarSlug = config.placar_slug;
       document.title = `${config.nome} — Canal3 Telão`;
 
-      montarTabs(config.jogos);
+      montarTabs(config.games);
     } catch (err) {
       document.getElementById('tv-tabs').innerHTML =
         '<span style="color:#f66;font-size:0.6rem;padding:8px">Erro ao carregar configuração do telão</span>';
@@ -416,16 +416,16 @@
     }
   }
 
-  function montarTabs(jogos) {
+  function montarTabs(games) {
     const tabs = document.getElementById('tv-tabs');
     tabs.innerHTML = '';
-    jogosLista = jogos;   // já vêm ordenados e filtrados (ativo=true) pelo backend
-    jogos.forEach((j, i) => {
+    jogosLista = games;   // já vêm ordenados e filtrados (ativo=true) pelo backend
+    games.forEach((j, i) => {
       const btn = document.createElement('button');
       btn.className = 'tv-tab';
       btn.textContent = j.nome.toUpperCase();
       btn.onclick = () => {
-        jogoIndex = jogos.indexOf(j);
+        jogoIndex = games.indexOf(j);
         carrosselPausado = true;
         btnPausar.textContent = '▶ RETOMAR';
         mudarJogo(j);
@@ -433,58 +433,58 @@
       tabs.appendChild(btn);
       if (i === 0) mudarJogo(j);
     });
-    if (modo === 'carrossel' && jogos.length > 1) {
+    if (modo === 'carrossel' && games.length > 1) {
       btnPausar.style.display = 'block';
       iniciarCarrossel();
     }
   }
 
-  function mudarJogo(jogo) {
-    jogoAtual = jogo;
-    clearTimeout(destaqueTimer); // evita destaque do jogo anterior vazar pro novo
-    document.getElementById('tv-jogo-nome').textContent = jogo.nome.toUpperCase();
+  function mudarJogo(game) {
+    jogoAtual = game;
+    clearTimeout(destaqueTimer); // evita destaque do game anterior vazar pro novo
+    document.getElementById('tv-game-nome').textContent = game.nome.toUpperCase();
     document.querySelectorAll('.tv-tab').forEach(t =>
-      t.classList.toggle('ativo', t.textContent === jogo.nome.toUpperCase())
+      t.classList.toggle('ativo', t.textContent === game.nome.toUpperCase())
     );
-    aplicarTema(jogo.slug);
+    aplicarTema(game.slug);
     gerarQR(urlUpload());
-    carregarRanking(jogo.slug);
-    conectarSSE(jogo.slug);
-    // Pré-carrega próximo jogo para troca instantânea
+    carregarRanking(game.slug);
+    conectarSSE(game.slug);
+    // Pré-carrega próximo game para troca instantânea
     setTimeout(preCarregarProximos, 2000);
   }
 
   // ── Cache de rankings ────────────────────────────────────────
-  const _rankingCache = {};   // { slug: { entradas, ts } }
+  const _rankingCache = {};   // { slug: { entries, ts } }
   const CACHE_TTL = 30_000;   // 30s — revalida se mais antigo
 
   async function carregarRanking(slug, { silent = false } = {}) {
     const cached = _rankingCache[slug];
     if (cached && Date.now() - cached.ts < CACHE_TTL) {
-      rankingAtual = cached.entradas;
+      rankingAtual = cached.entries;
       if (!silent) renderRanking(rankingAtual);
       return;
     }
     try {
       const resp = await fetch(buildRankingUrl(slug));
       const data = await resp.json();
-      const entradas = data.entradas || [];
-      _rankingCache[slug] = { entradas, ts: Date.now() };
-      rankingAtual = entradas;
+      const entries = data.entries || [];
+      _rankingCache[slug] = { entries, ts: Date.now() };
+      rankingAtual = entries;
       if (!silent) renderRanking(rankingAtual);
     } catch {}
   }
 
-  // Pré-carrega rankings dos próximos jogos em background
+  // Pré-carrega rankings dos próximos games em background
   function preCarregarProximos() {
     const proximo = jogosLista[(jogoIndex + 1) % jogosLista.length];
     if (proximo) carregarRanking(proximo.slug, { silent: true });
   }
 
-  function renderRanking(entradas, novoNick = null) {
+  function renderRanking(entries, novoNick = null) {
     const el = document.getElementById('tv-ranking');
     el.innerHTML = '';
-    entradas.slice(0, topN).forEach((e, i) => {
+    entries.slice(0, topN).forEach((e, i) => {
       const pos = i + 1;
       const posClass = pos === 1 ? 'p1' : pos === 2 ? 'p2' : pos === 3 ? 'p3' : 'pn';
       const posTexto = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
@@ -493,7 +493,7 @@
         : `<div class="tv-foto-placeholder">${e.nick.charAt(0).toUpperCase()}</div>`;
       const isNovo = novoNick && e.nick.toLowerCase() === novoNick.toLowerCase();
       const div = document.createElement('div');
-      div.className = `tv-entrada${isNovo ? ' novo' : ''}`;
+      div.className = `tv-entry${isNovo ? ' novo' : ''}`;
       div.innerHTML = `
         <div class="tv-pos ${posClass}">${posTexto}</div>
         ${foto}
@@ -521,7 +521,7 @@
         if (_rankingCache[slug]) _rankingCache[slug].ts = 0; // invalida cache
 
         // Destaque imediato: substitui a última posição visível pela
-        // entrada nova, sem esperar saber se ela realmente entrou no
+        // entry nova, sem esperar saber se ela realmente entrou no
         // top N — some sozinho em 5s (ver docs/EVENTOS_SPEC.md §4.3).
         mostrarDestaqueTemporario(dados);
 
@@ -554,7 +554,7 @@
     };
   }
 
-  // Mostra a entrada nova destacada na última posição visível (top_n),
+  // Mostra a entry nova destacada na última posição visível (top_n),
   // por cima do que já estava sendo exibido — não é o ranking real
   // ainda, é só a transição visual imediata.
   function mostrarDestaqueTemporario(dados) {

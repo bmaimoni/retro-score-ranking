@@ -122,7 +122,7 @@
     }
     .pontuacao-item:hover { border-color: var(--color-border-hover); }
     .pontuacao-info { min-width: 0; }
-    .pontuacao-jogo { font-size: var(--text-sm); font-weight: var(--weight-bold); }
+    .pontuacao-game { font-size: var(--text-sm); font-weight: var(--weight-bold); }
     .pontuacao-meta { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; }
     .pontuacao-score {
       font-family: var(--font-mono);
@@ -421,7 +421,7 @@ async function renderPerfil() {
       <div class="perfil-card-titulo">👥 SEGUINDO</div>
       <div class="perfil-card-desc">
         Siga jogadores a partir do ranking (botão "+ seguir" nas pontuações) — quando alguém que
-        você segue te superar num jogo que vocês dois jogam, você vê aqui no próximo login.
+        você segue te superar num game que vocês dois jogam, você vê aqui no próximo login.
       </div>
       <div class="seguir-tabs">
         <button class="seguir-tab active" data-lista="seguindo" onclick="trocarAbaSeguir(this)">Sigo</button>
@@ -552,10 +552,10 @@ async function carregarPontuacoes() {
       else if (p.pendente) tag = ' <span style="color:var(--color-warning)">(em moderação)</span>';
       else if (p.superado) tag = ' <span style="color:var(--color-text-muted)">(superada)</span>';
       return `
-        <a class="pontuacao-item" href="ranking.html?evento=${escapar(p.evento_slug)}&jogo=${escapar(p.jogo_slug)}&destaque=${escapar(p.id)}">
+        <a class="pontuacao-item" href="ranking.html?evento=${escapar(p.event_slug)}&jogo=${escapar(p.game_slug)}&destaque=${escapar(p.id)}">
           <div class="pontuacao-info">
-            <div class="pontuacao-jogo">${escapar(p.jogo_nome)}${tag}</div>
-            <div class="pontuacao-meta">${escapar(p.evento_nome)} · ${escapar(p.marca_nome)} · ${data}</div>
+            <div class="pontuacao-game">${escapar(p.game_nome)}${tag}</div>
+            <div class="pontuacao-meta">${escapar(p.event_nome)} · ${escapar(p.arena_nome)} · ${data}</div>
           </div>
           <div class="pontuacao-score">${p.pontuacao.toLocaleString('pt-BR')}</div>
         </a>

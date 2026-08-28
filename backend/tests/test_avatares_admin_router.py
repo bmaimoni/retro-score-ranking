@@ -15,10 +15,10 @@ def make_uuid():
     return str(uuid.uuid4())
 
 
-def admin_ctx(marca_id=None):
+def admin_ctx(arena_id=None):
     return AdminContext(
         identificador="admin@x.com", user_id=make_uuid(), super=False,
-        vinculos=[{"marca_id": marca_id or make_uuid(), "nivel": "admin"}],
+        vinculos=[{"arena_id": arena_id or make_uuid(), "role": "admin"}],
     )
 
 
