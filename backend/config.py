@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     session_cookie_name: str = "canal3_session"
     session_ttl_days: int = 30
 
+    # IGDB (docs/CATALOGO_JOGOS_SPEC.md Fase 5) — busca de jogo pro
+    # cadastro self-serve. Vazio = caminho IGDB desabilitado, só
+    # cadastro manual disponível.
+    igdb_client_id: str = ""
+    igdb_client_secret: str = ""
+
     # URL base do frontend, para redirecionar de volta após login
     frontend_base_url: str = "https://retro-score-ranking.vercel.app"
 
