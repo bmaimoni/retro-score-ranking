@@ -194,7 +194,9 @@ async def test_rejeitar_pendente_nao_publica_sse(client):
 async def test_criar_game(client):
     app.dependency_overrides[get_pool] = lambda: MagicMock()
 
-    with patch("repositories.game.criar", AsyncMock(return_value=make_game())):
+    with patch("repositories.game.criar", AsyncMock(return_value=make_game())), \
+         patch("repositories.game.contar_manuais_por_criador_ultimas_24h", AsyncMock(return_value=0)), \
+         patch("repositories.game.listar_nome_ativos", AsyncMock(return_value=[])):
         resp = await client.post("/api/admin/games",
                                  json={"nome": "Pac-Man", "slug": "pac-man"},
                                  headers=AUTH_HEADER)
@@ -206,7 +208,9 @@ async def test_criar_game_slug_duplicado_retorna_409(client):
     app.dependency_overrides[get_pool] = lambda: MagicMock()
 
     with patch("repositories.game.criar",
-               AsyncMock(side_effect=Exception("unique constraint"))):
+               AsyncMock(side_effect=Exception("unique constraint"))), \
+         patch("repositories.game.contar_manuais_por_criador_ultimas_24h", AsyncMock(return_value=0)), \
+         patch("repositories.game.listar_nome_ativos", AsyncMock(return_value=[])):
         resp = await client.post("/api/admin/games",
                                  json={"nome": "Pac-Man", "slug": "pac-man"},
                                  headers=AUTH_HEADER)
@@ -666,10 +670,13 @@ async def test_me_admin_escopado_lista_events_acessiveis(client):
 # ── Fluxo de aprovação de games (migration 018) ─────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_criar_game_admin_escopado_fica_pendente_e_auto_vinculado(client):
-    """Admin não-super: game nasce pendente_aprovacao=True e é
-    auto-vinculado a todos os events que ele tem acesso — utilizável
-    de imediato, mas fora do catálogo geral até aprovação."""
+async def test_criar_game_admin_escopado_fica_pendente_sem_event_id(client):
+    """Admin não-super, caminho manual (sem igdb_id): game nasce
+    pendente_aprovacao=True. Correção do achado 5.9
+    (CATALOGO_JOGOS_SPEC.md): sem event_id no body, NÃO vincula a
+    nenhum event — comportamento antigo vinculava automaticamente a
+    todos os events que o admin tinha acesso, poluindo events sem
+    relação com o game criado."""
     escopado = AdminContext(
         identificador="pessoa@x.com", user_id="u1", super=False,
         vinculos=[{"arena_id": "m1", "role": "admin"}],
@@ -682,7 +689,8 @@ async def test_criar_game_admin_escopado_fica_pendente_e_auto_vinculado(client):
     adicionar_mock = AsyncMock()
 
     with patch("repositories.game.criar", criar_mock), \
-         patch("repositories.membership.listar_events_acessiveis", AsyncMock(return_value=["ev1", "ev2"])), \
+         patch("repositories.game.contar_manuais_por_criador_ultimas_24h", AsyncMock(return_value=0)), \
+         patch("repositories.game.listar_nome_ativos", AsyncMock(return_value=[])), \
          patch("repositories.event_game.adicionar", adicionar_mock):
         resp = await client.post("/api/admin/games",
             json={"nome": "Frogger", "slug": "frogger"})
@@ -693,7 +701,68 @@ async def test_criar_game_admin_escopado_fica_pendente_e_auto_vinculado(client):
         pendente_aprovacao=True, criado_por="pessoa@x.com",
         plataforma=None, ano_lancamento=None, capa_url=None, gameplay_url=None,
     )
-    assert adicionar_mock.call_count == 2  # um por event acessível
+    adicionar_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_criar_game_com_event_id_vincula_so_a_esse_event(client):
+    """event_id explícito no body vincula só a esse event — não a
+    outros events que o admin também tem acesso (correção do achado
+    5.9)."""
+    escopado = AdminContext(
+        identificador="pessoa@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": "m1", "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: escopado
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    game_criado = make_game(pendente_aprovacao=True)
+    criar_mock = AsyncMock(return_value=game_criado)
+    adicionar_mock = AsyncMock()
+
+    with patch("repositories.game.criar", criar_mock), \
+         patch("repositories.game.contar_manuais_por_criador_ultimas_24h", AsyncMock(return_value=0)), \
+         patch("repositories.game.listar_nome_ativos", AsyncMock(return_value=[])), \
+         patch("repositories.event_game.adicionar", adicionar_mock):
+        resp = await client.post("/api/admin/games",
+            json={"nome": "Frogger", "slug": "frogger", "event_id": "ev1"})
+
+    assert resp.status_code == 201
+    adicionar_mock.assert_called_once_with(pool, "ev1", str(game_criado["id"]))
+
+
+@pytest.mark.asyncio
+async def test_criar_game_manual_rate_limit_excedido_retorna_429(client):
+    escopado = AdminContext(
+        identificador="pessoa@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": "m1", "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: escopado
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.game.contar_manuais_por_criador_ultimas_24h", AsyncMock(return_value=5)):
+        resp = await client.post("/api/admin/games",
+            json={"nome": "Frogger", "slug": "frogger"})
+
+    assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_criar_game_manual_colisao_de_nome_retorna_409(client):
+    """Colisão por substring (mesmo critério de bloqueio de B.2) — o
+    nome normalizado do existente ("street fighter ii") está contido
+    no do candidato ("street fighter ii turbo")."""
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.game.contar_manuais_por_criador_ultimas_24h", AsyncMock(return_value=0)), \
+         patch("repositories.game.listar_nome_ativos",
+               AsyncMock(return_value=[{"nome": "Street Fighter II"}])):
+        resp = await client.post("/api/admin/games",
+            json={"nome": "Street Fighter II Turbo", "slug": "sf2-turbo"},
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 409
 
 
 @pytest.mark.asyncio
@@ -705,6 +774,8 @@ async def test_criar_game_super_admin_nasce_aprovado(client):
 
     criar_mock = AsyncMock(return_value=make_game())
     with patch("repositories.game.criar", criar_mock), \
+         patch("repositories.game.contar_manuais_por_criador_ultimas_24h", AsyncMock(return_value=0)), \
+         patch("repositories.game.listar_nome_ativos", AsyncMock(return_value=[])), \
          patch("repositories.event_game.adicionar") as adicionar_mock:
         resp = await client.post("/api/admin/games",
             json={"nome": "Pac-Man", "slug": "pac-man"}, headers=AUTH_HEADER)
@@ -731,7 +802,9 @@ async def test_criar_game_com_metadado(client):
         "score_max": None, "pendente_aprovacao": False, "criado_por": "admin",
         "plataforma": "Arcade", "ano_lancamento": 1980,
         "capa_url": "https://cdn/capa.png", "gameplay_url": "https://youtu.be/x",
-    })) as criar_mock:
+    })) as criar_mock, \
+         patch("repositories.game.contar_manuais_por_criador_ultimas_24h", AsyncMock(return_value=0)), \
+         patch("repositories.game.listar_nome_ativos", AsyncMock(return_value=[])):
         resp = await client.post("/api/admin/games",
             json={
                 "nome": "Pac-Man", "slug": "pac-man",

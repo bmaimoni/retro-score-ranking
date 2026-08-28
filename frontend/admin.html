@@ -756,6 +756,7 @@
       <span class="tab-badge" id="badge-feed" style="display:none">0</span>
     </button>
 
+    <button class="admin-tab" data-tab="wizard" id="tab-btn-wizard" style="display:none">Wizard</button>
     <button class="admin-tab" data-tab="games">Games</button>
     <button class="admin-tab" data-tab="config">Event</button>
     <button class="admin-tab" data-tab="manutencao">Manutenção</button>
@@ -1108,6 +1109,25 @@
     </table>
   </div>
 
+  <!-- ── ABA: WIZARD (Fase 9 + CATALOGO_JOGOS_SPEC.md Fase 1) ── -->
+  <!-- Não-bloqueante (E.1) — nunca tranca o resto do painel, sempre retomável. -->
+  <div class="tab-content" id="tab-wizard">
+    <div class="section-header">
+      <span class="section-title">Configuração inicial</span>
+    </div>
+    <p class="manut-desc" style="margin-bottom:var(--space-md)">
+      Checklist opcional pra deixar sua Arena pronta — pode ignorar e voltar
+      aqui quando quiser, nada fica travado.
+    </p>
+
+    <div id="wizard-seletor-arena" style="display:none;margin-bottom:var(--space-md)">
+      <label class="field-label" for="wizard-arena-select">Arena</label>
+      <select class="field-input" id="wizard-arena-select" onchange="selecionarArenaWizard(this.value)"></select>
+    </div>
+
+    <div id="wizard-conteudo"></div>
+  </div>
+
   <!-- ── ABA: EXCLUSÕES (só super) ── -->
   <div class="tab-content" id="tab-exclusoes">
     <div class="section-header">
@@ -1191,6 +1211,12 @@ function aplicarVisibilidadePorNivel() {
   // Moderador nunca vê: não tem nenhuma ação de gestão de vínculo.
   const tabAdmins = document.getElementById('tab-btn-administradores');
   if (tabAdmins) tabAdmins.style.display = ehAdminEmAlgumaMarca() ? 'block' : 'none';
+
+  // Aba "Wizard" — mesma régua da aba "Administradores": super ou
+  // admin (não moderador) de pelo menos uma arena. Moderador nunca
+  // configura nada de Arena (docs/PERMISSOES_SPEC.md §4).
+  const tabWizard = document.getElementById('tab-btn-wizard');
+  if (tabWizard) tabWizard.style.display = ehAdminEmAlgumaMarca() ? 'block' : 'none';
 
   // Escopo "Super-admin" no formulário de vínculo só faz sentido pra
   // quem já é super — admin comum nunca pode conceder esse scope
@@ -1442,6 +1468,7 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     if (tab.dataset.tab === 'exclusoes') carregarExclusoesPendentes();
     if (tab.dataset.tab === 'config') { carregarMarcas(); carregarEventos(); carregarAvatares(); }
     if (tab.dataset.tab === 'games' && meInfo && meInfo.super) carregarJogosPendentes();
+    if (tab.dataset.tab === 'wizard') carregarWizard();
   });
 });
 
@@ -1799,6 +1826,336 @@ document.getElementById('criar-game-btn').addEventListener('click', async () => 
     carregarJogos();
   } catch { showToast('Erro ao criar game', 'error'); }
 });
+
+// ── WIZARD (Fase 9 + CATALOGO_JOGOS_SPEC.md Fase 1) ────────────────────────────
+// Checklist não-bloqueante (E.1): progresso calculado on-the-fly pelo backend
+// (GET /{arena_id}/wizard-status), nunca esconde nem tranca nada — só sinaliza.
+
+const WIZARD_CORES = [
+  '#5e2b82', '#e63946', '#2a9d8f', '#f4a300',
+  '#3a86ff', '#06d6a0', '#ff006e', '#495057',
+];
+const WIZARD_TIPOGRAFIAS = [
+  { valor: 'arcade',    label: 'Arcade' },
+  { valor: 'futurista', label: 'Futurista' },
+  { valor: 'terminal',  label: 'Terminal' },
+];
+
+let arenasWizard        = [];   // arenas onde a pessoa é admin (não moderador)
+let arenaAtualWizard    = null;
+let eventoAtualWizard   = null; // event mais recente da arena, alvo do vínculo de game
+let igdbDebounceTimer   = null;
+let igdbIndisponivel    = false;
+
+async function carregarWizard() {
+  try {
+    const resp = await apiFetch('/api/admin/arenas');
+    if (!resp.ok) return;
+    const todas = await resp.json();
+    arenasWizard = meInfo.super ? todas : todas.filter(a => nivelDaMarca(a.id) === 'admin');
+  } catch { arenasWizard = []; }
+
+  const seletor = document.getElementById('wizard-seletor-arena');
+  const select  = document.getElementById('wizard-arena-select');
+
+  if (arenasWizard.length === 0) {
+    seletor.style.display = 'none';
+    document.getElementById('wizard-conteudo').innerHTML =
+      '<p class="manut-desc">Nenhuma Arena disponível — crie uma primeiro.</p>';
+    return;
+  }
+
+  if (arenasWizard.length > 1) {
+    seletor.style.display = 'block';
+    select.innerHTML = arenasWizard.map(a => `<option value="${a.id}">${escapar(a.nome)}</option>`).join('');
+  } else {
+    seletor.style.display = 'none';
+  }
+
+  const alvo = arenaAtualWizard && arenasWizard.some(a => a.id === arenaAtualWizard)
+    ? arenaAtualWizard : arenasWizard[0].id;
+  select.value = alvo;
+  await selecionarArenaWizard(alvo);
+}
+
+window.selecionarArenaWizard = async function(arenaId) {
+  arenaAtualWizard = arenaId;
+  await renderWizardConteudo();
+};
+
+async function renderWizardConteudo() {
+  const el = document.getElementById('wizard-conteudo');
+  el.innerHTML = '<p class="manut-desc">Carregando...</p>';
+
+  let status = { tem_evento: false, tem_colaborador: false, tem_branding: false };
+  try {
+    const resp = await apiFetch(`/api/admin/arenas/${arenaAtualWizard}/wizard-status`);
+    if (resp.ok) status = await resp.json();
+  } catch {}
+
+  // Event mais recente da arena — alvo do vínculo de game criado no Passo 1.
+  eventoAtualWizard = null;
+  try {
+    const resp = await apiFetch(`/api/admin/arenas/${arenaAtualWizard}/events`);
+    if (resp.ok) {
+      const events = await resp.json();
+      if (events.length > 0) eventoAtualWizard = events[0].id;
+    }
+  } catch {}
+
+  const check = (feito) => feito
+    ? '<span style="color:var(--color-success,#2a9d8f)">✓</span>'
+    : '<span style="opacity:0.4">○</span>';
+
+  el.innerHTML = `
+    <div class="regras-card" style="margin-bottom:var(--space-md)">
+      <p class="form-title">${check(status.tem_evento)} Passo 1 — Primeira competição</p>
+      <p class="manut-desc" style="margin-bottom:var(--space-md)">
+        Cria o event e resolve o jogo — o link de ranking já funciona depois disso.
+      </p>
+      <div class="form-row">
+        <div class="field">
+          <label class="field-label" for="wizard-event-nome">Nome do event</label>
+          <input class="field-input" type="text" id="wizard-event-nome" placeholder="Ex: Torneio de Verão">
+        </div>
+      </div>
+      <button class="btn-primary" id="wizard-criar-event-btn">CRIAR COMPETIÇÃO</button>
+
+      <div style="margin-top:var(--space-lg)">
+        <p class="form-title" style="font-size:var(--text-sm)">Jogo</p>
+        <p class="manut-desc" id="wizard-jogo-hint">
+          ${eventoAtualWizard
+            ? 'Busque na IGDB ou cadastre manualmente — vincula à competição acima.'
+            : 'Crie a competição primeiro pra poder vincular um jogo a ela.'}
+        </p>
+        <div id="wizard-igdb-busca" style="${eventoAtualWizard ? '' : 'display:none'}">
+          <input class="field-input" type="search" id="wizard-igdb-input"
+                 placeholder="Buscar jogo (ex: Street Fighter II)…" style="margin-bottom:var(--space-sm)">
+          <div id="wizard-igdb-resultados"></div>
+          <p class="manut-desc" id="wizard-igdb-credito" style="font-size:var(--text-xs);opacity:0.7;margin-top:var(--space-xs)">
+            Dados de jogos fornecidos por IGDB.com
+          </p>
+        </div>
+        <button class="btn-action" id="wizard-manual-toggle-btn"
+                style="${eventoAtualWizard ? '' : 'display:none'}">Não encontrei — cadastro manual</button>
+        <div id="wizard-manual-form" style="display:none;margin-top:var(--space-sm)">
+          <div class="form-row">
+            <div class="field">
+              <label class="field-label" for="wizard-manual-nome">Nome</label>
+              <input class="field-input" type="text" id="wizard-manual-nome">
+            </div>
+            <div class="field">
+              <label class="field-label" for="wizard-manual-plataforma">Plataforma (opcional)</label>
+              <input class="field-input" type="text" id="wizard-manual-plataforma">
+            </div>
+          </div>
+          <button class="btn-primary" id="wizard-manual-criar-btn">CADASTRAR MANUALMENTE</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="regras-card" style="margin-bottom:var(--space-md)">
+      <p class="form-title">${check(status.tem_colaborador)} Passo 2 — Convidar colegas</p>
+      <p class="manut-desc">
+        Convidar pra <strong>jogar</strong> já funciona: compartilhe
+        ${eventoAtualWizard
+          ? `<code>play.html?evento=${escapar(String(eventoAtualWizard))}</code>`
+          : '<code>play.html?evento=...</code> (depois de criar a competição)'}
+        com seus colegas.
+      </p>
+      <p class="manut-desc" style="opacity:0.7">Convite pra coadministrar: em breve.</p>
+    </div>
+
+    <div class="regras-card">
+      <p class="form-title">${check(status.tem_branding)} Passo 3 — Personalizar Arena</p>
+      <p class="manut-desc" style="margin-bottom:var(--space-md)">
+        Seleção limitada no plano grátis — personalização completa é upsell futuro.
+      </p>
+      <div class="field" style="margin-bottom:var(--space-md)">
+        <label class="field-label">Cor</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${WIZARD_CORES.map(c => `
+            <button type="button" class="wizard-cor-swatch" data-cor="${c}"
+                    style="width:32px;height:32px;border-radius:50%;background:${c};border:2px solid transparent;cursor:pointer"
+                    onclick="document.querySelectorAll('.wizard-cor-swatch').forEach(b=>b.style.borderColor='transparent');this.style.borderColor='#fff';this.dataset.selecionado='1'"
+                    title="${c}"></button>
+          `).join('')}
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:var(--space-md)">
+        <label class="field-label">Tipografia</label>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          ${WIZARD_TIPOGRAFIAS.map(t => `
+            <label style="display:flex;align-items:center;gap:4px">
+              <input type="radio" name="wizard-tipografia" value="${t.valor}"> ${t.label}
+            </label>
+          `).join('')}
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:var(--space-md)">
+        <label class="field-label" for="wizard-logo-url">Logo (URL, opcional)</label>
+        <input class="field-input" type="text" id="wizard-logo-url" placeholder="https://...">
+      </div>
+      <button class="btn-primary" id="wizard-branding-btn">SALVAR PERSONALIZAÇÃO</button>
+    </div>
+  `;
+
+  ligarEventosWizard();
+}
+
+function ligarEventosWizard() {
+  document.getElementById('wizard-criar-event-btn').addEventListener('click', criarEventoWizard);
+
+  const inputIgdb = document.getElementById('wizard-igdb-input');
+  if (inputIgdb) {
+    inputIgdb.addEventListener('input', () => {
+      clearTimeout(igdbDebounceTimer);
+      const termo = inputIgdb.value.trim();
+      if (termo.length < 2) { document.getElementById('wizard-igdb-resultados').innerHTML = ''; return; }
+      igdbDebounceTimer = setTimeout(() => buscarIgdbWizard(termo), 400);
+    });
+  }
+
+  const toggleManual = document.getElementById('wizard-manual-toggle-btn');
+  if (toggleManual) {
+    toggleManual.addEventListener('click', () => {
+      const form = document.getElementById('wizard-manual-form');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    });
+  }
+
+  const manualBtn = document.getElementById('wizard-manual-criar-btn');
+  if (manualBtn) manualBtn.addEventListener('click', criarJogoManualWizard);
+
+  const brandingBtn = document.getElementById('wizard-branding-btn');
+  if (brandingBtn) brandingBtn.addEventListener('click', salvarBrandingWizard);
+}
+
+async function criarEventoWizard() {
+  const nome = document.getElementById('wizard-event-nome').value.trim();
+  if (!nome) { showToast('Nome da competição é obrigatório', 'error'); return; }
+
+  const slug = nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
+
+  const agora   = new Date();
+  const daquiA10anos = new Date(agora); daquiA10anos.setFullYear(agora.getFullYear() + 10);
+
+  const resp = await apiFetch('/api/admin/events', 'POST', {
+    nome, slug, arena_id: arenaAtualWizard,
+    data_inicio: agora.toISOString(), data_fim: daquiA10anos.toISOString(),
+  });
+
+  if (resp.ok) {
+    showToast('Competição criada!', 'success');
+    await renderWizardConteudo();
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao criar competição', 'error');
+  }
+}
+
+async function buscarIgdbWizard(termo) {
+  const el = document.getElementById('wizard-igdb-resultados');
+  if (igdbIndisponivel) return;
+
+  try {
+    const resp = await apiFetch(`/api/admin/games/buscar-igdb?q=${encodeURIComponent(termo)}`);
+    if (resp.status === 503) {
+      igdbIndisponivel = true;
+      document.getElementById('wizard-igdb-busca').style.display = 'none';
+      showToast('Busca por jogo indisponível — use o cadastro manual', 'info');
+      return;
+    }
+    if (!resp.ok) { el.innerHTML = ''; return; }
+
+    const resultados = await resp.json();
+    el.innerHTML = resultados.map(r => `
+      <div class="game-card" style="cursor:pointer;display:flex;gap:10px;align-items:center;margin-bottom:6px"
+           onclick='selecionarJogoIgdbWizard(${JSON.stringify(r).replace(/'/g, "&#39;")})'>
+        ${r.capa_url ? `<img src="${escapar(r.capa_url)}" alt="" style="width:36px;height:48px;object-fit:cover;border-radius:4px">` : ''}
+        <div>
+          <div class="game-nome">${escapar(r.nome)}</div>
+          <div style="font-size:var(--text-xs);opacity:0.7">${escapar(r.plataforma || '')} ${r.ano_lancamento || ''}</div>
+        </div>
+      </div>
+    `).join('') || '<p class="manut-desc">Nenhum resultado.</p>';
+  } catch { el.innerHTML = ''; }
+}
+
+window.selecionarJogoIgdbWizard = async function(resultado) {
+  if (!eventoAtualWizard) { showToast('Crie a competição primeiro', 'error'); return; }
+
+  const slug = resultado.nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  const resp = await apiFetch('/api/admin/games', 'POST', {
+    nome: resultado.nome, slug,
+    plataforma: resultado.plataforma, ano_lancamento: resultado.ano_lancamento,
+    capa_url: resultado.capa_url, igdb_id: resultado.igdb_id,
+    event_id: eventoAtualWizard,
+  });
+
+  if (resp.ok) {
+    showToast(`"${resultado.nome}" vinculado à competição!`, 'success');
+    document.getElementById('wizard-igdb-input').value = '';
+    document.getElementById('wizard-igdb-resultados').innerHTML = '';
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao vincular jogo', 'error');
+  }
+};
+
+async function criarJogoManualWizard() {
+  if (!eventoAtualWizard) { showToast('Crie a competição primeiro', 'error'); return; }
+
+  const nome       = document.getElementById('wizard-manual-nome').value.trim();
+  const plataforma = document.getElementById('wizard-manual-plataforma').value.trim() || null;
+  if (!nome) { showToast('Nome é obrigatório', 'error'); return; }
+
+  const slug = nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  const resp = await apiFetch('/api/admin/games', 'POST', {
+    nome, slug, plataforma, event_id: eventoAtualWizard,
+  });
+
+  if (resp.ok) {
+    showToast(`"${nome}" cadastrado e vinculado!`, 'success');
+    document.getElementById('wizard-manual-nome').value = '';
+    document.getElementById('wizard-manual-plataforma').value = '';
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao cadastrar jogo', 'error');
+  }
+}
+
+async function salvarBrandingWizard() {
+  const swatchSelecionado = document.querySelector('.wizard-cor-swatch[data-selecionado="1"]');
+  const corPrimaria = swatchSelecionado ? swatchSelecionado.dataset.cor : null;
+  const tipografiaEl = document.querySelector('input[name="wizard-tipografia"]:checked');
+  const tipografia = tipografiaEl ? tipografiaEl.value : null;
+  const logoUrl = document.getElementById('wizard-logo-url').value.trim() || null;
+
+  const dados = {};
+  if (corPrimaria) dados.cor_primaria = corPrimaria;
+  if (tipografia) dados.tipografia = tipografia;
+  if (logoUrl) dados.logo_url = logoUrl;
+
+  if (Object.keys(dados).length === 0) {
+    showToast('Escolha ao menos uma opção pra salvar', 'error');
+    return;
+  }
+
+  const resp = await apiFetch(`/api/admin/arenas/${arenaAtualWizard}`, 'PATCH', dados);
+  if (resp.ok) {
+    showToast('Personalização salva!', 'success');
+    await renderWizardConteudo();
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao salvar personalização', 'error');
+  }
+}
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 async function carregarConfig() {

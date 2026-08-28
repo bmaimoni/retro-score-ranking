@@ -43,19 +43,56 @@ async def criar(
     ano_lancamento: int | None = None,
     capa_url: str | None = None,
     gameplay_url: str | None = None,
+    igdb_id: int | None = None,
 ) -> dict:
     row = await pool.fetchrow(
         """
         INSERT INTO games (nome, slug, score_max, pendente_aprovacao, criado_por,
-                            plataforma, ano_lancamento, capa_url, gameplay_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                            plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING id, nome, slug, ativo, score_max, pendente_aprovacao, criado_por, criado_em,
-                  plataforma, ano_lancamento, capa_url, gameplay_url
+                  plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id
         """,
         nome, slug, score_max, pendente_aprovacao, criado_por,
-        plataforma, ano_lancamento, capa_url, gameplay_url,
+        plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id,
     )
     return dict(row)
+
+
+async def buscar_por_igdb_id(pool: Pool, igdb_id: int) -> dict | None:
+    """Dedup estrutural do caminho IGDB (docs/CATALOGO_JOGOS_SPEC.md
+    5.1) — se já existe um game com esse igdb_id, o endpoint de
+    criação reaproveita em vez de tentar criar duplicata."""
+    row = await pool.fetchrow(
+        """
+        SELECT id, nome, slug, ativo, score_max, pendente_aprovacao, criado_por, criado_em,
+               plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id
+        FROM games WHERE igdb_id = $1
+        """,
+        igdb_id,
+    )
+    return dict(row) if row else None
+
+
+async def contar_manuais_por_criador_ultimas_24h(pool: Pool, criado_por: str) -> int:
+    """Rate limit do cadastro manual de jogo — só conta o caminho sem
+    dedup estrutural (igdb_id IS NULL); busca via IGDB não tem limite,
+    só adiciona jogo real já aprovado (docs/CATALOGO_JOGOS_SPEC.md 5.5)."""
+    return await pool.fetchval(
+        """
+        SELECT COUNT(*) FROM games
+        WHERE criado_por = $1 AND igdb_id IS NULL
+          AND criado_em > now() - interval '1 day'
+        """,
+        criado_por,
+    )
+
+
+async def listar_nome_ativos(pool: Pool) -> list[dict]:
+    """Nomes de todo game ativo — usado na checagem de colisão do
+    cadastro manual (docs/CATALOGO_JOGOS_SPEC.md 5.6, services/game_admissao.py)."""
+    rows = await pool.fetch("SELECT nome FROM games WHERE ativo = true")
+    return [dict(r) for r in rows]
 
 
 async def atualizar(

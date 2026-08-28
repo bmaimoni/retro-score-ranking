@@ -326,6 +326,41 @@ async def transferir_titularidade(
     return atualizada
 
 
+@router.get("/{arena_id}/wizard-status")
+async def wizard_status(
+    arena_id: str,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """
+    Progresso do wizard pós-ativação (Fase 9, ARENA_SPEC.md E.1) —
+    calculado on-the-fly a partir do que já existe, sem tabela de
+    estado nova. Checklist nunca bloqueia o resto do painel — este
+    endpoint só alimenta a UI de progresso.
+
+    tem_evento: existe pelo menos 1 event pra esta arena.
+    tem_colaborador: mais de 1 membership ativo scope='marca' nesta
+      arena (o dono conta como 1 — "colaborador" significa mais
+      alguém além dele).
+    tem_branding: cor_primaria OU tipografia OU logo_url definidos.
+    """
+    arena = await _resolver_arena_ou_404(pool, arena_id)
+    if not admin.super and not admin.tem_acesso_na_arena(arena_id):
+        raise HTTPException(status_code=403, detail="Sem acesso a esta arena")
+
+    events = await arena_repo.listar_events_da_arena(pool, arena_id)
+    colaboradores = await membership_repo.listar_por_arenas(pool, [arena_id])
+    colaboradores_ativos = [c for c in colaboradores if c["ativo"]]
+
+    return {
+        "tem_evento": len(events) > 0,
+        "tem_colaborador": len(colaboradores_ativos) > 1,
+        "tem_branding": bool(
+            arena.get("cor_primaria") or arena.get("tipografia") or arena.get("logo_url")
+        ),
+    }
+
+
 @router.get("/{arena_id}/events")
 async def listar_events_da_arena(
     arena_id: str,

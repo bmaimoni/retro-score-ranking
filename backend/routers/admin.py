@@ -13,6 +13,9 @@ import repositories.usuario as usuario_repo
 import auth.repository as auth_repo
 import auth.service as auth_svc
 import services.exclusao_conta as exclusao_svc
+import services.arena_admissao as arena_admissao
+import services.game_admissao as game_admissao
+import services.igdb as igdb
 import structlog
 
 log = structlog.get_logger()
@@ -36,6 +39,13 @@ class CriarJogo(BaseModel):
     ano_lancamento: int | None = None
     capa_url: str | None = None
     gameplay_url: str | None = None
+    # Fase 9 + CATALOGO_JOGOS_SPEC.md Fase 1/5 — preenchido quando o
+    # jogo vem da busca IGDB: pula pendente_aprovacao (5.4) e ancora
+    # dedup estrutural (5.1). event_id: vincula só a este event, não a
+    # todos os events do admin (correção do achado 5.9 — comportamento
+    # antigo vinculava a todos, ver criar_game abaixo).
+    igdb_id: int | None = None
+    event_id: str | None = None
 
     @field_validator("ano_lancamento")
     @classmethod
@@ -247,6 +257,33 @@ async def resolver_pendente(
 
 # ── GESTÃO DE GAMES ───────────────────────────────────────────────────────────
 
+RATE_LIMIT_GAMES_MANUAL_POR_DIA = 5
+
+
+@router.get("/games/buscar-igdb")
+async def buscar_game_igdb(
+    q: str = Query(..., min_length=2),
+    admin: AdminContext = Depends(require_admin),
+):
+    """
+    Busca jogo na IGDB pro Passo 1 do wizard (Fase 9 do
+    PLANO_IMPLEMENTACAO_2026.md, fundida com a Fase 1 do
+    docs/CATALOGO_JOGOS_SPEC.md). Créditos obrigatórios no frontend que
+    consome este endpoint: "Dados de jogos fornecidos por IGDB.com"
+    (5.7) — não é opcional.
+
+    503 quando a IGDB não está configurada ou está indisponível — o
+    frontend cai pro cadastro manual sem quebrar a tela.
+    """
+    try:
+        return await igdb.buscar(q)
+    except (igdb.IGDBNaoConfigurado, igdb.IGDBIndisponivel):
+        raise HTTPException(
+            status_code=503,
+            detail="Busca por jogo temporariamente indisponível — cadastre manualmente",
+        )
+
+
 @router.post("/games", status_code=201)
 async def criar_game(
     body: CriarJogo,
@@ -256,11 +293,29 @@ async def criar_game(
     """
     Cria um novo game. Moderador nunca cria game — decisão #1 do
     docs/PERMISSOES_SPEC.md (a primeira versão do backlog dizia o
-    contrário; corrigido). Admin não-super: nasce pendente_aprovacao=true
-    (fora do catálogo/placar geral até um super-admin aprovar), mas já
-    é auto-vinculado aos events que esse admin tem acesso — utilizável
-    imediatamente ali. Super-admin: comportamento de sempre, aprovado
-    direto. Ver docs/SPEC.md §10 / migration 018.
+    contrário; corrigido).
+
+    Dois caminhos (Fase 9 + CATALOGO_JOGOS_SPEC.md Fase 5), decididos
+    por `igdb_id` vir preenchido ou não:
+
+    - Via IGDB (igdb_id presente): dedup estrutural — se já existe um
+      game com esse igdb_id (alguém já importou antes), reaproveita em
+      vez de duplicar. Pula pendente_aprovacao inteiramente (5.4),
+      mesmo se quem criou não for super — a fonte externa já valida a
+      entrada, não precisa de fila de revisão humana.
+    - Manual (sem igdb_id): comportamento de sempre — admin não-super
+      nasce pendente_aprovacao=true (migration 018), MAS agora com
+      rate limit (5/dia — 5.5) e colisão de nome (5.6) primeiro, já
+      que é o único caminho sem dedup estrutural.
+
+    Vínculo a event: só se `event_id` vier explícito no body — vincula
+    só a esse event. Correção do achado 5.9: a versão anterior
+    vinculava automaticamente a TODOS os events que o admin tinha
+    acesso, poluindo events sem relação nenhuma com o game criado
+    (visível em escala self-serve, com uma pessoa dona de várias
+    arenas). Sem `event_id`, não vincula a nada — quem quiser vincular
+    depois usa POST /api/admin/events/{id}/games/{game_id}, que já
+    existe.
     """
     if not admin.super and not any(v["role"] == "admin" for v in admin.vinculos):
         raise HTTPException(
@@ -268,25 +323,60 @@ async def criar_game(
             detail="Moderador não pode criar games — só admin ou super-admin",
         )
 
-    try:
-        game = await game_repo.criar(
-            pool, body.nome, body.slug, body.score_max,
-            pendente_aprovacao=not admin.super,
-            criado_por=admin.identificador,
-            plataforma=body.plataforma,
-            ano_lancamento=body.ano_lancamento,
-            capa_url=body.capa_url,
-            gameplay_url=body.gameplay_url,
-        )
-    except Exception as exc:
-        if "unique" in str(exc).lower():
-            raise HTTPException(status_code=409, detail=f"Slug '{body.slug}' já existe")
-        raise HTTPException(status_code=500, detail="Erro ao criar game")
+    if body.igdb_id is not None:
+        game = await game_repo.buscar_por_igdb_id(pool, body.igdb_id)
+        if not game:
+            try:
+                game = await game_repo.criar(
+                    pool, body.nome, body.slug, body.score_max,
+                    pendente_aprovacao=False,
+                    criado_por=admin.identificador,
+                    plataforma=body.plataforma,
+                    ano_lancamento=body.ano_lancamento,
+                    capa_url=body.capa_url,
+                    gameplay_url=body.gameplay_url,
+                    igdb_id=body.igdb_id,
+                )
+            except Exception as exc:
+                if "unique" in str(exc).lower():
+                    raise HTTPException(status_code=409, detail=f"Slug '{body.slug}' já existe")
+                raise HTTPException(status_code=500, detail="Erro ao criar game")
+    else:
+        criadas_24h = await game_repo.contar_manuais_por_criador_ultimas_24h(pool, admin.identificador)
+        if criadas_24h >= RATE_LIMIT_GAMES_MANUAL_POR_DIA:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Limite de {RATE_LIMIT_GAMES_MANUAL_POR_DIA} jogos cadastrados manualmente "
+                       f"por dia atingido — tente novamente amanhã, ou busque na IGDB.",
+            )
 
-    if not admin.super and admin.user_id:
-        events_ids = await membership_repo.listar_events_acessiveis(pool, admin.user_id)
-        for event_id in events_ids:
-            await event_game_repo.adicionar(pool, event_id, str(game["id"]))
+        existentes = await game_repo.listar_nome_ativos(pool)
+        resultado = game_admissao.avaliar_colisao(body.nome, existentes)
+        if resultado.bloqueado:
+            raise HTTPException(status_code=409, detail=resultado.motivo)
+
+        try:
+            capa_url = arena_admissao.sanitizar_logo_url(body.capa_url)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="capa_url inválida")
+
+        try:
+            game = await game_repo.criar(
+                pool, body.nome, body.slug, body.score_max,
+                pendente_aprovacao=not admin.super,
+                criado_por=admin.identificador,
+                plataforma=body.plataforma,
+                ano_lancamento=body.ano_lancamento,
+                capa_url=capa_url,
+                gameplay_url=body.gameplay_url,
+            )
+        except Exception as exc:
+            if "unique" in str(exc).lower():
+                raise HTTPException(status_code=409, detail=f"Slug '{body.slug}' já existe")
+            raise HTTPException(status_code=500, detail="Erro ao criar game")
+
+    if body.event_id:
+        await event_game_repo.adicionar(pool, body.event_id, str(game["id"]))
 
     return game
 
