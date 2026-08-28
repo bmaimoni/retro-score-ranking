@@ -1,0 +1,32 @@
+-- ============================================================
+-- Retro Score Ranking — migração 027 (hotfix)
+-- Corrige gap deixado pela migração 026 (Fase 7 — rename pra inglês)
+--
+-- O que muda: dois gaps encontrados por auditoria sistemática
+-- (comparei toda referência a nome de tabela no código-fonte contra o
+-- schema real de produção, tabela por tabela):
+--
+-- 1. A migração 026 renomeou memberships.nivel → role, mas esqueceu
+--    que membership_audit_log (ex-admin_vinculos_auditoria) também
+--    tem uma coluna nivel (migração 019, "nível envolvido na ação").
+--    O código já deployado (registrar_auditoria em
+--    repositories/membership.py) grava usando o nome novo `role` —
+--    sem este fix, todo INSERT em membership_audit_log falha agora em
+--    produção (UndefinedColumnError), quebrando concessão/revogação/
+--    transferência de vínculo e qualquer ação de parceria entre arenas.
+--
+-- 2. A tabela evento_config nunca foi renomeada pra event_config —
+--    ficou fora da lista original de 7 tabelas da Fase 7 por engano
+--    (o repositório repositories/event_config.py já tinha sido
+--    renomeado e suas queries já apontam pro nome novo). Sem este
+--    fix, toda leitura/escrita de configuração da tela de upload
+--    (título, subtítulo, texto de sucesso, texto LGPD, rate limit)
+--    falha em produção (relation "event_config" does not exist).
+--
+-- É reversível? Sim — RENAME na direção contrária desfaz os dois.
+-- Afeta dado existente? Não — mesma linha, mesmo valor, só nome de
+-- tabela/coluna muda. Zero DROP/DELETE.
+-- ============================================================
+
+ALTER TABLE membership_audit_log RENAME COLUMN nivel TO role;
+ALTER TABLE evento_config        RENAME TO event_config;
