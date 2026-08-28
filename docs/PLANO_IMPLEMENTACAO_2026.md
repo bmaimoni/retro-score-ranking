@@ -299,7 +299,7 @@ português)
 
 ---
 
-## Fase 8 — Fundação Arena: admissão, dados e cadastro self-serve ⏳ não iniciada
+## Fase 8 — Fundação Arena: admissão, dados e cadastro self-serve ✅ fechada
 
 **Spec**: `docs/ARENA_SPEC.md` Fases B, C, D e G
 **Depende de**: Fase 7
@@ -307,38 +307,47 @@ português)
 - [x] **Pré-requisito resolvido antes da Fase 8 começar**: `owner_user_id`
   nulo nas 2 Arenas legadas (Canal3, Old School Pinball) — atribuído a
   `bmaimoni@gmail.com` como titular temporário (ver nota na Fase 7).
-- [ ] Migração 028 (027 foi consumida pelo hotfix da Fase 7): `arenas.status`
-  (`draft`/`published`/`suspended`, default `published` pras linhas
-  existentes — C.1/G.1), `arenas.plan` (default `free` — C.2/G.1),
-  `events.visibility` (`open`/`private`, default `private` — D.7).
-- [ ] Backend: nova dependency `require_authenticated_user` em
-  `middleware/auth.py` (só exige sessão válida, sem exigir `membership`
-  — resolve o problema de ovo-e-galinha de `require_admin`, achado
-  durante o planejamento desta fase) usada **só** no endpoint de criar
-  Arena; resto do painel continua com `require_admin` sem mudança.
-  Endpoint de criar Arena aceita qualquer usuário autenticado (não só
-  `super` — D.2/D.3, pede só nome, slug auto-derivado), aplicando na
-  criação: colisão de nome/slug (B.2 — normaliza minúsculo/sem acento/
-  pontuação, bloqueia em correspondência exata ou substring contra
-  nome/slug de Arena já cadastrada + entrada fixa "Canal3"), rate limit
-  de 3/dia por `owner_user_id` (B.3, `super` isento — G.4), heurística
-  de risco → `status='draft'` + fila de revisão (B.4 — dispara quando:
-  (a) nome/slug é "quase-igual" a uma Arena existente sem ser bloqueio
-  exato de B.2, ou (b) é a 2ª+ Arena criada pela mesma conta dentro da
-  janela de 24h do rate limit). Endpoint único, comportamento
-  condicional por quem chama, não fork (G.3). Fila de revisão pra
-  `super` aprovar/rejeitar Arena sinalizada; ação de suspender Arena
-  com abuso confirmado. `logo_url` tratado como input hostil —
-  sanitização contra XSS (renderizado em telão público).
-- [ ] Testes: cobertura adversarial de rate limit, colisão de nome,
-  isenção de `super`, e confirmação de que Arena sinalizada nunca aparece
-  em listagem pública antes de aprovada — mesma régua de teste
-  adversarial já usada no `PERMISSOES_SPEC.md`.
-- [ ] Frontend: `index.html` vira home institucional (proposta de valor,
-  CTA "criar sua Arena", diretório de eventos com `visibility='open'` —
-  D.1/D.7); página de participação renomeada pra `play.html`, passa a
-  exigir identificador de evento explícito na URL — a lógica de fallback/
-  seleção de marca que existia migra inteira pra descoberta da home.
+- [x] Migração 028 (`backend/migrations/028_arena_admissao_selfserve.sql`,
+  `ad6eb2d`): `arenas.status` (draft/published/suspended, default
+  published — C.1/G.1), `arenas.plan` (default free — C.2/G.1),
+  `events.visibility` (open/private, default private — D.7). Backfill
+  explícito pras linhas legadas (2 Arenas `published`, 2 events `open`)
+  pra não sumirem do diretório de descoberta por causa do default novo
+  — validado em produção após rodar.
+- [x] Backend: `require_super_or_authenticated_user` em
+  `middleware/auth.py` (resolve o ovo-e-galinha de `require_admin` —
+  usuário sem `membership` nenhum agora consegue criar sua primeira
+  Arena) usada só no endpoint de criar Arena. Endpoint único,
+  comportamento condicional por quem chama (G.3): `super` inalterado;
+  usuário comum passa por rate limit 3/dia (B.3/G.4), colisão de nome/
+  slug exata ou substring (B.2), heurística de risco via distância de
+  edição (Levenshtein) ≤2 OU 2ª+ Arena em 24h → nasce `draft` (B.4);
+  criador vira admin+titular automaticamente. `services/arena_admissao.py`
+  novo concentra a lógica pura (normalização, admissão, sanitização de
+  `logo_url` contra XSS). Fila de revisão do `super`: `GET /pendentes`,
+  `PATCH /aprovar`, `PATCH /suspender` (mesmo estado final pra rejeitar
+  fila e pra suspender Arena já pública — justificado no código).
+- [x] Testes: `test_arena_admissao_service.py` (12 casos, lógica pura) +
+  `test_arenas_admin_selfserve.py` (10 casos, fluxo HTTP completo) — 590
+  passed, 10 failed (baseline conhecido, sem banco real).
+- [x] Frontend: `index.html` virou home institucional (CTA "criar sua
+  Arena", diretório `GET /api/arenas/eventos-abertos` com estado vazio
+  tratado — D.1/D.7); `play.html` novo, sem fallback, bloqueia com
+  mensagem clara quando falta `?evento=` explícito.
+- [x] **Achado fora do escopo original, corrigido na mesma rodada**:
+  `ranking.html`/`telao.html` geravam QR code/link de "participar"
+  apontando pra `index.html?evento=X` — que virou home institucional e
+  ignora esse parâmetro. Sem o fix, QR físico em telão real mandaria
+  pra página errada. Corrigido pra `play.html?evento=X` nos dois.
+- [x] Deploy: migração rodada em produção, código commitado (`ad6eb2d`)
+  e push feito.
+
+**Pendências sinalizadas, não bloqueantes**: login (Google/Magic Link)
+não preserva página de origem — quem loga a partir de `play.html` volta
+pra home, não pro evento (gap pré-existente ao trabalho desta fase,
+ficou mais visível agora); `require_authenticated_user` (dependency mais
+fraca, cogitada no planejamento) ficou sem uso — código morto pequeno,
+limpar numa rodada futura.
 
 ---
 
