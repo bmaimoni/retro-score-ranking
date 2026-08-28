@@ -34,11 +34,33 @@ async def listar_todas(pool: Pool) -> list[dict]:
     """Todas as arenas — para o painel admin."""
     rows = await pool.fetch(
         """
-        SELECT id, nome, slug, cor_primaria, tipografia, logo_url, itens_por_pagina, criado_em
+        SELECT id, nome, slug, cor_primaria, tipografia, logo_url, itens_por_pagina,
+               status, plan, owner_user_id, criado_em
         FROM arenas ORDER BY criado_em DESC
         """
     )
     return [dict(r) for r in rows]
+
+
+async def listar_nome_slug(pool: Pool) -> list[dict]:
+    """Só nome/slug de toda arena — usado pela checagem de colisão
+    (B.2/B.4 da Fase 8, ver services/arena_admissao.py). Consulta leve
+    de propósito, roda a cada tentativa de criação self-serve."""
+    rows = await pool.fetch("SELECT nome, slug FROM arenas")
+    return [dict(r) for r in rows]
+
+
+async def contar_criadas_por_owner_ultimas_24h(pool: Pool, owner_user_id: str) -> int:
+    """Rate limit de criação self-serve (B.3/D.6) — sem tabela nova,
+    conta direto em arenas. super é isento (G.4), checado no router
+    antes de chamar isto."""
+    return await pool.fetchval(
+        """
+        SELECT COUNT(*) FROM arenas
+        WHERE owner_user_id = $1 AND criado_em > now() - interval '1 day'
+        """,
+        owner_user_id,
+    )
 
 
 async def criar(
@@ -48,16 +70,46 @@ async def criar(
     cor_primaria: str | None = None,
     tipografia: str | None = None,
     logo_url: str | None = None,
+    status: str | None = None,
 ) -> dict:
+    """status=None deixa o DEFAULT da coluna ('published') decidir —
+    usado pelo caminho super, que nunca passa por admissão (B.4). O
+    caminho self-serve (routers/arenas_admin.py) sempre passa um
+    status explícito ('published' ou 'draft', conforme a heurística)."""
     row = await pool.fetchrow(
         """
-        INSERT INTO arenas (nome, slug, cor_primaria, tipografia, logo_url)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, nome, slug, cor_primaria, tipografia, logo_url, criado_em
+        INSERT INTO arenas (nome, slug, cor_primaria, tipografia, logo_url, status)
+        VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'published'))
+        RETURNING id, nome, slug, cor_primaria, tipografia, logo_url, status, plan, criado_em
         """,
-        nome, slug, cor_primaria, tipografia, logo_url,
+        nome, slug, cor_primaria, tipografia, logo_url, status,
     )
     return dict(row)
+
+
+async def listar_pendentes(pool: Pool) -> list[dict]:
+    """Fila de revisão do super (B.4) — arenas status='draft'."""
+    rows = await pool.fetch(
+        """
+        SELECT id, nome, slug, logo_url, owner_user_id, criado_em
+        FROM arenas WHERE status = 'draft'
+        ORDER BY criado_em ASC
+        """
+    )
+    return [dict(r) for r in rows]
+
+
+async def atualizar_status(pool: Pool, arena_id: str, status: str) -> dict | None:
+    """Aprovar ('published'), rejeitar/suspender ('suspended') uma
+    arena — sempre ação de super."""
+    row = await pool.fetchrow(
+        """
+        UPDATE arenas SET status = $2 WHERE id = $1
+        RETURNING id, nome, slug, status, owner_user_id, criado_em
+        """,
+        arena_id, status,
+    )
+    return dict(row) if row else None
 
 
 async def atualizar(pool: Pool, arena_id: str, dados: dict) -> dict | None:
@@ -151,6 +203,19 @@ async def listar_com_event_ativo(pool: Pool) -> list[dict]:
     precisa estar dentro da janela de envio). Quem chama resolve, por
     arena, qual event oferecer (event_repo.buscar_event_envio_atual_
     da_arena) — não é responsabilidade desta query.
+
+    status = 'published' obrigatório (Fase 8, ARENA_SPEC.md B.4) —
+    arena 'draft' (sinalizada por heurística de risco, aguardando
+    revisão de super) nunca aparece em superfície pública nenhuma,
+    mesmo que já tenha event ativo+público configurado.
+
+    visibility = 'open' também obrigatório (D.7) — antes da Fase 8
+    esta query não tinha esse filtro (não existia o conceito ainda);
+    sem ele, qualquer Arena self-serve nova vazaria em descoberta
+    pública mesmo com o event nascendo 'private' por padrão. Migração
+    028 já dá 'open' explícito pros events das Arenas legadas, então
+    este filtro não muda o comportamento observável de hoje — só
+    fecha o vazamento pra toda Arena self-serve daqui pra frente.
     """
     rows = await pool.fetch(
         """
@@ -158,6 +223,7 @@ async def listar_com_event_ativo(pool: Pool) -> list[dict]:
         FROM arenas m
         JOIN events e ON e.arena_id = m.id
         WHERE e.ativo = true AND e.publico = true
+          AND m.status = 'published' AND e.visibility = 'open'
         ORDER BY m.nome
         """
     )

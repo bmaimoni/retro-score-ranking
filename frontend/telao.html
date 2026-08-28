@@ -337,9 +337,12 @@
   // QR aponta pro event certo quando o telão é de um event específico —
   // um telão de placar (Hall da Fama, várias edições) não tem um único
   // event "ativo agora" pra apontar, então cai no envio padrão.
+  // Com event específico, aponta direto pro fluxo de envio
+  // (play.html, Fase 8) — telão de placar agregado (sem event único)
+  // cai na home institucional pra descoberta.
   function urlUpload() {
     return eventoSlug
-      ? `${UPLOAD_URL}/index.html?evento=${eventoSlug}`
+      ? `${UPLOAD_URL}/play.html?evento=${eventoSlug}`
       : `${UPLOAD_URL}/index.html`;
   }
 

@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from main import app
 from utils.db import get_pool
-from middleware.auth import require_admin, AdminContext
+from middleware.auth import require_admin, require_super_or_authenticated_user, AdminContext
 
 ADMIN_SECRET = "test-secret"
 AUTH_HEADER  = {"Authorization": f"Bearer {ADMIN_SECRET}"}
@@ -33,9 +33,16 @@ def _arena(**overrides):
 @pytest.fixture(autouse=True)
 def clear_overrides():
     app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    # criar_arena usa require_super_or_authenticated_user, não
+    # require_admin (Fase 8 — resolve o ovo-e-galinha de quem ainda
+    # não é admin de nada) — default super aqui preserva o
+    # comportamento dos testes já existentes; testes do caminho
+    # self-serve sobrescrevem com um AdminContext não-super.
+    app.dependency_overrides[require_super_or_authenticated_user] = lambda: SUPER_CTX
     yield
     app.dependency_overrides.pop(get_pool, None)
     app.dependency_overrides.pop(require_admin, None)
+    app.dependency_overrides.pop(require_super_or_authenticated_user, None)
 
 
 # ── Criar arena ────────────────────────────────────────────────────────────────
@@ -99,7 +106,10 @@ async def test_criar_arena_slug_duplicado_retorna_409(client):
 
 @pytest.mark.asyncio
 async def test_criar_arena_sem_auth_retorna_401(client):
-    app.dependency_overrides.pop(require_admin, None)
+    # criar_arena usa require_super_or_authenticated_user (Fase 8) —
+    # pop essa, não require_admin, pra exercitar o caminho real
+    # sem-sessão-nem-Bearer.
+    app.dependency_overrides.pop(require_super_or_authenticated_user, None)
     app.dependency_overrides[get_pool] = lambda: MagicMock()
 
     resp = await client.post("/api/admin/arenas", json={"nome": "X", "slug": "x"})
@@ -107,18 +117,30 @@ async def test_criar_arena_sem_auth_retorna_401(client):
 
 
 @pytest.mark.asyncio
-async def test_criar_arena_admin_nao_super_retorna_403(client):
-    """Nem dono de arena cria arena nova — decisão #7 do
-    docs/PERMISSOES_SPEC.md, exclusivo de super."""
+async def test_criar_arena_admin_nao_super_cria_via_caminho_selfserve(client):
+    """Fase 8 (ARENA_SPEC.md G.3) reverte a decisão #7 original do
+    docs/PERMISSOES_SPEC.md: qualquer usuário autenticado pode criar
+    arena agora, inclusive quem já é admin de outra — não é mais
+    exclusivo de super. Admin comum passa a cair no caminho self-serve
+    (rate limit + colisão + heurística), não em 403."""
     admin_de_arena = AdminContext(
         identificador="dono@x.com", user_id="u1", super=False,
         vinculos=[{"arena_id": make_uuid(), "role": "admin"}],
     )
-    app.dependency_overrides[require_admin] = lambda: admin_de_arena
+    app.dependency_overrides[require_super_or_authenticated_user] = lambda: admin_de_arena
     app.dependency_overrides[get_pool] = lambda: MagicMock()
 
-    resp = await client.post("/api/admin/arenas", json={"nome": "X", "slug": "x"})
-    assert resp.status_code == 403
+    arena = _arena(nome="Nova Arena do Mesmo Dono", slug="nova-arena-do-mesmo-dono")
+    with patch("repositories.arena.contar_criadas_por_owner_ultimas_24h", AsyncMock(return_value=0)), \
+         patch("repositories.arena.listar_nome_slug", AsyncMock(return_value=[])), \
+         patch("repositories.arena.criar", AsyncMock(return_value=arena)), \
+         patch("repositories.membership.criar", AsyncMock(return_value={})), \
+         patch("repositories.membership.registrar_auditoria", AsyncMock(return_value=None)), \
+         patch("repositories.arena.transferir_titularidade", AsyncMock(return_value=arena)):
+        resp = await client.post("/api/admin/arenas",
+            json={"nome": "Nova Arena do Mesmo Dono", "slug": "nova-arena-do-mesmo-dono"})
+
+    assert resp.status_code == 201
 
 
 # ── Listar arenas ──────────────────────────────────────────────────────────────
@@ -258,20 +280,31 @@ async def test_criar_arena_sem_dono_email_fica_sem_titular_como_antes(client):
 
 
 @pytest.mark.asyncio
-async def test_criar_arena_admin_nao_super_com_dono_email_retorna_403(client):
-    """A checagem de super acontece antes de qualquer coisa — admin
-    comum não cria arena mesmo enviando dono_email."""
+async def test_criar_arena_admin_nao_super_ignora_dono_email(client):
+    """dono_email só tem efeito no caminho super (Fase 8) — admin
+    comum enviando esse campo não eleva privilégio nenhum, o campo é
+    simplesmente ignorado no caminho self-serve (o próprio criador
+    sempre vira o dono, nunca um terceiro indicado por ele)."""
     admin_de_arena = AdminContext(
         identificador="dono@x.com", user_id="u1", super=False,
         vinculos=[{"arena_id": make_uuid(), "role": "admin"}],
     )
-    app.dependency_overrides[require_admin] = lambda: admin_de_arena
+    app.dependency_overrides[require_super_or_authenticated_user] = lambda: admin_de_arena
     app.dependency_overrides[get_pool] = lambda: MagicMock()
 
-    resp = await client.post("/api/admin/arenas",
-        json={"nome": "X", "slug": "x", "dono_email": "quem@x.com"})
+    arena = _arena(nome="X", slug="x")
+    with patch("repositories.arena.contar_criadas_por_owner_ultimas_24h", AsyncMock(return_value=0)), \
+         patch("repositories.arena.listar_nome_slug", AsyncMock(return_value=[])), \
+         patch("repositories.arena.criar", AsyncMock(return_value=arena)), \
+         patch("repositories.membership.criar", AsyncMock(return_value={})) as membership_criar_mock, \
+         patch("repositories.membership.registrar_auditoria", AsyncMock(return_value=None)), \
+         patch("repositories.arena.transferir_titularidade", AsyncMock(return_value=arena)):
+        resp = await client.post("/api/admin/arenas",
+            json={"nome": "X", "slug": "x", "dono_email": "quem@x.com"})
 
-    assert resp.status_code == 403
+    assert resp.status_code == 201
+    # titular é o criador (user_id="u1"), nunca "quem@x.com"
+    assert membership_criar_mock.call_args[0][1] == "u1"
 
 
 # ── Atualizar arena ────────────────────────────────────────────────────────────

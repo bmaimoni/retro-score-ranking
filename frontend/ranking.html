@@ -639,7 +639,10 @@ const UPLOAD_URL   = 'https://retro-score-ranking.vercel.app';
 // QR/link já publicado quebra. Ver docs/MARCAS_SPEC.md §4.5.
 const EVENT_SLUG = new URLSearchParams(location.search).get('evento');
 
-inserirNav('ranking', { index: EVENT_SLUG ? `index.html?evento=${EVENT_SLUG}` : 'index.html' });
+// "Início" aponta pra home institucional sempre (Fase 8) — não faz
+// mais sentido levar contexto de event pra lá, já que index.html não
+// participa mais do fluxo de envio (isso migrou pra play.html).
+inserirNav('ranking');
 // id de entry vindo de perfil.html ("ver no ranking") — navega até a
 // página certa e destaca o card, uma única vez (docs/BACKLOG_2026.md §3.6).
 const DESTAQUE_ID = new URLSearchParams(location.search).get('destaque');
@@ -675,9 +678,11 @@ let seguindoIds  = new Set(); // ids que o visitante logado já segue
 
 // ── INICIALIZAÇÃO ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  // Preserva o contexto de event ao navegar de volta pro index.html
+  // Preserva o contexto de event ao navegar de volta pro fluxo de
+  // envio — aponta pra play.html agora (Fase 8), não index.html, que
+  // virou home institucional e não sabe mais lidar com ?evento=.
   if (EVENT_SLUG) {
-    const hrefComEvento = `index.html?evento=${EVENT_SLUG}`;
+    const hrefComEvento = `play.html?evento=${EVENT_SLUG}`;
     document.getElementById('link-voltar').href = hrefComEvento;
     document.getElementById('link-participar').href = hrefComEvento;
   }
@@ -703,8 +708,11 @@ async function gerarQR() {
       if (resp.ok) slugAlvo = (await resp.json()).slug;
     } catch {}
   }
+  // Com slugAlvo resolvido, aponta direto pro fluxo de envio
+  // (play.html, Fase 8) — sem slug (nenhum event ativo pra sugerir),
+  // cai na home institucional pra descoberta.
   const url = slugAlvo
-    ? `${UPLOAD_URL}/index.html?evento=${slugAlvo}`
+    ? `${UPLOAD_URL}/play.html?evento=${slugAlvo}`
     : `${UPLOAD_URL}/index.html`;
 
   const el = document.getElementById('ranking-qrcode');

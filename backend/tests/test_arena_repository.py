@@ -49,9 +49,11 @@ async def test_criar_arena_repository(fake_pool):
     resultado = await arena_repo.criar(fake_pool, "Canal3", "canal3", "#5e2b82", "arcade", None)
 
     assert resultado["slug"] == "canal3"
-    # Confirma ordem/quantidade dos parâmetros passados pro INSERT
+    # Confirma ordem/quantidade dos parâmetros passados pro INSERT —
+    # status vai como último parâmetro, None deixa o DEFAULT da coluna
+    # ('published') decidir (Fase 8, caminho super não passa status).
     args = fake_pool.fetchrow.call_args[0]
-    assert args[1:] == ("Canal3", "canal3", "#5e2b82", "arcade", None)
+    assert args[1:] == ("Canal3", "canal3", "#5e2b82", "arcade", None, None)
 
 
 @pytest.mark.asyncio

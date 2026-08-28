@@ -14,6 +14,29 @@ async def listar(pool: Pool) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+async def listar_abertos(pool: Pool) -> list[dict]:
+    """
+    Events com visibility='open' — diretório de descoberta da home
+    institucional (Fase 8, ARENA_SPEC.md D.1/D.7). Eixo independente
+    de 'publico' (acesso via link direto) — aqui exige os dois: só
+    faz sentido listar pra descoberta um event que também aceita
+    visita direta. Arena 'draft'/'suspended' nunca aparece aqui, nem
+    que o event dela seja visibility='open' — mesma trava de B.4 já
+    aplicada em arena_repo.listar_com_event_ativo.
+    """
+    rows = await pool.fetch(
+        """
+        SELECT e.id, e.nome, e.slug, e.logo_url, m.nome AS arena_nome
+        FROM events e
+        JOIN arenas m ON m.id = e.arena_id
+        WHERE e.ativo = true AND e.publico = true
+          AND e.visibility = 'open' AND m.status = 'published'
+        ORDER BY e.criado_em DESC
+        """
+    )
+    return [dict(r) for r in rows]
+
+
 async def listar_ativos(pool: Pool) -> list[dict]:
     """Eventos ativos, ordenados por criado_em DESC."""
     rows = await pool.fetch(

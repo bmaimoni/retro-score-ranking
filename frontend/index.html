@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0b1331">
-  <title>Retro Score — Envie sua pontuação</title>
+  <title>Retro Score — Crie sua Arena</title>
   <link rel="stylesheet" href="style.css">
   <!-- Pré-carrega fontes principais para evitar flash e atraso -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -692,154 +692,69 @@
 <div class="upload-page">
   <div class="page-header animate-slide-up">
     <img src="logo-principal.png" alt="Canal3" class="page-logo">
-    <h1 class="page-title" id="page-title">ESCOLHA O JOGO</h1>
-    <p class="page-subtitle" id="page-subtitle">Selecione o jogo e envie seu placar</p>
+    <h1 class="page-title" id="page-title">SUA LIGA CASEIRA, NO SEU RITMO</h1>
+    <p class="page-subtitle" id="page-subtitle">Crie um ranking pra você e seus amigos em segundos — ou entre num evento já rolando.</p>
   </div>
 
-  <!-- Conta / login — opcional, protege o nick e guarda histórico -->
+  <!-- Conta / login — precisa estar logado pra criar uma Arena -->
   <div class="conta-bar animate-slide-up" id="conta-bar">
     <div class="conta-status" id="conta-status">
       <span class="conta-carregando">···</span>
     </div>
   </div>
 
-  <div class="regras-card animate-slide-up">
-    <div class="regras-titulo">📋 COMO PARTICIPAR</div>
-    <ul class="regras-lista">
-      <li>Tire uma <strong>selfie com seu rosto</strong> e o placar visível na tela atrás de você</li>
-      <li>Entradas <strong>sem foto</strong> ficam em moderação antes de aparecer no ranking</li>
-      <li>Use seu <strong>nome real</strong> — escolha um apelido para exibição no placar</li>
-      <li>Novo score? Seu <strong>recorde anterior é substituído</strong> automaticamente</li>
-    </ul>
-
-    <div class="regras-expandido" id="regras-expandido">
-      <ul>
-        <li>A selfie deve mostrar claramente seu rosto e o placar — fotos cortadas ou ilegíveis serão rejeitadas</li>
-        <li>Scores impossíveis ou manipulados digitalmente serão removidos sem aviso</li>
-        <li>Um cadastro por pessoa — não é permitido criar múltiplos perfis para ocupar mais posições</li>
-        <li>Ao enviar, você concorda que sua foto, apelido e pontuação sejam exibidos publicamente</li>
-        <li>A organização reserva o direito de remover qualquer entrada sem necessidade de justificativa</li>
-        <li>Dúvidas? Fale com um dos organizadores presentes no evento</li>
-      </ul>
-    </div>
-
-    <button class="regras-toggle" id="regras-toggle" onclick="toggleRegras()">
-      <span class="regras-toggle-icon">▾</span>
-      <span id="regras-toggle-label">SAIBA MAIS</span>
+  <!-- Criar Arena -->
+  <div class="regras-card animate-slide-up" id="criar-arena-card">
+    <div class="regras-titulo">🏟️ CRIAR SUA ARENA</div>
+    <p style="font-size:var(--text-sm);color:var(--color-text-muted);margin-bottom:var(--space-md)">
+      Uma Arena é o seu espaço de competição — convide amigos, crie uma competição e comece a jogar. Grátis, leva menos de um minuto.
+    </p>
+    <input type="text" id="arena-nome-input" class="games-busca-input" placeholder="Nome da sua Arena" maxlength="80" style="margin-bottom:var(--space-sm)">
+    <button class="regras-toggle" id="criar-arena-btn" onclick="criarArena()" style="width:100%;justify-content:center">
+      <span>Criar Arena</span>
     </button>
+    <p id="criar-arena-status" style="font-size:var(--text-xs);margin-top:var(--space-sm);min-height:1.2em"></p>
   </div>
 
-  <!-- Busca de games -->
-  <div class="games-busca-bar animate-slide-up">
-    <input type="search" id="games-busca-input" class="games-busca-input"
-           placeholder="Buscar jogo..." autocomplete="off" aria-label="Buscar jogo">
+  <!-- Diretório de eventos abertos (Fase 8, ARENA_SPEC.md D.1/D.7) -->
+  <div class="page-header animate-slide-up" style="margin-top:var(--space-xl);margin-bottom:var(--space-sm)">
+    <p class="page-subtitle" style="font-weight:600">EVENTOS ABERTOS AGORA</p>
   </div>
-
-  <!-- Aparece só quando ?game= está na URL (link direto por cabine) -->
-  <a href="#" class="voltar-todos-games" id="voltar-todos-games" style="display:none" onclick="mostrarTodosJogos(); return false;">
-    ← Ver todos os jogos
-  </a>
-
-  <div class="games-lista" id="games-lista">
-    <!-- Skeleton — substituto visual enquanto a API responde -->
-    <div class="game-card" style="pointer-events:none;opacity:0.4">
-      <div class="game-header">
-        <span class="game-icone" style="background:var(--color-bg-surface2);border-radius:6px;width:32px;height:32px;display:block"></span>
-        <div class="game-info">
-          <div style="background:var(--color-bg-surface2);height:16px;width:120px;border-radius:4px;margin-bottom:8px"></div>
-          <div style="background:var(--color-bg-surface2);height:12px;width:80px;border-radius:4px"></div>
-        </div>
-      </div>
-    </div>
-    <div class="game-card" style="pointer-events:none;opacity:0.3">
-      <div class="game-header">
-        <span class="game-icone" style="background:var(--color-bg-surface2);border-radius:6px;width:32px;height:32px;display:block"></span>
-        <div class="game-info">
-          <div style="background:var(--color-bg-surface2);height:16px;width:100px;border-radius:4px;margin-bottom:8px"></div>
-          <div style="background:var(--color-bg-surface2);height:12px;width:60px;border-radius:4px"></div>
-        </div>
-      </div>
-    </div>
-    <div class="game-card" style="pointer-events:none;opacity:0.2">
-      <div class="game-header">
-        <span class="game-icone" style="background:var(--color-bg-surface2);border-radius:6px;width:32px;height:32px;display:block"></span>
-        <div class="game-info">
-          <div style="background:var(--color-bg-surface2);height:16px;width:140px;border-radius:4px;margin-bottom:8px"></div>
-          <div style="background:var(--color-bg-surface2);height:12px;width:90px;border-radius:4px"></div>
-        </div>
-      </div>
-    </div>
+  <div class="games-lista" id="eventos-abertos-lista">
+    <div class="loading-games"><span>Carregando...</span></div>
   </div>
 
   <a href="ranking.html" class="ranking-link">Ver ranking geral →</a>
 </div>
 
 <div class="toast" id="toast"></div>
-<input type="file" id="file-input-global" accept="image/jpeg,image/png,image/*">
 
 <script type="module">
-import { getTema, aplicarTema } from './temas.js';
 import { inserirNav } from './nav.js';
 
 const API_URL = 'https://retro-score-ranking-production.up.railway.app';
 
 inserirNav('index');
 
-// Slug do event — vem da URL (?evento=slug). Sem fallback hardcoded
-// (removido na Fase 6, docs/BACKLOG_2026.md §2 item 2.1 — confirmado
-// que não existe QR/material físico impresso dependendo dele). Ausente
-// = resolverMarcaOuEvento() decide: arena única com event válido pula
-// direto pro fluxo dela, senão mostra o seletor de arena. Permite
-// múltiplos events simultâneos, cada um com sua própria URL de envio
-// (ex: index.html?evento=canal3expo-2027) — ver docs/EVENTOS_SPEC.md.
-let EVENT_SLUG = new URLSearchParams(location.search).get('evento');
-
-// Link direto por game (QR na própria cabine) — ver docs/MARCAS_SPEC.md §4.3
-const GAME_SLUG_DIRETO = new URLSearchParams(location.search).get('jogo');
-
-let jogosCache   = [];
-let lideresCache = {};
-let buscaJogosQuery = '';
-
-// Estado por card (indexed by game.id)
-const estado = {};
-let cardExpandido = null;
-
-// ── INICIALIZAÇÃO ─────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
-  await Promise.all([carregarConfig(), carregarSessao()]);
-
-  // Sem ?evento= na URL: precisa resolver arena/event antes de
-  // qualquer fetch escopado por EVENT_SLUG (docs/BACKLOG_2026.md §2
-  // item 2.1) — diferente de antes, não existe mais fallback fixo.
-  if (EVENT_SLUG) {
-    await Promise.all([carregarJogos(), carregarIdentidadeVisual()]);
-  } else {
-    await resolverMarcaOuEvento();
-  }
-});
-
-// ── CONTA / LOGIN (opcional — AUTH_SPEC.md §4) ─────────────────
-// Login nunca bloqueia o envio anônimo. Só protege o nick de outra
-// pessoa usar, e guarda histórico ligado à conta.
+// ── CONTA / LOGIN (AUTH_SPEC.md §4) ─────────────────────────────
+// Criar Arena exige sessão ativa (Fase 8, ARENA_SPEC.md D.2) — login
+// resolvido antes de qualquer criação, sem estado transitório de
+// "preencha o formulário, autentique depois".
 
 let usuarioAtual = null;
 let providersCache = null;
 
-// Nick ativo do perfil + avatar — só pra pré-preencher envios futuros
-// (decisão #2 do NICKNAME_SPEC.md), nunca trava o campo. Ver
-// docs/BACKLOG_2026.md §2 item 2.3.
-let nickAtualCache   = null;
-let avatarUrlCache   = null;
+document.addEventListener('DOMContentLoaded', async () => {
+  await carregarSessao();
+  carregarEventosAbertos();
+});
 
 async function carregarSessao() {
   try {
     const resp = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
     if (resp.ok) {
       usuarioAtual = await resp.json();
-      await carregarNickEAvatar();
       renderContaLogado(usuarioAtual);
-      mostrarAtividadeDeQuemSigo();
     } else {
       usuarioAtual = null;
       renderContaDeslogado();
@@ -850,51 +765,10 @@ async function carregarSessao() {
   }
 }
 
-// Busca nick_atual (via /api/perfil) e resolve avatar_id → url (via
-// /api/avatares, mesmo padrão de perfil.html) — falha silenciosa, é
-// só conveniência de preenchimento, nunca bloqueia o envio anônimo.
-async function carregarNickEAvatar() {
-  try {
-    const [rPerfil, rAvatares] = await Promise.all([
-      fetch(`${API_URL}/api/perfil`, { credentials: 'include' }),
-      fetch(`${API_URL}/api/avatares`),
-    ]);
-    if (rPerfil.ok) {
-      const perfil = await rPerfil.json();
-      nickAtualCache = perfil.nick_atual || null;
-      if (perfil.avatar_id && rAvatares.ok) {
-        const avatares = await rAvatares.json();
-        avatarUrlCache = avatares.find(a => a.id === perfil.avatar_id)?.url || null;
-      }
-    }
-  } catch { /* silencioso */ }
-}
-
-// Mensagem de superação (docs/SEGUIR_SPEC.md) — compilada aqui, no
-// momento em que a sessão é confirmada (decisão #5: não a cada envio
-// de score). Falha silenciosa: não é crítico pra usar a página.
-async function mostrarAtividadeDeQuemSigo() {
-  try {
-    const resp = await fetch(`${API_URL}/api/perfil/atividade`, { credentials: 'include' });
-    if (!resp.ok) return;
-    const atividade = await resp.json();
-
-    atividade.forEach((a, i) => {
-      setTimeout(() => {
-        showToast(`🏆 ${a.seguido_nome || 'Alguém que você segue'} te superou em ${a.game_nome}!`, 'success');
-      }, i * 3500);
-    });
-  } catch { /* silencioso — não é crítico */ }
-}
-
 function renderContaLogado(usuario) {
   const el = document.getElementById('conta-status');
-  const nomeExibicao = nickAtualCache || usuario.nome || usuario.email || 'sua conta';
-  const avatarHtml = avatarUrlCache
-    ? `<img src="${escaparHtml(avatarUrlCache)}" alt="" class="conta-avatar">`
-    : '';
+  const nomeExibicao = usuario.nome || usuario.email || 'sua conta';
   el.innerHTML = `
-    ${avatarHtml}
     <span class="conta-info">✓ Logado como <strong>${escaparHtml(nomeExibicao)}</strong></span>
     <a href="perfil.html" class="conta-sair" style="text-decoration:underline">Meu perfil</a>
     <button class="conta-sair" onclick="fazerLogout()">Sair</button>
@@ -905,12 +779,12 @@ function renderContaDeslogado() {
   const el = document.getElementById('conta-status');
   el.innerHTML = `
     <button class="conta-entrar-btn" onclick="toggleLoginPainel()">
-      👤 Salve suas pontuações!
+      👤 Entrar pra criar sua Arena
     </button>
     <div class="login-painel" id="login-painel" style="display:none">
       <p class="login-painel-texto">
-        Login é opcional — protege seu nick pra ninguém mais usar, e guarda
-        seu histórico de pontuações.
+        Login é rápido e necessário só pra criar/administrar sua Arena — ver
+        ranking e enviar pontuação continua funcionando sem conta.
       </p>
       <button class="login-btn login-btn-google" id="btn-login-google" onclick="loginGoogle()" style="display:none">
         <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
@@ -952,8 +826,8 @@ window.toggleLoginPainel = async function() {
 };
 
 window.loginGoogle = function() {
-  // Navegação de página inteira (não fetch) — é assim que o fluxo
-  // OAuth funciona, precisa sair do domínio pro Google e voltar.
+  // Navegação de página inteira (não fetch) — precisa sair do domínio
+  // pro Google e voltar. Volta pra esta mesma home.
   window.location.href = `${API_URL}/api/auth/google/start`;
 };
 
@@ -992,927 +866,107 @@ function escaparHtml(texto) {
   return div.innerHTML;
 }
 
-// ── GAMES + LÍDERES ───────────────────────────────────────────
-async function carregarJogos() {
-  try {
-    // Games são obrigatórios. Líderes são opcionais — falha silenciosa.
-    const [rJogos, rLideres] = await Promise.allSettled([
-      fetch(`${API_URL}/api/e/${EVENT_SLUG}/games`),
-      fetch(`${API_URL}/api/e/${EVENT_SLUG}/ranking/lideres`),
-    ]);
-
-    if (rJogos.status === 'rejected' || !rJogos.value.ok) throw new Error();
-
-    jogosCache   = await rJogos.value.json();
-    lideresCache = (rLideres.status === 'fulfilled' && rLideres.value.ok)
-      ? await rLideres.value.json()
-      : {};
-
-    conectarBuscaJogos();
-    atualizarListaJogos();
-  } catch {
-    document.getElementById('games-lista').innerHTML =
-      `<div class="loading-games"><span style="color:var(--color-error)">Erro ao carregar jogos</span></div>`;
-  }
+function showToast(msg, tipo = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = `toast show ${tipo}`;
+  setTimeout(() => { toast.className = 'toast'; }, 3500);
 }
 
-function conectarBuscaJogos() {
-  const input = document.getElementById('games-busca-input');
-  if (input._conectado) return;
-  input._conectado = true;
+// ── CRIAR ARENA (Fase 8, ARENA_SPEC.md D.2/D.3) ─────────────────
+// Só nome — slug auto-derivado (editável seria refinamento futuro,
+// não bloqueante aqui). Colisão/rate-limit/heurística são resolvidos
+// inteiramente no backend (POST /api/admin/arenas); esta função só
+// traduz os status HTTP em mensagem clara.
 
-  // Link direto por game esconde a busca (não faz sentido buscar
-  // quando já se sabe exatamente qual game é, ver MARCAS_SPEC.md §4.3)
-  if (GAME_SLUG_DIRETO) {
-    input.closest('.games-busca-bar').style.display = 'none';
+function slugify(texto) {
+  return texto
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+}
+
+window.criarArena = async function() {
+  const input  = document.getElementById('arena-nome-input');
+  const status = document.getElementById('criar-arena-status');
+  const nome   = input.value.trim();
+
+  if (!nome) {
+    status.textContent = 'Digite um nome pra sua Arena.';
+    return;
+  }
+  if (!usuarioAtual) {
+    status.textContent = 'Entre com sua conta primeiro (botão acima).';
+    await window.toggleLoginPainel();
     return;
   }
 
-  let buscaTimeout;
-  input.addEventListener('input', (e) => {
-    clearTimeout(buscaTimeout);
-    buscaTimeout = setTimeout(() => {
-      buscaJogosQuery = e.target.value;
-      atualizarListaJogos();
-    }, 150);
-  });
-}
-
-function atualizarListaJogos() {
-  let jogosParaExibir = jogosCache;
-
-  if (GAME_SLUG_DIRETO) {
-    jogosParaExibir = jogosCache.filter(j => j.slug === GAME_SLUG_DIRETO);
-    document.getElementById('voltar-todos-games').style.display = 'inline-block';
-  } else if (buscaJogosQuery.trim()) {
-    const q = buscaJogosQuery.toLowerCase().trim();
-    jogosParaExibir = jogosCache.filter(j => j.nome.toLowerCase().includes(q));
-  }
-
-  if (jogosParaExibir.length === 0) {
-    document.getElementById('games-lista').innerHTML =
-      `<div class="games-busca-vazio">Nenhum jogo encontrado para "${escapar(buscaJogosQuery)}"</div>`;
-    return;
-  }
-
-  renderJogos(jogosParaExibir, lideresCache);
-
-  // Link direto: card já nasce expandido, sem precisar clicar
-  if (GAME_SLUG_DIRETO && jogosParaExibir.length === 1) {
-    const j = jogosParaExibir[0];
-    toggleCard(j.id, j.slug, j.nome);
-  }
-}
-
-window.mostrarTodosJogos = function() {
-  history.replaceState(null, '', location.pathname + `?evento=${EVENT_SLUG}`);
-  location.reload();
-};
-
-// ── SELEÇÃO DE ARENA (sem ?evento= na URL) ─────────────────────
-// docs/BACKLOG_2026.md §2 item 2.1, ponto cego #2: sem fallback fixo,
-// "arena válida" = tem pelo menos um event ativo+público. Arena única
-// pula o seletor direto pro fluxo dela; mais de uma mostra o seletor.
-let marcasDisponiveis = [];
-
-async function resolverMarcaOuEvento() {
-  try {
-    const resp = await fetch(`${API_URL}/api/arenas/com-event-ativo`);
-    marcasDisponiveis = resp.ok ? await resp.json() : [];
-  } catch {
-    marcasDisponiveis = [];
-  }
-
-  if (marcasDisponiveis.length === 1) {
-    await selecionarMarca(marcasDisponiveis[0]);
-  } else if (marcasDisponiveis.length === 0) {
-    renderSemEventoDisponivel();
-  } else {
-    renderSeletorDeMarcas(marcasDisponiveis);
-  }
-}
-
-// Guarda o título/subtítulo de antes do seletor de arena sobrescrever
-// (já pode ter vindo customizado de carregarConfig()) — pra restaurar
-// depois que a arena for escolhida, em vez de hardcoded.
-let tituloAntesDoSeletor, subtituloAntesDoSeletor;
-
-async function selecionarMarca(arena) {
-  EVENT_SLUG = arena.event_slug;
-  if (tituloAntesDoSeletor !== undefined) {
-    document.getElementById('page-title').textContent = tituloAntesDoSeletor;
-    document.getElementById('page-subtitle').textContent = subtituloAntesDoSeletor;
-  }
-  const buscaBar = document.getElementById('games-busca-input')?.closest('.games-busca-bar');
-  if (buscaBar) buscaBar.style.display = '';
-
-  history.replaceState(null, '', location.pathname + `?evento=${EVENT_SLUG}`);
-  await Promise.all([carregarJogos(), carregarIdentidadeVisual()]);
-}
-
-window.selecionarMarcaPorId = function(id) {
-  const arena = marcasDisponiveis.find(m => m.id === id);
-  if (arena) selecionarMarca(arena);
-};
-
-function renderSeletorDeMarcas(arenas) {
-  const tituloEl    = document.getElementById('page-title');
-  const subtituloEl = document.getElementById('page-subtitle');
-  tituloAntesDoSeletor    = tituloEl.textContent;
-  subtituloAntesDoSeletor = subtituloEl.textContent;
-  tituloEl.textContent    = 'ESCOLHA O LOCAL';
-  subtituloEl.textContent = 'Selecione onde você está pra ver os games certos';
-
-  const buscaBar = document.getElementById('games-busca-input')?.closest('.games-busca-bar');
-  if (buscaBar) buscaBar.style.display = 'none';  // busca não se aplica à seleção de arena
-
-  document.getElementById('games-lista').innerHTML = arenas.map(m => `
-    <div class="game-card">
-      <div class="game-header" onclick="selecionarMarcaPorId('${m.id}')">
-        <span class="game-icone">
-          ${m.logo_url ? `<img class="game-icone-img" src="${escapar(m.logo_url)}" alt="${escapar(m.nome)}">` : '📍'}
-        </span>
-        <div class="game-info">
-          <div class="game-nome">${escapar(m.nome)}</div>
-        </div>
-        <span class="game-chevron">›</span>
-      </div>
-    </div>
-  `).join('');
-}
-
-function renderSemEventoDisponivel() {
-  document.getElementById('games-lista').innerHTML =
-    `<div class="loading-games"><span>Nenhum evento disponível pra envio de pontuações no momento.</span></div>`;
-}
-
-// Scroll infinito client-side (docs/BACKLOG_2026.md §2 item 2.4) — a
-// lista inteira já está em memória (jogosCache) e a busca já filtra
-// sobre ela toda, sem paginação de servidor. O que muda aqui é só
-// RENDERIZAÇÃO progressiva: evita centenas de cards pesados (com tema,
-// custom properties, formulário completo) no DOM de uma vez só quando
-// o event tem muitos games ativos.
-const GAMES_BATCH_SIZE = 20;
-let jogosRenderState = { lista: [], lideres: {}, renderizados: 0, observer: null };
-
-function renderCardJogo(j, lideres) {
-  const tema    = getTema(j.slug);
-  const lider   = lideres[j.id];
-  const iconeHtml = tema.assets.icone_url
-    ? `<img class="game-icone-img" src="${tema.assets.icone_url}" alt="${escapar(j.nome)}">`
-    : (tema.assets.icone || '🎮');
-
-  const liderHtml = lider
-    ? `<span class="lider-nick">🥇 ${escapar(lider.nick)}</span>
-       <span class="lider-score">${lider.pontuacao.toLocaleString('pt-BR')}</span>`
-    : `<span style="opacity:0.4;font-style:italic">sem registros ainda</span>`;
-
-  return `
-  <div class="game-card" id="card-${j.id}"
-       style="--card-primary:${tema.cores.primary};
-              --card-secondary:${tema.cores.secondary};
-              --card-accent:${tema.cores.accent};
-              --card-bg:${tema.cores.surface};
-              --card-bg-image:${tema.assets.bg_image ? `url('${tema.assets.bg_image}')` : 'none'};
-              --card-overlay:${tema.assets.bg_overlay || 0.75};
-              --card-font-display:${tema.tipografia.font_display};
-              --card-font-body:${tema.tipografia.font_body}">
-    <div class="game-header" onclick="toggleCard('${j.id}', '${j.slug}', '${escapar(j.nome)}')">
-      <span class="game-icone">${iconeHtml}</span>
-      <div class="game-info">
-        <div class="game-nome">${escapar(j.nome)}</div>
-        <div class="game-lider">${liderHtml}</div>
-      </div>
-      <a href="ranking.html?evento=${EVENT_SLUG}&jogo=${j.slug}" class="game-ranking-link"
-         onclick="event.stopPropagation()">Ranking</a>
-      <span class="game-chevron">›</span>
-    </div>
-    <div class="game-body" id="body-${j.id}">
-      <div class="game-conteudo" id="conteudo-${j.id}">
-        ${renderFormulario(j)}
-      </div>
-    </div>
-  </div>`;
-}
-
-function renderJogos(games, lideres) {
-  const lista = document.getElementById('games-lista');
-  if (!games.length) {
-    lista.innerHTML = `<div class="loading-games"><span>Nenhum jogo disponível</span></div>`;
-    return;
-  }
-
-  // Inicializa estado dos cards (fontes já carregadas no <head>) — pra
-  // TODOS os games, não só o primeiro lote: foto/envio dependem disso
-  // independente de o card já ter sido renderizado na tela.
-  games.forEach(j => {
-    estado[j.id] = { fotoFile: null, jogoId: j.id, jogoNome: j.nome, jogoSlug: j.slug };
-  });
-
-  if (jogosRenderState.observer) jogosRenderState.observer.disconnect();
-  jogosRenderState = { lista: games, lideres, renderizados: 0, observer: null };
-  lista.innerHTML = '';
-  renderProximoLoteDeJogos();
-}
-
-function renderProximoLoteDeJogos() {
-  const { lista: games, lideres, renderizados } = jogosRenderState;
-  const container = document.getElementById('games-lista');
-  const proximoLote = games.slice(renderizados, renderizados + GAMES_BATCH_SIZE);
-
-  document.getElementById('games-scroll-sentinela')?.remove();
-  container.insertAdjacentHTML('beforeend', proximoLote.map(j => renderCardJogo(j, lideres)).join(''));
-  jogosRenderState.renderizados += proximoLote.length;
-
-  if (jogosRenderState.renderizados >= games.length) return;
-
-  const sentinela = document.createElement('div');
-  sentinela.id = 'games-scroll-sentinela';
-  sentinela.style.height = '1px';
-  container.appendChild(sentinela);
-
-  jogosRenderState.observer = new IntersectionObserver((entries) => {
-    if (entries[0].isIntersecting) {
-      jogosRenderState.observer.disconnect();
-      renderProximoLoteDeJogos();
-    }
-  });
-  jogosRenderState.observer.observe(sentinela);
-}
-
-function renderFormulario(j) {
-  return `
-  <div class="card-form" id="form-${j.id}">
-    <div class="photo-zone" id="pz-${j.id}" onclick="abrirFoto('${j.id}')">
-      <div class="photo-zone-icon">📷</div>
-      <p class="photo-zone-text">Toque para tirar uma foto<br>ou selecionar da galeria</p>
-      <span class="photo-zone-badge">JPEG ou PNG · máx 5MB · opcional</span>
-      <div class="photo-overlay"><span>✦ Trocar foto</span></div>
-    </div>
-
-    <div class="card-field">
-      <label class="card-label" for="nome-${j.id}">Nome e sobrenome</label>
-      <input class="card-input" type="text" id="nome-${j.id}"
-             placeholder="Ex: MARIA SILVA" maxlength="80"
-             autocomplete="name" spellcheck="false"
-             autocapitalize="characters"
-             oninput="this.value=this.value.toUpperCase()"
-             style="text-transform:uppercase">
-    </div>
-
-    <div class="card-field">
-      <label class="card-label" for="nick-${j.id}">Apelido no placar <span style="font-weight:400;opacity:0.55;text-transform:none;letter-spacing:0">(opcional)</span></label>
-      <input class="card-input" type="text" id="nick-${j.id}"
-             placeholder="Ex: PLAYER1 (padrão: suas iniciais)" maxlength="20"
-             autocomplete="off" autocapitalize="characters" spellcheck="false"
-             oninput="this.value=this.value.toUpperCase()"
-             value="${nickAtualCache ? escapar(nickAtualCache) : ''}"
-             style="text-transform:uppercase">
-    </div>
-
-    <div class="card-field">
-      <label class="card-label" for="score-${j.id}">Pontuação</label>
-      <input class="card-input font-mono" type="tel" id="score-${j.id}"
-             placeholder="000000" inputmode="numeric"
-             oninput="this.value=this.value.replace(/[^0-9]/g,'')">
-    </div>
-
-    <div class="card-consent">
-      <input type="checkbox" class="card-consent-check" id="consent-${j.id}">
-      <label class="card-consent-text" id="lgpd-texto-${j.id}" for="consent-${j.id}" data-lgpd>
-        Concordo que minha foto, nome e pontuação sejam exibidos no ranking público
-        e armazenados pelo Canal3. Os dados poderão ser mantidos após o encerramento
-        do event para fins de histórico e divulgação.
-      </label>
-    </div>
-
-    <div class="card-progress" id="prog-${j.id}">
-      <div class="progress-track"><div class="progress-fill" id="pfill-${j.id}"></div></div>
-      <p class="progress-txt" id="ptxt-${j.id}">Enviando...</p>
-    </div>
-
-    <button class="card-btn" id="btn-${j.id}" onclick="enviarScore('${j.id}')">
-      ▶ ENVIAR PONTUAÇÃO
-    </button>
-  </div>
-
-  <div class="card-sucesso" id="sucesso-${j.id}">
-    <div class="sucesso-icon">🏆</div>
-    <h2 class="sucesso-titulo" id="sucesso-titulo-${j.id}">PONTUAÇÃO<br>REGISTRADA!</h2>
-    <div class="sucesso-score" id="sucesso-score-${j.id}">0</div>
-    <div class="sucesso-posicao" id="sucesso-posicao-${j.id}" style="display:none">
-      <span id="sucesso-pos-num-${j.id}"></span>
-      <small id="sucesso-pos-label-${j.id}" style="font-size:var(--text-xs);opacity:0.7">LUGAR</small>
-    </div>
-    <p class="sucesso-motivacao" id="sucesso-motivacao-${j.id}" style="display:none"></p>
-    <p class="sucesso-msg" id="sucesso-msg-${j.id}"></p>
-    <div class="sucesso-actions" style="flex-direction:row;gap:var(--space-sm)">
-      <a href="ranking.html?evento=${EVENT_SLUG}&jogo=${j.slug}" class="card-btn" style="text-decoration:none;text-align:center;flex:1">VER RANKING →</a>
-      <button class="card-btn" onclick="resetCard('${j.id}')" style="flex:1;background:transparent;border:var(--border-width) solid var(--card-primary,var(--color-primary));color:var(--card-primary,var(--color-primary))">↺ NOVAMENTE</button>
-    </div>
-
-    <div class="share-section" id="share-section-${j.id}" style="display:none">
-      <div class="share-label">🔥 MOSTRE SEU RECORDE AO MUNDO!</div>
-      <div class="share-buttons">
-        <button class="share-btn share-btn-native" onclick="compartilharScore('${j.id}', 'native')" title="Compartilhar">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
-          Compartilhar
-        </button>
-      </div>
-      <div class="share-redes" style="display:flex;justify-content:center;gap:12px;margin-top:10px;align-items:center">
-        <span style="font-size:9px;color:rgba(255,255,255,0.35);letter-spacing:0.08em;font-family:var(--font-display)">VIA</span>
-        <button class="share-rede" onclick="compartilharScore('${j.id}', 'instagram')" title="Instagram">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
-        </button>
-        <button class="share-rede" onclick="compartilharScore('${j.id}', 'tiktok')" title="TikTok">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.28 6.28 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.77 1.52V6.79a4.85 4.85 0 01-1-.1z"/></svg>
-        </button>
-        <button class="share-rede" onclick="compartilharScore('${j.id}', 'facebook')" title="Facebook">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-        </button>
-        <button class="share-rede" onclick="compartilharScore('${j.id}', 'whatsapp')" title="WhatsApp">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-        </button>
-        <button class="share-rede" onclick="compartilharScore('${j.id}', 'download')" title="Salvar imagem" style="opacity:0.5">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-        </button>
-      </div>
-    </div>
-
-  </div>
-  `;
-}
-
-// ── TOGGLE CARD ────────────────────────────────────────────────
-window.toggleCard = function(id, slug, nome) {
-  const lista  = document.getElementById('games-lista');
-  const card   = document.getElementById(`card-${id}`);
-  const isOpen = card.classList.contains('expandido');
-
-  // Fecha o card aberto anterior
-  if (cardExpandido && cardExpandido !== id) {
-    const prev = document.getElementById(`card-${cardExpandido}`);
-    prev.classList.remove('expandido');
-  }
-
-  if (isOpen) {
-    card.classList.remove('expandido');
-    lista.classList.remove('tem-expandido');
-    cardExpandido = null;
-  } else {
-    card.classList.add('expandido');
-    lista.classList.add('tem-expandido');
-    cardExpandido = id;
-    // Scroll suave para o card
-    setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
-  }
-};
-
-// ── FOTO ──────────────────────────────────────────────────────
-let cardFotoAtivo = null;
-const fileInput = document.getElementById('file-input-global');
-
-window.abrirFoto = function(id) {
-  cardFotoAtivo = id;
-  fileInput.click();
-};
-
-fileInput.addEventListener('change', e => {
-if (!cardFotoAtivo || !e.target.files[0]) return;
-  processarFoto(cardFotoAtivo, e.target.files[0]);
-  fileInput.value = '';
-});
-
-function processarFoto(id, file) {
-  if (file.size > 5 * 1024 * 1024) { showToast('Foto muito grande. Máximo: 5MB', 'error'); return; }
-  if (!['image/jpeg','image/png'].includes(file.type)) { showToast('Apenas JPEG e PNG são aceitos', 'error'); return; }
-  estado[id].fotoFile = file;
-const zone = document.getElementById(`pz-${id}`);
-  const reader = new FileReader();
-  reader.onload = e => {
-    zone.innerHTML = `<img class="photo-preview" src="${e.target.result}" alt="Preview">
-                      <div class="photo-overlay"><span>✦ Trocar foto</span></div>`;
-    zone.classList.add('has-photo');
-    zone.onclick = () => { cardFotoAtivo = id; fileInput.click(); };
-  };
-  reader.readAsDataURL(file);
-}
-
-
-const FRASES_MOTIVACAO = {
-  1:     "🎉 UAU! Pontuação incrível — você dominou este game!",
-  2:     "🔥 Que placar! Você está logo atrás do 1º lugar!",
-  3:     "🏅 Pódio conquistado! Você está entre os melhores!",
-  top5:  "⚡ Top 5! Você é um dos jogadores mais fortes aqui!",
-  top10: "💪 Top 10! Você está voando — mais uma tentativa e sobe mais!",
-  top20: "🎮 Boa jogada! Cada tentativa te deixa mais perto do topo!",
-  resto: "🕹️ Aqueça os dedos e tente de novo — o ranking está esperando!",
-};
-
-function frasePorPosicao(pos) {
-  if (pos === 1)       return FRASES_MOTIVACAO[1];
-  if (pos === 2)       return FRASES_MOTIVACAO[2];
-  if (pos === 3)       return FRASES_MOTIVACAO[3];
-  if (pos <= 5)        return FRASES_MOTIVACAO.top5;
-  if (pos <= 10)       return FRASES_MOTIVACAO.top10;
-  if (pos <= 20)       return FRASES_MOTIVACAO.top20;
-  return FRASES_MOTIVACAO.resto;
-}
-
-async function buscarPosicao(jogoSlug, nick) {
-  try {
-    const resp = await fetch(`${API_URL}/api/ranking/${jogoSlug}`);
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    const entries = data.entries || [];
-    const pos = entries.findIndex(e =>
-      e.nick.toLowerCase() === nick.toLowerCase()
-    );
-    return pos >= 0 ? pos + 1 : null;
-  } catch { return null; }
-}
-
-// ── ENVIO ─────────────────────────────────────────────────────
-window.enviarScore = async function(id) {
-  const e      = estado[id];
-  const nomeCompleto = document.getElementById(`nome-${id}`).value.trim();
-  const nickInput    = document.getElementById(`nick-${id}`).value.trim();
-  const nick         = nickInput || nomeCompleto.split(' ').map(p => p[0]).join('').toUpperCase().slice(0,6);
-  const score        = parseInt(document.getElementById(`score-${id}`).value.replace(/[^0-9]/g, ''), 10);
-  const consent      = document.getElementById(`consent-${id}`).checked;
-
-  if (!nomeCompleto)      { showToast('Digite seu nome completo', 'error'); return; }
-  if (!score || score<=0) { showToast('Digite uma pontuação válida', 'error'); return; }
-  if (!consent)           { showToast('Confirme o consentimento para participar', 'error'); return; }
-
-  const btn = document.getElementById(`btn-${id}`);
-  btn.disabled = true; btn.textContent = '⏳ ENVIANDO...';
-  setProgress(id, true, 30, 'Preparando...');
+  const slug = slugify(nome);
+  status.textContent = 'Criando...';
 
   try {
-    const fd = new FormData();
-    if (e.fotoFile) fd.append('foto', e.fotoFile);
-    fd.append('nick', nick);
-    if (nomeCompleto) fd.append('nome', nomeCompleto);
-    fd.append('pontuacao', String(score));
-    fd.append('game_id', id);
-
-    setProgress(id, true, 60, e.fotoFile ? 'Enviando foto...' : 'Registrando...');
-    const resp = await fetch(`${API_URL}/api/e/${EVENT_SLUG}/upload`, {
-      method: 'POST', body: fd, credentials: 'include',
+    const resp = await fetch(`${API_URL}/api/admin/arenas`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, slug }),
     });
-    setProgress(id, true, 95, 'Registrando...');
     const data = await resp.json();
-    if (!resp.ok) {
-      console.error('[canal3] 422 detail:', JSON.stringify(data.detail));
-      const detalhe = Array.isArray(data.detail)
-        ? data.detail.map(e => `${e.loc?.join('.')}: ${e.msg}`).join(' | ')
-        : (data.detail || 'Erro ao enviar');
-      throw new Error(detalhe);
-    }
 
-    setProgress(id, true, 100, 'Concluído!');
-    await new Promise(r => setTimeout(r, 350));
-    setProgress(id, false);
-
-    // Exibe sucesso dentro do card
-    document.getElementById(`form-${id}`).style.display = 'none';
-    const suc = document.getElementById(`sucesso-${id}`);
-    document.getElementById(`sucesso-score-${id}`).textContent = score.toLocaleString('pt-BR');
-      if (data.pendente) {
-      document.getElementById(`sucesso-msg-${id}`).textContent =
-        'Sua pontuação está em análise e aparecerá em breve no ranking.';
+    if (resp.status === 201) {
+      status.textContent = `Arena "${data.nome}" criada! Acesse o painel pra configurar.`;
+      showToast('Arena criada com sucesso!', 'success');
+      input.value = '';
+      setTimeout(() => { window.location.href = 'admin.html'; }, 1500);
+    } else if (resp.status === 409) {
+      status.textContent = data.detail || 'Esse nome já está em uso — tente outro.';
+    } else if (resp.status === 429) {
+      status.textContent = data.detail || 'Limite de Arenas por dia atingido.';
+    } else if (resp.status === 401) {
+      status.textContent = 'Sessão expirada — entre novamente.';
+      renderContaDeslogado();
     } else {
-      document.getElementById(`sucesso-msg-${id}`).textContent = '';
-// Monta dados de compartilhamento imediatamente (sem esperar posição)
-      const tema = getTema(e.jogoSlug);
-      const linkPessoal = `${location.origin}/ranking.html?game=${e.jogoSlug}&destaque=${encodeURIComponent(nick)}`;
-      window._shareData = window._shareData || {};
-      window._shareData[id] = {
-        nick, nome: nomeCompleto, score, pos: null,
-        jogoNome:     e.jogoNome,
-        jogoSlug:     e.jogoSlug,
-        linkPessoal,
-        primaryColor: tema.cores.primary || '#5e2b82',
-        bgColor:      tema.cores.bg      || '#0b1331',
-        bgImage:      tema.assets.bg_image || '',
-        fotoUrl:      data.foto_url || null,
-      };
-      // Fogos imediatos
-dispararFogos('normal');
-      // Mostra seção de compartilhamento
-      const shareSection = document.getElementById(`share-section-${id}`);
-      const shareLink    = document.getElementById(`share-link-${id}`);
-if (shareSection) shareSection.style.display = 'block';
-      if (shareLink)    shareLink.textContent = linkPessoal;
-
-      // Busca posição em background — atualiza display se encontrar
-      const slug = e.jogoSlug;
-      buscarPosicao(slug, nick).then(pos => {
-        if (!pos) return;
-        const elPos  = document.getElementById(`sucesso-posicao-${id}`);
-        const elNum  = document.getElementById(`sucesso-pos-num-${id}`);
-        const elLabel = document.getElementById(`sucesso-pos-label-${id}`);
-        const elMotiv = document.getElementById(`sucesso-motivacao-${id}`);
-        elNum.textContent   = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
-        elLabel.textContent = pos <= 3 ? 'PÓDIO!' : 'LUGAR';
-        elMotiv.textContent = frasePorPosicao(pos);
-        if (elPos)  elPos.style.display  = 'block';
-        if (elMotiv) elMotiv.style.display = 'block';
-        // Atualiza fogos com intensidade correta
-        if (pos === 1)     dispararFogos('top1');
-        else if (pos <= 3) dispararFogos('top3');
-        // Atualiza _shareData com posição
-        if (window._shareData[id]) window._shareData[id].pos = pos;
-      });
+      status.textContent = data.detail || 'Não foi possível criar agora. Tente de novo.';
     }
-suc.classList.add('visible');
-    // Conecta SSE para receber notificação se for superado
-    if (!data.pendente) {
-      conectarSSESuperado(e.jogoSlug, id, nick);
-    }
-
-  } catch (err) {
-    setProgress(id, false);
-    btn.disabled = false; btn.textContent = '▶ ENVIAR PONTUAÇÃO';
-    showToast(err.message || 'Erro ao enviar. Tente novamente.', 'error');
+  } catch {
+    status.textContent = 'Erro de conexão — tente de novo em instantes.';
   }
 };
 
-// ── SSE: notificação de superação ────────────────────────────
-const sseSuperado = {};  // { jogoId: EventSource }
+// ── DIRETÓRIO DE EVENTOS ABERTOS ────────────────────────────────
 
-function conectarSSESuperado(jogoSlug, jogoId, nickAtual) {
-  if (sseSuperado[jogoId]) return;
-  const src = new EventSource(`${API_URL}/api/events/ranking/${jogoSlug}`);
-  sseSuperado[jogoId] = src;
-  src.addEventListener('novo_registro', e => {
-    try {
-      const dados = JSON.parse(e.data);
-      if (!nickAtual) return;
-      if (dados.nick && dados.nick.toLowerCase() !== nickAtual.toLowerCase()) {
-        mostrarToastSuperado(dados.nick, dados.pontuacao);
-      }
-    } catch {}
-  });
-  src.onerror = () => { src.close(); delete sseSuperado[jogoId]; };
-}
-
-let _toastTimer = null;
-function mostrarToastSuperado(nick, pontuacao) {
-  const el  = document.getElementById('toast-superado');
-  const msg = document.getElementById('toast-superado-msg');
-  if (!el) return;
-  msg.textContent = `${nick} acabou de marcar ${Number(pontuacao).toLocaleString('pt-BR')} pts. Você consegue bater?`;
-  el.classList.add('show');
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.classList.remove('show'), 5000);
-}
-
-// ── RESET CARD ────────────────────────────────────────────────
-window.resetCard = function(id) {
-  estado[id].fotoFile = null;
-  document.getElementById(`nome-${id}`).value = '';
-  document.getElementById(`nick-${id}`).value = '';
-  document.getElementById(`score-${id}`).value = '';
-  document.getElementById(`consent-${id}`).checked = false;
-  document.getElementById(`btn-${id}`).disabled = false;
-  document.getElementById(`btn-${id}`).textContent = '▶ ENVIAR PONTUAÇÃO';
-  document.getElementById(`sucesso-${id}`).classList.remove('visible');
-  document.getElementById(`form-${id}`).style.display = 'flex';
-  const zone = document.getElementById(`pz-${id}`);
-  zone.classList.remove('has-photo');
-  zone.innerHTML = `<div class="photo-zone-icon">📷</div>
-    <p class="photo-zone-text">Toque para tirar uma foto<br>ou selecionar da galeria</p>
-    <span class="photo-zone-badge">JPEG ou PNG · máx 5MB · opcional</span>
-    <div class="photo-overlay"><span>✦ Trocar foto</span></div>`;
-  zone.onclick = () => { cardFotoAtivo = id; fileInput.click(); };
-};
-
-// ── CONFIG ────────────────────────────────────────────────────
-async function carregarConfig() {
+async function carregarEventosAbertos() {
+  const el = document.getElementById('eventos-abertos-lista');
   try {
-    const resp = await fetch(`${API_URL}/api/games/config`);
-    if (!resp.ok) return;
-    const cfg = await resp.json();
-    if (cfg.event_nome) document.title = cfg.event_nome + ' — Envie sua pontuação';
-    if (cfg.upload_titulo) document.getElementById('page-title').textContent = cfg.upload_titulo;
-    if (cfg.upload_subtitulo) document.getElementById('page-subtitle').textContent = cfg.upload_subtitulo;
-  } catch {}
-}
+    const resp = await fetch(`${API_URL}/api/arenas/eventos-abertos`);
+    const eventos = resp.ok ? await resp.json() : [];
 
-// ── IDENTIDADE VISUAL (arena/event) — docs/MARCAS_SPEC.md §5 ──
-const TIPOGRAFIAS = {
-  arcade:    "'Press Start 2P', 'Pixel Operator', monospace",
-  futurista: "'Orbitron', sans-serif",
-  terminal:  "'Share Tech Mono', monospace",
-};
-
-async function carregarIdentidadeVisual() {
-  try {
-    const resp = await fetch(`${API_URL}/api/e/${EVENT_SLUG}/config`);
-    if (!resp.ok) return; // sem config resolvida, fica no default da plataforma
-    aplicarIdentidadeVisual(await resp.json());
-  } catch {}
-}
-
-function aplicarIdentidadeVisual(config) {
-  if (config.cor_primaria) {
-    document.documentElement.style.setProperty('--color-primary', config.cor_primaria);
-  }
-  if (config.tipografia && TIPOGRAFIAS[config.tipografia]) {
-    document.documentElement.style.setProperty('--font-display', TIPOGRAFIAS[config.tipografia]);
-  }
-  if (config.logo_url) {
-    const logo = document.querySelector('.page-logo');
-    if (logo) logo.src = config.logo_url;
-  }
-}
-
-// ── HELPERS ──────────────────────────────────────────────────
-function setProgress(id, visible, pct=0, label='') {
-  document.getElementById(`prog-${id}`).classList.toggle('visible', visible);
-  document.getElementById(`pfill-${id}`).style.width = `${pct}%`;
-  document.getElementById(`ptxt-${id}`).textContent = label;
-}
-
-function showToast(msg, tipo='success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.className = `toast ${tipo} show`;
-  clearTimeout(t._timer); t._timer = setTimeout(() => t.classList.remove('show'), 3000);
-}
-
-function escapar(s='') {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-
-// ── COMPARTILHAMENTO ──────────────────────────────────────────
-async function carregarImagem(url) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload  = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = url;
-  });
-}
-
-async function gerarImagemShare(dados) {
-  const { nick, nome, score, pos, jogoNome, primaryColor, bgColor, bgImage, fotoUrl } = dados;
-  const W = 1080, H = 1080;
-  const canvas = document.createElement('canvas');
-  canvas.width = W; canvas.height = H;
-  const ctx = canvas.getContext('2d');
-  const cor = (primaryColor || '#5e2b82').trim();
-
-  // ── Fundo: cor sólida do game ──
-  ctx.fillStyle = bgColor || '#0b1331';
-  ctx.fillRect(0, 0, W, H);
-
-  // ── Overlay escuro (vem ANTES do logo de fundo) ──
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(0, 0, W, H);
-
-  // ── Logo Canal3 centralizado como marca d'água ──
-  let logoImg = null;
-  try {
-    logoImg = await carregarImagem('./logo-share.png');
-    if (logoImg && logoImg.width > 0) {
-      const logoH = H * 0.55;
-      const logoW = logoImg.width * (logoH / logoImg.height);
-      const logoX = (W - logoW) / 2;
-      const logoY = (H - logoH) / 2;
-      ctx.globalAlpha = 0.22;
-      ctx.drawImage(logoImg, logoX, logoY, logoW, logoH);
-      ctx.globalAlpha = 1;
-    }
-  } catch (_) {}
-
-  // ── Foto da pessoa — crop centralizado sem distorção ──
-  const temFoto = !!fotoUrl;
-  const fotoW = 400, fotoH = 500, fotoX = 52, fotoY = 270;
-
-  if (temFoto) {
-    const foto = await carregarImagem(fotoUrl);
-    if (foto) {
-      // Calcula crop centralizado (object-fit: cover)
-      const scale = Math.max(fotoW / foto.width, fotoH / foto.height);
-      const sw    = fotoW / scale;
-      const sh    = fotoH / scale;
-      const sx    = (foto.width  - sw) / 2;
-      const sy    = (foto.height - sh) / 2;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.roundRect(fotoX, fotoY, fotoW, fotoH, 14);
-      ctx.clip();
-      ctx.drawImage(foto, sx, sy, sw, sh, fotoX, fotoY, fotoW, fotoH);
-      ctx.restore();
-
-      ctx.strokeStyle = cor;
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.roundRect(fotoX, fotoY, fotoW, fotoH, 14);
-      ctx.stroke();
-    }
-  }
-
-  // ── Borda geral ──
-  ctx.strokeStyle = cor;
-  ctx.lineWidth = 10;
-  ctx.strokeRect(20, 20, W - 40, H - 40);
-
-  // ── Faixa superior ──
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
-  ctx.fillRect(0, 0, W, 235);
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = cor;
-  ctx.font = 'bold 38px "Press Start 2P", monospace';
-  ctx.fillText('CANAL3', W / 2, 78);
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.font = '26px "Press Start 2P", monospace';
-  ctx.fillText('HIGH SCORE', W / 2, 128);
-  ctx.fillStyle = cor;
-  ctx.font = '22px "Press Start 2P", monospace';
-  ctx.fillText(jogoNome.toUpperCase(), W / 2, 188);
-
-  ctx.fillStyle = cor;
-  ctx.fillRect(60, 218, W - 120, 2);
-
-  // ── Logo Canal3 no canto superior direito (visível) ──
-  if (logoImg && logoImg.width > 0) {
-    const lh = 110;
-    const lw = logoImg.width * (lh / logoImg.height);
-    ctx.globalAlpha = 0.90;
-    ctx.drawImage(logoImg, W - lw - 30, 30, lw, lh);
-    ctx.globalAlpha = 1;
-  }
-
-  // ── Coluna de texto ──
-  const temFotoOk = temFoto;
-  const txtX     = temFotoOk ? 510 : W / 2;
-  const maxTxtW  = temFotoOk ? 530 : W - 120;
-  ctx.textAlign  = temFotoOk ? 'left' : 'center';
-
-  // Nick
-  const nickDisplay = nick.length > 10 ? nick.slice(0, 10) + '…' : nick;
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `bold 68px "Press Start 2P", monospace`;
-  ctx.fillText(nickDisplay.toUpperCase(), txtX, temFotoOk ? 370 : 410);
-
-  // Nome completo
-  if (nome) {
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.font = '26px sans-serif';
-    const nomeDisplay = nome.length > 24 ? nome.slice(0, 24) + '…' : nome;
-    ctx.fillText(nomeDisplay, txtX, temFotoOk ? 420 : 462);
-  }
-
-  // Score — carrega fonte e mede largura real antes de calcular tamanho
-  const scoreStr = Number(score).toLocaleString('pt-BR');
-  const limite   = maxTxtW * 0.88;
-
-  // Garante que a fonte está carregada no canvas
-  try {
-    await document.fonts.load('bold 88px "Press Start 2P"');
-  } catch (_) {}
-
-  // Encontra o maior tamanho que cabe na largura disponível
-  let scoreFontSize = 88;
-  ctx.font = `bold ${scoreFontSize}px "Press Start 2P", monospace`;
-  while (ctx.measureText(scoreStr).width > limite && scoreFontSize > 32) {
-    scoreFontSize -= 4;
-    ctx.font = `bold ${scoreFontSize}px "Press Start 2P", monospace`;
-  }
-  ctx.fillStyle = cor;
-  ctx.fillText(scoreStr, txtX, temFotoOk ? 548 : 600);
-
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
-  ctx.font = '22px "Press Start 2P", monospace';
-  ctx.fillText('PONTOS', txtX, temFotoOk ? 598 : 650);
-
-  // Posição
-  if (pos) {
-    const emoji  = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : '';
-    const posStr = `${emoji} ${pos}º LUGAR`.trim();
-    ctx.fillStyle = pos <= 3 ? '#ffd700' : 'rgba(255,255,255,0.75)';
-    ctx.font = `bold ${pos <= 3 ? 50 : 42}px "Press Start 2P", monospace`;
-    ctx.fillText(posStr, txtX, temFotoOk ? 690 : 750);
-  }
-
-  // ── Faixa inferior ──
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
-  ctx.fillRect(0, H - 120, W, 120);
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.textAlign = 'center';
-  ctx.font = '22px "Press Start 2P", monospace';
-  ctx.fillText('canal3expo.com.br', W / 2, H - 48);
-
-  return canvas;
-}
-
-window.compartilharScore = async function(id, modo) {
-  const dados = window._shareData?.[id];
-  if (!dados) { showToast('Aguarde o carregamento da posição', 'error'); return; }
-
-  const canvas = await gerarImagemShare(dados);
-  const blob   = await new Promise(res => canvas.toBlob(res, 'image/png'));
-  const file   = new File([blob], 'canal3-highscore.png', { type: 'image/png' });
-  const texto  = `Marquei ${Number(dados.score).toLocaleString('pt-BR')} pts em ${dados.jogoNome} no Canal3 High Score! 🎮`;
-  const link   = dados.linkPessoal || 'https://retro-score-ranking.vercel.app';
-
-  // Redes sociais específicas (baixa imagem + abre rede)
-  if (modo === 'instagram' || modo === 'tiktok') {
-    const url = URL.createObjectURL(blob);
-    const a   = document.createElement('a');
-    a.href = url; a.download = 'canal3-highscore.png';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showToast(`Imagem salva! Abra o ${modo === 'instagram' ? 'Instagram' : 'TikTok'} e poste nos Stories 📲`, 'success');
-    return;
-  }
-
-  if (modo === 'facebook') {
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(link)}`, '_blank');
-    return;
-  }
-
-  if (modo === 'whatsapp') {
-    window.open(`https://wa.me/?text=${encodeURIComponent(texto + ' ' + link)}`, '_blank');
-    return;
-  }
-
-  if (modo === 'native' && navigator.share) {
-    try {
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ title: 'Canal3 High Score', text: texto, files: [file] });
-      } else {
-        await navigator.share({ title: 'Canal3 High Score', text: texto, url: link });
-      }
+    if (eventos.length === 0) {
+      el.innerHTML = `<div class="loading-games"><span>Nenhum evento aberto pra descoberta no momento — peça o link direto de quem organiza.</span></div>`;
       return;
-    } catch (e) { if (e.name === 'AbortError') return; }
-  }
+    }
 
-  // Fallback: download
-  const url = URL.createObjectURL(blob);
-  const a   = document.createElement('a');
-  a.href = url; a.download = 'canal3-highscore.png';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  showToast('Imagem salva! Compartilhe nas redes sociais 🎮', 'success');
-};
-
-// ── Fogos de artifício ────────────────────────────────────────
-window.dispararFogos = function dispararFogos(intensidade = 'normal') {
-  const cores = ['#ff8800','#ffdd00','#cc3377','#ffffff','#ff4400','#00aaff'];
-  const qtd   = intensidade === 'top3' ? 120 : intensidade === 'top1' ? 200 : 60;
-  const cx    = window.innerWidth  / 2;
-  const cy    = window.innerHeight / 2;
-
-  for (let i = 0; i < qtd; i++) {
-    setTimeout(() => {
-      const p = document.createElement('div');
-      p.className = 'fogo-particle';
-      const angle  = Math.random() * Math.PI * 2;
-      const dist   = 80 + Math.random() * (intensidade === 'top1' ? 280 : intensidade === 'top3' ? 220 : 160);
-      const tx     = Math.cos(angle) * dist;
-      const ty     = Math.sin(angle) * dist;
-      const cor    = cores[Math.floor(Math.random() * cores.length)];
-      const dur    = 600 + Math.random() * 800;
-      const size   = intensidade === 'top1' ? 10 : 7;
-      p.style.cssText = `
-        left: ${cx + tx}px; top: ${cy + ty}px;
-        background: ${cor};
-        width: ${size}px; height: ${size}px;
-        animation-duration: ${dur}ms;
-        box-shadow: 0 0 4px ${cor};
-      `;
-      document.body.appendChild(p);
-      setTimeout(() => p.remove(), dur);
-    }, Math.random() * (intensidade === 'top1' ? 800 : 400));
+    el.innerHTML = eventos.map(e => `
+      <a href="play.html?evento=${encodeURIComponent(e.slug)}" class="game-card" style="text-decoration:none;display:block">
+        <div class="game-header">
+          <span class="game-icone">
+            ${e.logo_url ? `<img class="game-icone-img" src="${escaparHtml(e.logo_url)}" alt="${escaparHtml(e.nome)}">` : '🎮'}
+          </span>
+          <div class="game-info">
+            <div class="game-nome">${escaparHtml(e.nome)}</div>
+            <div class="game-lider" style="opacity:0.7">${escaparHtml(e.arena_nome)}</div>
+          </div>
+          <span class="game-chevron">›</span>
+        </div>
+      </a>
+    `).join('');
+  } catch {
+    el.innerHTML = `<div class="loading-games"><span style="color:var(--color-error)">Erro ao carregar eventos</span></div>`;
   }
 }
-
-window.toggleRegras = function() {
-  const exp  = document.getElementById('regras-expandido');
-  const btn  = document.getElementById('regras-toggle');
-  const lbl  = document.getElementById('regras-toggle-label');
-  const icon = btn ? btn.querySelector('.regras-toggle-icon') : null;
-  if (!exp) return;
-  const aberto = exp.classList.toggle('aberto');
-  if (btn)  btn.classList.toggle('aberto', aberto);
-  if (lbl)  lbl.textContent  = aberto ? 'FECHAR' : 'SAIBA MAIS';
-  if (icon) icon.textContent = aberto ? '▴' : '▾';
-};
-
-
 </script>
-<div class="toast-superado" id="toast-superado">
-  <div class="toast-superado-titulo">⚠ VOCÊ FOI SUPERADO!</div>
-  <div class="toast-superado-msg" id="toast-superado-msg"></div>
-</div>
 
 </body>
 </html>

@@ -12,8 +12,9 @@ import repositories.arena as arena_repo
 import repositories.membership as membership_repo
 import repositories.arena_partnership as parceria_repo
 import auth.repository as auth_repo
+import services.arena_admissao as admissao
 from utils.db import get_pool
-from middleware.auth import require_admin, AdminContext
+from middleware.auth import require_admin, require_super_or_authenticated_user, AdminContext
 
 router = APIRouter(prefix="/api/admin/arenas", tags=["admin-arenas"])
 
@@ -26,13 +27,12 @@ def _validar_tipografia(v):
     return v
 
 
+RATE_LIMIT_ARENAS_POR_DIA = 3
+
+
 def _exigir_super(admin: AdminContext):
-    """Só super cria arena — decisão #7 do docs/PERMISSOES_SPEC.md:
-    nem o dono de uma arena pode criar outra. Achado #5 da mesma spec:
-    esse endpoint aceitava qualquer admin autenticado antes desta
-    correção, bug pré-existente."""
     if not admin.super:
-        raise HTTPException(status_code=403, detail="Só super-admin pode criar arena")
+        raise HTTPException(status_code=403, detail="Só super-admin pode executar esta ação")
 
 
 def _exigir_admin_na_arena(admin: AdminContext, arena_id: str):
@@ -97,48 +97,157 @@ async def listar_arenas(pool=Depends(get_pool), admin: AdminContext = Depends(re
 async def criar_arena(
     dados: MarcaCreate,
     pool=Depends(get_pool),
-    admin: AdminContext = Depends(require_admin),
+    admin: AdminContext = Depends(require_super_or_authenticated_user),
 ):
-    _exigir_super(admin)
+    """
+    Endpoint único, comportamento condicional por quem chama (Fase 8,
+    ARENA_SPEC.md G.3) — não dois endpoints separados.
 
-    usuario = None
-    if dados.dono_email:
-        usuario = await auth_repo.buscar_usuario_por_email(pool, dados.dono_email.lower().strip())
-        if not usuario:
-            raise HTTPException(
-                status_code=404,
-                detail="Essa pessoa ainda não tem conta — ela precisa logar pelo menos uma vez "
-                       "(Google ou Magic Link) com esse e-mail antes de virar titular.",
+    super: comportamento idêntico ao que já existia (dono_email
+    opcional, sem rate limit — G.4, sem passar pela admissão B.2-B.4,
+    nasce 'published' direto).
+
+    Usuário comum autenticado (D.2/D.3): qualquer conta logada pode
+    criar sua própria arena — passa pela sequência de admissão B.2-B.4
+    e vira automaticamente admin+titular da arena criada.
+    """
+    if admin.super:
+        usuario = None
+        if dados.dono_email:
+            usuario = await auth_repo.buscar_usuario_por_email(pool, dados.dono_email.lower().strip())
+            if not usuario:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Essa pessoa ainda não tem conta — ela precisa logar pelo menos uma vez "
+                           "(Google ou Magic Link) com esse e-mail antes de virar titular.",
+                )
+
+        try:
+            arena = await arena_repo.criar(
+                pool, dados.nome, dados.slug,
+                dados.cor_primaria, dados.tipografia, dados.logo_url,
             )
+        except Exception as exc:
+            if "unique" in str(exc).lower():
+                raise HTTPException(status_code=409, detail="Slug já existe")
+            raise
+
+        if usuario:
+            # Concede o vínculo admin e já atribui a titularidade na mesma
+            # chamada — colapsa os 2 passos manuais (POST /vinculos +
+            # PATCH /titularidade) que antes deixavam uma janela de arena
+            # sem dono se alguém esquecesse o segundo (docs/PERMISSOES_SPEC.md §8.3).
+            arena_id = str(arena["id"])
+            await membership_repo.criar(pool, str(usuario["id"]), "marca", "admin", arena_id)
+            await membership_repo.registrar_auditoria(
+                pool, acao="concedido", user_alvo_id=str(usuario["id"]), realizado_por=admin.identificador,
+                arena_id=arena_id, role="admin",
+            )
+            arena = await arena_repo.transferir_titularidade(pool, arena_id, str(usuario["id"]))
+            await membership_repo.registrar_auditoria(
+                pool, acao="titularidade_transferida", user_alvo_id=str(usuario["id"]),
+                realizado_por=admin.identificador, arena_id=arena_id, role=None,
+                detalhes={"dono_anterior": None},
+            )
+
+        return arena
+
+    # ── Caminho self-serve (usuário comum autenticado) ──────────────
+    # admin.user_id sempre presente aqui — garantido por
+    # require_super_or_authenticated_user quando super=False.
+
+    criadas_ultimas_24h = await arena_repo.contar_criadas_por_owner_ultimas_24h(pool, admin.user_id)
+    if criadas_ultimas_24h >= RATE_LIMIT_ARENAS_POR_DIA:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Limite de {RATE_LIMIT_ARENAS_POR_DIA} arenas criadas por dia atingido — tente novamente amanhã.",
+        )
+
+    try:
+        logo_url = admissao.sanitizar_logo_url(dados.logo_url)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="logo_url inválida")
+
+    existentes = await arena_repo.listar_nome_slug(pool)
+    resultado = admissao.avaliar_admissao(dados.nome, dados.slug, existentes)
+    if resultado.bloqueado:
+        raise HTTPException(status_code=409, detail=resultado.motivo)
+
+    # B.4: quase-igual a uma existente, OU 2ª+ arena da mesma conta na
+    # janela de 24h — qualquer um dos dois já é sinal o bastante pra
+    # reter em fila de revisão em vez de publicar direto.
+    status_inicial = "draft" if (resultado.suspeito or criadas_ultimas_24h >= 1) else "published"
 
     try:
         arena = await arena_repo.criar(
             pool, dados.nome, dados.slug,
-            dados.cor_primaria, dados.tipografia, dados.logo_url,
+            dados.cor_primaria, dados.tipografia, logo_url,
+            status=status_inicial,
         )
     except Exception as exc:
         if "unique" in str(exc).lower():
             raise HTTPException(status_code=409, detail="Slug já existe")
         raise
 
-    if usuario:
-        # Concede o vínculo admin e já atribui a titularidade na mesma
-        # chamada — colapsa os 2 passos manuais (POST /vinculos +
-        # PATCH /titularidade) que antes deixavam uma janela de arena
-        # sem dono se alguém esquecesse o segundo (docs/PERMISSOES_SPEC.md §8.3).
-        arena_id = str(arena["id"])
-        await membership_repo.criar(pool, str(usuario["id"]), "marca", "admin", arena_id)
-        await membership_repo.registrar_auditoria(
-            pool, acao="concedido", user_alvo_id=str(usuario["id"]), realizado_por=admin.identificador,
-            arena_id=arena_id, role="admin",
-        )
-        arena = await arena_repo.transferir_titularidade(pool, arena_id, str(usuario["id"]))
-        await membership_repo.registrar_auditoria(
-            pool, acao="titularidade_transferida", user_alvo_id=str(usuario["id"]),
-            realizado_por=admin.identificador, arena_id=arena_id, role=None,
-            detalhes={"dono_anterior": None},
-        )
+    # Cria a arena já com o criador como admin+titular — sem passo
+    # manual separado (mesmo padrão colapsado do caminho super acima).
+    arena_id = str(arena["id"])
+    await membership_repo.criar(pool, admin.user_id, "marca", "admin", arena_id)
+    await membership_repo.registrar_auditoria(
+        pool, acao="concedido", user_alvo_id=admin.user_id, realizado_por=admin.identificador,
+        arena_id=arena_id, role="admin",
+    )
+    arena = await arena_repo.transferir_titularidade(pool, arena_id, admin.user_id)
+    await membership_repo.registrar_auditoria(
+        pool, acao="titularidade_transferida", user_alvo_id=admin.user_id,
+        realizado_por=admin.identificador, arena_id=arena_id, role=None,
+        detalhes={"dono_anterior": None, "self_serve": True},
+    )
 
+    return arena
+
+
+@router.get("/pendentes")
+async def listar_arenas_pendentes(pool=Depends(get_pool), admin: AdminContext = Depends(require_admin)):
+    """Fila de revisão (B.4) — só super vê, arenas status='draft'."""
+    _exigir_super(admin)
+    return await arena_repo.listar_pendentes(pool)
+
+
+@router.patch("/{arena_id}/aprovar")
+async def aprovar_arena(
+    arena_id: str,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """Aprova uma arena da fila de revisão — status='draft' vira
+    'published', passa a aparecer em qualquer diretório público."""
+    _exigir_super(admin)
+    arena = await arena_repo.atualizar_status(pool, arena_id, "published")
+    if not arena:
+        raise HTTPException(status_code=404, detail="Marca não encontrada")
+    return arena
+
+
+@router.patch("/{arena_id}/suspender")
+async def suspender_arena(
+    arena_id: str,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """
+    Congela uma arena (status='suspended') — usado tanto pra rejeitar
+    uma arena ainda em 'draft' (fila de revisão) quanto pra suspender
+    uma arena já 'published' com abuso confirmado depois (ARENA_SPEC.md
+    C.1). Mesmo estado final nos dois casos: 'suspended' já significa
+    "fora do ar publicamente", não precisa de um estado 'rejeitada'
+    à parte — reaproveitar o mesmo campo evita uma transição de estado
+    que a spec não distingue em nenhum outro lugar.
+    """
+    _exigir_super(admin)
+    arena = await arena_repo.atualizar_status(pool, arena_id, "suspended")
+    if not arena:
+        raise HTTPException(status_code=404, detail="Marca não encontrada")
     return arena
 
 

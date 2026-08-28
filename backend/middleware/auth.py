@@ -12,6 +12,20 @@ _bearer = HTTPBearer(auto_error=False)
 
 
 @dataclass
+class AuthenticatedUser:
+    """
+    Identidade de um visitante logado, sem exigir nenhum membership —
+    usado só pelo endpoint de criar arena (Fase 8, ARENA_SPEC.md D.2),
+    que precisa aceitar qualquer conta autenticada, inclusive quem
+    ainda não é admin de nada (é assim que a pessoa vira admin da
+    própria arena pela primeira vez). Resto do painel continua atrás
+    de require_admin, que exige membership — não mudou.
+    """
+    user_id: str
+    identificador: str  # e-mail ou id, mesmo padrão de AdminContext
+
+
+@dataclass
 class AdminContext:
     """
     Identidade do administrador autenticado nesta requisição.
@@ -96,5 +110,73 @@ async def require_admin(request: Request, pool=Depends(get_pool)) -> AdminContex
                     identificador=identificador, user_id=usuario["id"],
                     super=eh_super, vinculos=vinculos,
                 )
+
+    raise HTTPException(status_code=401, detail="Autenticação necessária")
+
+
+async def require_super_or_authenticated_user(request: Request, pool=Depends(get_pool)) -> AdminContext:
+    """
+    Variante de require_admin só pro endpoint de criar arena (Fase 8):
+    aceita Bearer <ADMIN_SECRET> (super, comportamento idêntico ao de
+    require_admin) OU qualquer sessão de visitante válida, **sem**
+    exigir membership nenhum — diferente de require_admin, que rejeita
+    com 401 quem não tem vínculo ativo. É essa diferença que resolve o
+    ovo-e-galinha: a pessoa criando a primeira arena própria ainda não
+    é admin de nada.
+
+    Retorna AdminContext igual a require_admin (super=True/False,
+    vinculos carregados se já existirem) — o router decide o resto do
+    comportamento condicional a partir daí (G.3: endpoint único).
+    """
+    settings = get_settings()
+    credentials: HTTPAuthorizationCredentials | None = await _bearer(request)
+
+    if credentials:
+        provided = hashlib.sha256(credentials.credentials.encode()).hexdigest()
+        expected = hashlib.sha256(settings.admin_secret.encode()).hexdigest()
+        if hmac.compare_digest(provided, expected):
+            return AdminContext(identificador="admin", user_id=None, super=True)
+        raise HTTPException(status_code=401, detail="Credenciais inválidas")
+
+    session_id = request.cookies.get(settings.session_cookie_name)
+    if session_id:
+        usuario = await auth_svc.obter_usuario_da_sessao(pool, session_id)
+        if usuario:
+            vinculos_raw = await membership_repo.listar_por_usuario(pool, usuario["id"])
+            eh_super = any(v["scope"] == "super" for v in vinculos_raw)
+            vinculos = [
+                {"arena_id": str(v["arena_id"]), "role": v["role"]}
+                for v in vinculos_raw if v["scope"] == "marca"
+            ]
+            identificador = usuario.get("email") or usuario["id"]
+            return AdminContext(
+                identificador=identificador, user_id=usuario["id"],
+                super=eh_super, vinculos=vinculos,
+            )
+
+    raise HTTPException(status_code=401, detail="Autenticação necessária")
+
+
+async def require_authenticated_user(request: Request, pool=Depends(get_pool)) -> AuthenticatedUser:
+    """
+    Dependency mais fraca que require_admin — só exige sessão de
+    visitante válida (mesmo cookie de AUTH_SPEC.md), sem checar
+    nenhum membership. Existe só pra resolver o problema de
+    ovo-e-galinha do endpoint de criar arena: a própria pessoa que
+    está criando sua primeira arena ainda não tem membership nenhum
+    (Fase 8, ARENA_SPEC.md D.2/G.3).
+
+    Não aceita Bearer <ADMIN_SECRET> — bootstrap/super não tem user_id
+    de sessão, então não faz sentido nesta dependency; rota que
+    precisar aceitar super OU usuário comum trata os dois casos
+    separadamente (ver routers/arenas_admin.py, criar_arena).
+    """
+    settings = get_settings()
+    session_id = request.cookies.get(settings.session_cookie_name)
+    if session_id:
+        usuario = await auth_svc.obter_usuario_da_sessao(pool, session_id)
+        if usuario:
+            identificador = usuario.get("email") or usuario["id"]
+            return AuthenticatedUser(user_id=str(usuario["id"]), identificador=identificador)
 
     raise HTTPException(status_code=401, detail="Autenticação necessária")

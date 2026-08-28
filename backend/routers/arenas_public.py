@@ -15,6 +15,16 @@ import repositories.event as event_repo
 router = APIRouter(prefix="/api/arenas", tags=["arenas-publico"])
 
 
+@router.get("/eventos-abertos")
+async def listar_eventos_abertos(pool=Depends(get_pool)):
+    """
+    Diretório de events com visibility='open' — alimenta a seção de
+    descoberta da home institucional (Fase 8, ARENA_SPEC.md D.1/D.7).
+    Cada item já linka direto pra play.html?evento={slug}.
+    """
+    return await event_repo.listar_abertos(pool)
+
+
 @router.get("/com-event-ativo")
 async def listar_arenas_com_event_ativo(pool=Depends(get_pool)):
     """
