@@ -398,23 +398,77 @@ mesmo Passo 1 — as duas são a mesma tela na prática)
 **Spec**: `docs/ARENA_SPEC.md` Fase F, mais H.1
 **Depende de**: Fase 8 (reaproveita `memberships`, já renomeada na Fase 7)
 
-- [ ] Migração 028: `memberships` ganha estado `pending` e colunas de
-  convite (`email`, `invited_by`, `token_hash`, `expires_at`,
-  `accepted_at`), todas nulas fora do estado pendente (F.3) — sem tabela
-  nova.
-- [ ] Backend: enviar convite (token com hash, nunca texto puro, expira
-  em 7 dias — F.4; rate limit por Arena/remetente — H.1, gap fechado na
-  Fase H do `ARENA_SPEC.md`); aceitar convite (exige login com o mesmo
-  e-mail convidado, mesma regra de account linking do `AUTH_SPEC.md` #2
-  — F.5); cancelar convite pendente. Reaproveita `_pode_conceder`/
-  `_pode_revogar` já existentes, sem regra nova de quem pode convidar
-  (F.6). E-mail via Resend (mesmo provedor já decidido no `AUTH_SPEC.md`
-  #10 pro magic link).
-- [ ] Testes: aceite com e-mail divergente é rejeitado, convite expirado
-  não aceita, cancelamento antes do aceite funciona.
-- [ ] Frontend: UI de convite no painel (passo 2 do wizard aponta pra
-  cá), tela de aceite de convite (login se necessário, redireciona pro
-  painel da Arena após aceite).
+**Decisões de implementação fechadas antes de codar** (nível abaixo do
+que a `ARENA_SPEC.md` já fecha — acham 3 pontos cegos que a spec de
+negócio não detalha):
+
+1. **`user_id` precisa virar nullable.** `memberships.user_id` hoje é
+   `NOT NULL` — mas F.2 exige que o convite funcione mesmo pra e-mail
+   sem conta ainda (o problema que a Fase F resolve de vez, unificando
+   os dois casos "já tem conta"/"não tem conta" num caminho só). Convite
+   pendente nasce com `user_id NULL`; só é preenchido no aceite.
+2. **Estado `pending` sozinho não sobrevive a cancelamento sem quebrar
+   a invariante do token.** Se cancelar só apagasse `token_hash`
+   deixando `status='pending'`, a constraint que garante "todo pending
+   tem token_hash preenchido" teria que abrir exceção — complica a
+   leitura de "é convite pendente de verdade?" em todo lugar que
+   consultar a tabela. Solução: 3 estados, não 1 —
+   `pending`/`active`/`cancelled`. Cancelar transiciona pra
+   `cancelled` (nunca DELETE) e zera `token_hash` (invalida o link).
+   `status='pending'` continua significando, sem exceção, "convite
+   vivo, token utilizável" — quem lista a fila de convites da Arena
+   faz só `WHERE status='pending'`, sem checar mais nada.
+3. **Duplicidade de convite pro mesmo e-mail na mesma Arena não vira
+   constraint de banco.** O índice único existente
+   (`idx_memberships_unico`) já não bloqueia isso sozinho — `NULL` em
+   `user_id` nunca colide com outro `NULL` no Postgres, e `now()`
+   (pra excluir convite cancelado/expirado do bloqueio) não pode entrar
+   num predicado de índice parcial. Mesma opção já usada na Fase 8 pra
+   colisão de nome de Arena: checagem em aplicação
+   (`buscar_convite_pendente_por_email`) antes do INSERT, não trigger
+   nem constraint.
+
+Rate limit H.1 (número não fechado na `ARENA_SPEC.md`, decidido aqui):
+**10 convites por Arena/remetente a cada 24h** — mais generoso que o
+3/dia de criação de Arena (B.3) porque convidar vários colegas de uma
+vez é o caso de uso normal, não abuso; teto ainda existe pra não virar
+vetor de spam de e-mail em massa (preocupação central do H.1).
+
+- [ ] Migração 030: `user_id` de `memberships` vira nullable; ganha
+  `status` (`pending`/`active`/`cancelled`, default `active`, decisão
+  #2 acima) e colunas de convite (`email`, `invited_by`, `token_hash`,
+  `expires_at`, `accepted_at`) — sem tabela nova (F.3).
+- [ ] Backend: `POST /api/admin/arenas/{id}/convites` (enviar convite —
+  token com hash via o mesmo gerador do magic link, nunca texto puro,
+  expira em 7 dias — F.4; rate limit 10/dia por Arena+remetente — H.1);
+  `GET .../convites` (listar fila pendente da Arena);
+  `PATCH .../convites/{id}/cancelar` (só quem convidou ou super — F.6,
+  sem inventar regra nova de quem pode revogar). Router público novo
+  `routers/convites.py`: `GET /api/convites/{token}` (preview sem
+  login) e `POST /api/convites/{token}/aceitar` (exige e-mail da sessão
+  == e-mail convidado, mesma regra de account linking do
+  `AUTH_SPEC.md` #2 — F.5; reaproveita `require_authenticated_user`,
+  que ficou sem uso desde a Fase 8). Permissão de conceder reaproveita
+  `_exigir_admin_na_arena` já existente em `arenas_admin.py` — mesma
+  régua de quem pode conceder vínculo direto, sem regra nova (F.6).
+  E-mail via Resend (mesmo provedor do `AUTH_SPEC.md` #10).
+- [ ] **Achado fora do escopo original, corrigido na mesma rodada**:
+  `login.html` recebe `next` na URL do magic link (já enviado pelo
+  backend desde sempre) mas ignora e redireciona sempre pra
+  `index.html` — pendência sinalizada, não bloqueante, ao fechar a
+  Fase 8. Vira bloqueante aqui: sem isso, F.5 quebra pra qualquer
+  convidado sem sessão ativa que entre via Magic Link (login por
+  Google já funciona, o `next` é resolvido no `callback` no backend,
+  não no frontend). Corrigido junto.
+- [ ] Testes: aceite com e-mail divergente é rejeitado, convite
+  expirado não aceita, convite cancelado não aceita, cancelamento
+  antes do aceite funciona, rate limit de envio, dedup de convite
+  pendente pro mesmo e-mail.
+- [ ] Frontend: Passo 2 do wizard em `admin.html` vira funcional (form
+  de convite + fila com cancelar, no lugar do card estático "em
+  breve"); `convite.html` novo — preview do convite, aciona login
+  (Google ou Magic Link, preservando `?token=`) se necessário, aceita
+  e redireciona pro painel.
 
 ---
 
