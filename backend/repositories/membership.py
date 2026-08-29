@@ -123,6 +123,24 @@ async def tem_vinculo_admin_ativo(pool: Pool, user_id: str, arena_id: str) -> bo
     return row is not None
 
 
+async def tem_vinculo_ativo(pool: Pool, user_id: str, arena_id: str) -> bool:
+    """True se o usuário já tem QUALQUER membership ativo nesta Arena
+    (admin OU moderador) — usado pra bloquear convite duplicado pra
+    quem já colabora (Fase 10), diferente de tem_vinculo_admin_ativo
+    (que exige role='admin' especificamente, pra transferência de
+    titularidade)."""
+    row = await pool.fetchrow(
+        """
+        SELECT 1 FROM memberships
+        WHERE user_id = $1 AND arena_id = $2
+          AND scope = 'marca' AND ativo = true
+        LIMIT 1
+        """,
+        user_id, arena_id,
+    )
+    return row is not None
+
+
 async def tem_acesso_event(pool: Pool, user_id: str, event_id: str) -> bool:
     """
     True se o usuário tem QUALQUER vínculo que autorize agir sobre este
@@ -213,6 +231,143 @@ async def listar_por_arenas(pool: Pool, arena_ids: list[str]) -> list[dict]:
         arena_ids,
     )
     return [dict(r) for r in rows]
+
+
+# ── Convite assíncrono de coadministração (ARENA_SPEC.md Fase F) ───
+
+async def buscar_convite_pendente_por_email(pool: Pool, arena_id: str, email: str) -> dict | None:
+    """
+    Dedup de convite (decisão #3 do PLANO_IMPLEMENTACAO_2026.md Fase
+    10) — feito em aplicação, não em constraint: o índice único
+    existente não bloqueia dois pending com user_id NULL (NULL nunca
+    colide com NULL no Postgres), e um índice parcial não pode usar
+    now() no predicado pra excluir convite cancelado/expirado.
+    """
+    row = await pool.fetchrow(
+        """
+        SELECT id, arena_id, role, email, invited_by, expires_at, criado_em
+        FROM memberships
+        WHERE arena_id = $1 AND email = $2 AND status = 'pending'
+        """,
+        arena_id, email,
+    )
+    return dict(row) if row else None
+
+
+async def contar_convites_por_remetente_ultimas_24h(pool: Pool, arena_id: str, invited_by: str) -> int:
+    """Rate limit H.1 — conta todo convite criado (aceito, cancelado ou
+    ainda pendente não importa) nas últimas 24h por quem enviou, nesta
+    Arena. Cancelamento não devolve cota: o e-mail já saiu."""
+    return await pool.fetchval(
+        """
+        SELECT COUNT(*) FROM memberships
+        WHERE arena_id = $1 AND invited_by = $2
+          AND criado_em > now() - interval '1 day'
+          AND status != 'active'
+        """,
+        arena_id, invited_by,
+    )
+
+
+async def criar_convite(
+    pool: Pool,
+    arena_id: str,
+    role: str,
+    email: str,
+    invited_by: str,
+    token_hash: str,
+    ttl_days: int,
+) -> dict:
+    """Convite nasce status='pending', ativo=false, user_id NULL — só
+    vira membership de verdade no aceite (ver aceitar_convite)."""
+    row = await pool.fetchrow(
+        """
+        INSERT INTO memberships
+            (scope, arena_id, role, status, email, invited_by, token_hash, expires_at, ativo)
+        VALUES ('marca', $1, $2, 'pending', $3, $4, $5, now() + make_interval(days => $6), false)
+        RETURNING id, arena_id, role, status, email, invited_by, expires_at, criado_em
+        """,
+        arena_id, role, email, invited_by, token_hash, ttl_days,
+    )
+    return dict(row)
+
+
+async def listar_convites_pendentes(pool: Pool, arena_id: str) -> list[dict]:
+    """Fila de convites da Arena — só status='pending' (cancelado/aceito
+    não aparece mais aqui, mas continua na tabela pra histórico)."""
+    rows = await pool.fetch(
+        """
+        SELECT id, arena_id, role, email, invited_by, expires_at, criado_em
+        FROM memberships
+        WHERE arena_id = $1 AND status = 'pending'
+        ORDER BY criado_em DESC
+        """,
+        arena_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def buscar_convite_por_id(pool: Pool, convite_id: str) -> dict | None:
+    row = await pool.fetchrow(
+        """
+        SELECT id, arena_id, role, status, email, invited_by, expires_at, criado_em
+        FROM memberships WHERE id = $1
+        """,
+        convite_id,
+    )
+    return dict(row) if row else None
+
+
+async def buscar_convite_valido_por_token_hash(pool: Pool, token_hash: str) -> dict | None:
+    """Só retorna se ainda pending e dentro do prazo — mesma forma de
+    auth_repo.buscar_magic_link_token_valido."""
+    row = await pool.fetchrow(
+        """
+        SELECT id, arena_id, role, email, invited_by, expires_at
+        FROM memberships
+        WHERE token_hash = $1 AND status = 'pending' AND expires_at > now()
+        """,
+        token_hash,
+    )
+    return dict(row) if row else None
+
+
+async def cancelar_convite(pool: Pool, convite_id: str) -> dict | None:
+    """Transição terminal 'cancelled' — nunca DELETE (F.6). Zera
+    token_hash pra invalidar o link mesmo que o e-mail já tenha saído.
+    Só afeta convite ainda pending — cancelar um já aceito/cancelado
+    não faz nada (retorna None)."""
+    row = await pool.fetchrow(
+        """
+        UPDATE memberships
+        SET status = 'cancelled', token_hash = NULL
+        WHERE id = $1 AND status = 'pending'
+        RETURNING id, arena_id, role, email, invited_by, criado_em
+        """,
+        convite_id,
+    )
+    return dict(row) if row else None
+
+
+async def aceitar_convite(pool: Pool, convite_id: str, user_id: str) -> dict | None:
+    """Aceite: status pending -> active, ativo=true, user_id resolvido,
+    token_hash zerado (single-use, mesmo padrão de
+    magic_link_tokens.usado_em). accepted_at fica de registro
+    histórico mesmo depois de status já não ser mais 'pending'. Só
+    afeta convite ainda pending — reaproveita a mesma corrida evitada
+    em cancelar_convite (retorna None se já resolvido por outro
+    caminho)."""
+    row = await pool.fetchrow(
+        """
+        UPDATE memberships
+        SET status = 'active', ativo = true, user_id = $2,
+            accepted_at = now(), token_hash = NULL
+        WHERE id = $1 AND status = 'pending'
+        RETURNING id, user_id, scope, arena_id, role, ativo, criado_em
+        """,
+        convite_id, user_id,
+    )
+    return dict(row) if row else None
 
 
 async def registrar_auditoria(

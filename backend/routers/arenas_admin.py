@@ -12,7 +12,10 @@ import repositories.arena as arena_repo
 import repositories.membership as membership_repo
 import repositories.arena_partnership as parceria_repo
 import auth.repository as auth_repo
+import auth.service as auth_svc
 import services.arena_admissao as admissao
+import services.convite_email as convite_email_svc
+from config import get_settings
 from utils.db import get_pool
 from middleware.auth import require_admin, require_super_or_authenticated_user, AdminContext
 
@@ -28,6 +31,13 @@ def _validar_tipografia(v):
 
 
 RATE_LIMIT_ARENAS_POR_DIA = 3
+
+# H.1 — mais generoso que o de criação de Arena (B.3): convidar vários
+# colegas de uma vez é o caso de uso normal, não abuso. Teto existe só
+# pra não virar vetor de spam de e-mail em massa (ver
+# PLANO_IMPLEMENTACAO_2026.md Fase 10).
+RATE_LIMIT_CONVITES_POR_DIA = 10
+ROLES_CONVITE_VALIDOS = {"admin", "moderador"}
 
 
 def _exigir_super(admin: AdminContext):
@@ -76,6 +86,18 @@ class MarcaUpdate(BaseModel):
 
 class TransferirTitularidade(BaseModel):
     email: EmailStr  # precisa já ter vínculo admin ativo nesta arena
+
+
+class ConviteCreate(BaseModel):
+    email: EmailStr
+    role:  str
+
+    @field_validator("role")
+    @classmethod
+    def _valida_role(cls, v):
+        if v not in ROLES_CONVITE_VALIDOS:
+            raise ValueError(f"role deve ser um de {sorted(ROLES_CONVITE_VALIDOS)}")
+        return v
 
 
 # ── CRUD de arenas ─────────────────────────────────────────────
@@ -359,6 +381,109 @@ async def wizard_status(
             arena.get("cor_primaria") or arena.get("tipografia") or arena.get("logo_url")
         ),
     }
+
+
+@router.post("/{arena_id}/convites", status_code=201)
+async def criar_convite(
+    arena_id: str,
+    dados: ConviteCreate,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """
+    Convite assíncrono de coadministração (Fase 10, ARENA_SPEC.md Fase
+    F) — substitui a concessão direta de POST /api/admin/vinculos, que
+    exigia (404 se não) que o convidado já tivesse conta. Sempre passa
+    por aceite explícito, mesmo se a pessoa já tiver conta (F.2) — um
+    único caminho de código, não dois. Mesma régua de quem pode
+    conceder vínculo direto (_exigir_admin_na_arena) — sem regra nova
+    de quem pode convidar (F.6).
+    """
+    arena = await _resolver_arena_ou_404(pool, arena_id)
+    _exigir_admin_na_arena(admin, arena_id)
+
+    email = dados.email.lower().strip()
+    if admin.identificador.lower().strip() == email:
+        raise HTTPException(status_code=422, detail="Você não pode convidar a si mesmo")
+
+    usuario_existente = await auth_repo.buscar_usuario_por_email(pool, email)
+    if usuario_existente and await membership_repo.tem_vinculo_ativo(pool, usuario_existente["id"], arena_id):
+        raise HTTPException(status_code=422, detail="Essa pessoa já colabora nesta Arena")
+
+    if await membership_repo.buscar_convite_pendente_por_email(pool, arena_id, email):
+        raise HTTPException(
+            status_code=409,
+            detail="Já existe um convite pendente pra esse e-mail nesta Arena — cancele antes de reenviar.",
+        )
+
+    settings = get_settings()
+    criados_ultimas_24h = await membership_repo.contar_convites_por_remetente_ultimas_24h(
+        pool, arena_id, admin.user_id,
+    )
+    if criados_ultimas_24h >= RATE_LIMIT_CONVITES_POR_DIA:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Limite de {RATE_LIMIT_CONVITES_POR_DIA} convites enviados por dia atingido — tente novamente amanhã.",
+        )
+
+    token, token_hash = auth_svc.gerar_token_magic_link()
+    convite = await membership_repo.criar_convite(
+        pool, arena_id, dados.role, email, admin.user_id, token_hash, settings.convite_ttl_days,
+    )
+
+    link = f"{settings.frontend_base_url}/convite.html?token={token}"
+    try:
+        await convite_email_svc.enviar_email_convite(email, link, arena["nome"], dados.role)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Não foi possível enviar o e-mail de convite agora — tente novamente.")
+
+    await membership_repo.registrar_auditoria(
+        pool, acao="convite_enviado", user_alvo_id=None, realizado_por=admin.identificador,
+        arena_id=arena_id, role=dados.role, detalhes={"email": email},
+    )
+    return convite
+
+
+@router.get("/{arena_id}/convites")
+async def listar_convites(
+    arena_id: str,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """Fila de convites pendentes da Arena — mesma tela do wizard
+    (Passo 2) usa isso pra listar quem já foi convidado e oferecer
+    cancelar."""
+    await _resolver_arena_ou_404(pool, arena_id)
+    _exigir_admin_na_arena(admin, arena_id)
+    return await membership_repo.listar_convites_pendentes(pool, arena_id)
+
+
+@router.patch("/{arena_id}/convites/{convite_id}/cancelar")
+async def cancelar_convite(
+    arena_id: str,
+    convite_id: str,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """Só quem convidou (ou super) pode cancelar — decisão F.6, mais
+    restritiva que _exigir_admin_na_arena de propósito (não é 'qualquer
+    admin da Arena', é quem de fato enviou aquele convite)."""
+    convite = await membership_repo.buscar_convite_por_id(pool, convite_id)
+    if not convite or str(convite["arena_id"]) != str(arena_id):
+        raise HTTPException(status_code=404, detail="Convite não encontrado")
+
+    if not admin.super and (admin.user_id is None or str(admin.user_id) != str(convite["invited_by"])):
+        raise HTTPException(status_code=403, detail="Só quem enviou o convite pode cancelá-lo")
+
+    cancelado = await membership_repo.cancelar_convite(pool, convite_id)
+    if not cancelado:
+        raise HTTPException(status_code=409, detail="Convite já foi aceito ou cancelado")
+
+    await membership_repo.registrar_auditoria(
+        pool, acao="convite_cancelado", user_alvo_id=None, realizado_por=admin.identificador,
+        arena_id=arena_id, role=convite["role"], detalhes={"email": convite["email"]},
+    )
+    return cancelado
 
 
 @router.get("/{arena_id}/events")

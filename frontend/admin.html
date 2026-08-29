@@ -1903,6 +1903,12 @@ async function renderWizardConteudo() {
     }
   } catch {}
 
+  let convitesPendentes = [];
+  try {
+    const resp = await apiFetch(`/api/admin/arenas/${arenaAtualWizard}/convites`);
+    if (resp.ok) convitesPendentes = await resp.json();
+  } catch {}
+
   const check = (feito) => feito
     ? '<span style="color:var(--color-success,#2a9d8f)">✓</span>'
     : '<span style="opacity:0.4">○</span>';
@@ -1956,14 +1962,40 @@ async function renderWizardConteudo() {
 
     <div class="regras-card" style="margin-bottom:var(--space-md)">
       <p class="form-title">${check(status.tem_colaborador)} Passo 2 — Convidar colegas</p>
-      <p class="manut-desc">
+      <p class="manut-desc" style="margin-bottom:var(--space-md)">
         Convidar pra <strong>jogar</strong> já funciona: compartilhe
         ${eventoAtualWizard
           ? `<code>play.html?evento=${escapar(String(eventoAtualWizard))}</code>`
           : '<code>play.html?evento=...</code> (depois de criar a competição)'}
         com seus colegas.
       </p>
-      <p class="manut-desc" style="opacity:0.7">Convite pra coadministrar: em breve.</p>
+      <p class="manut-desc" style="margin-bottom:var(--space-sm)">Convidar pra <strong>coadministrar</strong> a Arena:</p>
+      <div class="form-row">
+        <div class="field">
+          <label class="field-label" for="wizard-convite-email">E-mail</label>
+          <input class="field-input" type="email" id="wizard-convite-email" placeholder="colega@exemplo.com">
+        </div>
+        <div class="field">
+          <label class="field-label" for="wizard-convite-role">Papel</label>
+          <select class="field-input" id="wizard-convite-role">
+            <option value="admin">Admin</option>
+            <option value="moderador">Moderador</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-primary" id="wizard-convidar-btn">ENVIAR CONVITE</button>
+
+      ${convitesPendentes.length > 0 ? `
+        <div style="margin-top:var(--space-md)">
+          <p class="manut-desc" style="font-size:var(--text-xs);opacity:0.7;margin-bottom:var(--space-xs)">Convites pendentes</p>
+          ${convitesPendentes.map(c => `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:var(--space-sm);padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.08)">
+              <span class="manut-desc" style="margin:0">${escapar(c.email)} — ${escapar(c.role)}</span>
+              <button class="btn-action" data-convite-id="${c.id}" onclick="cancelarConviteWizard('${c.id}')">Cancelar</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
     </div>
 
     <div class="regras-card">
@@ -2029,7 +2061,38 @@ function ligarEventosWizard() {
 
   const brandingBtn = document.getElementById('wizard-branding-btn');
   if (brandingBtn) brandingBtn.addEventListener('click', salvarBrandingWizard);
+
+  const convidarBtn = document.getElementById('wizard-convidar-btn');
+  if (convidarBtn) convidarBtn.addEventListener('click', convidarColegaWizard);
 }
+
+async function convidarColegaWizard() {
+  const emailInput = document.getElementById('wizard-convite-email');
+  const roleSelect = document.getElementById('wizard-convite-role');
+  const email = emailInput.value.trim();
+  const role = roleSelect.value;
+  if (!email) { showToast('E-mail é obrigatório', 'error'); return; }
+
+  const resp = await apiFetch(`/api/admin/arenas/${arenaAtualWizard}/convites`, 'POST', { email, role });
+  if (resp.ok) {
+    showToast('Convite enviado!', 'success');
+    await renderWizardConteudo();
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao enviar convite', 'error');
+  }
+}
+
+window.cancelarConviteWizard = async function(conviteId) {
+  const resp = await apiFetch(`/api/admin/arenas/${arenaAtualWizard}/convites/${conviteId}/cancelar`, 'PATCH');
+  if (resp.ok) {
+    showToast('Convite cancelado', 'success');
+    await renderWizardConteudo();
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao cancelar convite', 'error');
+  }
+};
 
 async function criarEventoWizard() {
   const nome = document.getElementById('wizard-event-nome').value.trim();

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Convite — Canal3</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Poppins:wght@400;600;700&display=swap">
+  <style>
+    .login-page {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-xl) var(--space-md);
+      text-align: center;
+    }
+    .login-card {
+      max-width: 420px;
+      width: 100%;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-md);
+      padding: var(--space-2xl) var(--space-lg);
+    }
+    .login-icon {
+      font-size: 40px;
+      margin-bottom: var(--space-md);
+    }
+    .login-titulo {
+      font-family: var(--font-display);
+      font-size: var(--text-md);
+      color: var(--color-primary);
+      margin-bottom: var(--space-sm);
+      line-height: 1.5;
+    }
+    .login-msg {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      line-height: 1.6;
+      margin-bottom: var(--space-lg);
+    }
+    .login-voltar {
+      display: inline-block;
+      color: var(--color-accent);
+      font-size: var(--text-sm);
+      text-decoration: none;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm, 6px);
+      padding: 10px 20px;
+      transition: border-color var(--transition);
+    }
+    .login-voltar:hover { border-color: var(--color-accent); }
+    @keyframes girar { to { transform: rotate(360deg); } }
+    .login-spinner {
+      display: inline-block;
+      animation: girar 1s linear infinite;
+    }
+    .login-btn {
+      width: 100%;
+      border-radius: var(--radius-sm, 6px);
+      padding: 12px 16px;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-bold);
+      cursor: pointer;
+      transition: filter var(--transition);
+      margin-bottom: var(--space-sm);
+    }
+    .login-btn:hover { filter: brightness(1.1); }
+    .login-btn-google {
+      background: #ffffff;
+      color: #1f1f1f;
+      border: 1px solid rgba(0,0,0,0.1);
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    .login-btn-primary {
+      background: var(--color-primary);
+      color: var(--color-bg, #0b1331);
+      border: none;
+    }
+    .login-divisor {
+      display: flex; align-items: center; gap: var(--space-sm);
+      margin: var(--space-md) 0;
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+    }
+    .login-divisor::before, .login-divisor::after {
+      content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.15);
+    }
+    .login-email-form { display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-sm); }
+    .card-input {
+      width: 100%;
+      padding: 12px var(--space-md);
+      background: rgba(0,0,0,0.35);
+      border: var(--border-width) solid rgba(255,255,255,0.15);
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      outline: none;
+      -webkit-appearance: none;
+    }
+    .card-input::placeholder { color: rgba(255,255,255,0.3); }
+    .login-email-status {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      text-align: center;
+      min-height: 1em;
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-icon" id="icon"><span class="login-spinner">⏳</span></div>
+    <h1 class="login-titulo" id="titulo">CARREGANDO CONVITE...</h1>
+    <p class="login-msg" id="msg">Só um instante.</p>
+    <div id="acoes"></div>
+    <a href="index.html" class="login-voltar" id="voltar" style="display:none">← Voltar</a>
+  </div>
+</div>
+
+<script type="module">
+const API_URL = 'https://retro-score-ranking-production.up.railway.app';
+
+const params = new URLSearchParams(location.search);
+const token = params.get('token');
+const nextPath = `/convite.html?token=${encodeURIComponent(token || '')}`;
+
+const elIcon   = document.getElementById('icon');
+const elTitulo = document.getElementById('titulo');
+const elMsg    = document.getElementById('msg');
+const elAcoes  = document.getElementById('acoes');
+const elVoltar = document.getElementById('voltar');
+
+const ROLE_LABEL = { admin: 'administradora', moderador: 'moderadora' };
+
+function mostrarErro(titulo, texto) {
+  elIcon.innerHTML = '⚠️';
+  elTitulo.textContent = titulo;
+  elMsg.textContent = texto;
+  elVoltar.style.display = 'inline-block';
+}
+
+async function carregarProviders() {
+  try {
+    const resp = await fetch(`${API_URL}/api/auth/providers`);
+    return await resp.json();
+  } catch {
+    return { google: false, magic_link: false };
+  }
+}
+
+function renderLogin(previa) {
+  elIcon.innerHTML = '📨';
+  elTitulo.textContent = 'VOCÊ FOI CONVIDADO!';
+  elMsg.textContent = `Pra ser ${ROLE_LABEL[previa.role] || previa.role} da Arena "${previa.arena_nome}", entre com ${previa.email}.`;
+
+  elAcoes.innerHTML = `
+    <button class="login-btn login-btn-google" id="btn-google" style="display:none">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+      Continuar com Google
+    </button>
+    <div class="login-divisor" id="divisor" style="display:none"><span>ou</span></div>
+    <div class="login-email-form" id="email-form" style="display:none">
+      <input type="email" class="card-input" id="email-input" placeholder="${previa.email}" autocomplete="email">
+      <button class="login-btn login-btn-primary" id="btn-email">Enviar link de acesso</button>
+    </div>
+    <p class="login-email-status" id="email-status"></p>
+  `;
+
+  carregarProviders().then(providers => {
+    document.getElementById('btn-google').style.display = providers.google ? 'flex' : 'none';
+    document.getElementById('divisor').style.display = (providers.google && providers.magic_link) ? 'flex' : 'none';
+    document.getElementById('email-form').style.display = providers.magic_link ? 'flex' : 'none';
+  });
+
+  document.getElementById('btn-google').addEventListener('click', () => {
+    window.location.href = `${API_URL}/api/auth/google/start?next=${encodeURIComponent(nextPath)}`;
+  });
+
+  document.getElementById('btn-email').addEventListener('click', async () => {
+    const input  = document.getElementById('email-input');
+    const status = document.getElementById('email-status');
+    const email  = input.value.trim() || previa.email;
+    status.textContent = 'Enviando...';
+    try {
+      const resp = await fetch(`${API_URL}/api/auth/magic-link/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, next: nextPath }),
+      });
+      const data = await resp.json();
+      status.textContent = data.mensagem || 'Se esse e-mail existir, enviamos um link de acesso.';
+    } catch {
+      status.textContent = 'Não foi possível enviar agora. Tente de novo em instantes.';
+    }
+  });
+}
+
+function renderEmailDivergente(sessao, previa) {
+  elIcon.innerHTML = '🔒';
+  elTitulo.textContent = 'CONTA ERRADA';
+  elMsg.textContent = `Este convite foi enviado para ${previa.email}, mas você está logado como ${sessao.email}. Saia e entre com a conta certa.`;
+  elAcoes.innerHTML = `<button class="login-btn login-btn-primary" id="btn-sair">Sair e trocar de conta</button>`;
+  document.getElementById('btn-sair').addEventListener('click', async () => {
+    await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
+    location.reload();
+  });
+}
+
+function renderAceitar(previa) {
+  elIcon.innerHTML = '✅';
+  elTitulo.textContent = 'TUDO PRONTO';
+  elMsg.textContent = `Confirmar: virar ${ROLE_LABEL[previa.role] || previa.role} da Arena "${previa.arena_nome}"?`;
+  elAcoes.innerHTML = `<button class="login-btn login-btn-primary" id="btn-aceitar">Aceitar convite</button>`;
+  document.getElementById('btn-aceitar').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-aceitar');
+    btn.disabled = true;
+    btn.textContent = 'Aceitando...';
+    try {
+      const resp = await fetch(`${API_URL}/api/convites/${encodeURIComponent(token)}/aceitar`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!resp.ok) {
+        const d = await resp.json().catch(() => ({}));
+        mostrarErro('NÃO FOI POSSÍVEL ACEITAR', d.detail || 'Tente novamente.');
+        return;
+      }
+      elIcon.innerHTML = '🎉';
+      elTitulo.textContent = 'BEM-VINDO(A)!';
+      elMsg.textContent = 'Convite aceito. Redirecionando pro painel...';
+      elAcoes.innerHTML = '';
+      setTimeout(() => { location.href = 'admin.html'; }, 1500);
+    } catch {
+      mostrarErro('NÃO FOI POSSÍVEL ACEITAR', 'Tente novamente em instantes.');
+    }
+  });
+}
+
+async function iniciar() {
+  if (!token) {
+    mostrarErro('LINK INCOMPLETO', 'Este link de convite está incompleto. Peça um novo link.');
+    return;
+  }
+
+  const previaResp = await fetch(`${API_URL}/api/convites/${encodeURIComponent(token)}`);
+  if (!previaResp.ok) {
+    mostrarErro('CONVITE INVÁLIDO', 'Este convite não existe mais, expirou ou já foi usado.');
+    return;
+  }
+  const previa = await previaResp.json();
+
+  let sessao = null;
+  try {
+    const sessaoResp = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
+    if (sessaoResp.ok) sessao = await sessaoResp.json();
+  } catch { /* sem sessão — segue sem */ }
+
+  if (!sessao) {
+    renderLogin(previa);
+    return;
+  }
+
+  if ((sessao.email || '').trim().toLowerCase() !== previa.email) {
+    renderEmailDivergente(sessao, previa);
+    return;
+  }
+
+  renderAceitar(previa);
+}
+
+iniciar();
+</script>
+
+</body>
+</html>

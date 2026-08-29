@@ -77,6 +77,15 @@ const API_URL = 'https://retro-score-ranking-production.up.railway.app';
 
 const params = new URLSearchParams(location.search);
 const token = params.get('token');
+const next  = params.get('next');
+
+// Só caminho relativo simples — mesma checagem de segurança do backend
+// (auth/router.py._next_e_seguro), evita open-redirect se 'next' vier
+// adulterado na URL.
+function destinoFinal() {
+  if (next && next.startsWith('/') && !next.startsWith('//')) return next;
+  return 'index.html';
+}
 
 const elIcon   = document.getElementById('login-icon');
 const elTitulo = document.getElementById('login-titulo');
@@ -118,7 +127,7 @@ async function verificar() {
     }
 
     mostrarSucesso(data.nome || data.email);
-    setTimeout(() => { location.href = 'index.html'; }, 1500);
+    setTimeout(() => { location.href = destinoFinal(); }, 1500);
   } catch {
     mostrarErro('Não foi possível validar o link agora. Tente de novo em instantes.');
   }

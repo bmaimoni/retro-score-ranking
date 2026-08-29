@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     resend_from_email: str = "login@canal3.com.br"
     magic_link_ttl_minutes: int = 15
 
+    # Convite de coadministração (ARENA_SPEC.md Fase F) — mesmo Resend
+    convite_ttl_days: int = 7
+
     # Autenticação — Sessão
     session_cookie_name: str = "canal3_session"
     session_ttl_days: int = 30

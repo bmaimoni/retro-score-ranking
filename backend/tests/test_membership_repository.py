@@ -274,3 +274,127 @@ async def test_revogar_todos_do_usuario(fake_pool):
     assert "UPDATE memberships SET ativo = false" in sql
     assert "user_id = $1" in sql
     assert "DELETE" not in sql
+
+
+# ── Convite assíncrono de coadministração (Fase 10, ARENA_SPEC.md Fase F) ──────
+
+@pytest.mark.asyncio
+async def test_buscar_convite_pendente_por_email_filtra_status(fake_pool):
+    fake_pool.set_fetchrow({"id": make_uuid(), "arena_id": "a1", "role": "admin",
+                             "email": "x@x.com", "invited_by": "u1",
+                             "expires_at": "2026-02-01", "criado_em": "2026-01-25"})
+
+    resultado = await membership_repo.buscar_convite_pendente_por_email(fake_pool, "a1", "x@x.com")
+
+    sql = " ".join(fake_pool.fetchrow.call_args[0][0].split())
+    assert "status = 'pending'" in sql
+    assert resultado["email"] == "x@x.com"
+
+
+@pytest.mark.asyncio
+async def test_contar_convites_por_remetente_ultimas_24h_ignora_active(fake_pool):
+    """Convite já aceito (status='active') não deveria contar contra o
+    rate limit de novos envios pendentes/cancelados — a query filtra
+    status != 'active' de propósito."""
+    fake_pool.set_fetchval(2)
+
+    resultado = await membership_repo.contar_convites_por_remetente_ultimas_24h(fake_pool, "a1", "u1")
+
+    sql = " ".join(fake_pool.fetchval.call_args[0][0].split())
+    assert "status != 'active'" in sql
+    assert resultado == 2
+
+
+@pytest.mark.asyncio
+async def test_criar_convite_nasce_pending_inativo_sem_user_id(fake_pool):
+    fake_pool.set_fetchrow({"id": make_uuid(), "arena_id": "a1", "role": "admin",
+                             "status": "pending", "email": "x@x.com",
+                             "invited_by": "u1", "expires_at": "2026-02-01",
+                             "criado_em": "2026-01-25"})
+
+    resultado = await membership_repo.criar_convite(
+        fake_pool, "a1", "admin", "x@x.com", "u1", "hash123", 7,
+    )
+
+    sql = " ".join(fake_pool.fetchrow.call_args[0][0].split())
+    assert "'pending'" in sql
+    assert "false" in sql  # ativo=false
+    assert resultado["status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_listar_convites_pendentes_filtra_status(fake_pool):
+    fake_pool.set_fetch([{"id": make_uuid(), "arena_id": "a1", "role": "admin",
+                           "email": "x@x.com", "invited_by": "u1",
+                           "expires_at": "2026-02-01", "criado_em": "2026-01-25"}])
+
+    resultado = await membership_repo.listar_convites_pendentes(fake_pool, "a1")
+
+    sql = " ".join(fake_pool.fetch.call_args[0][0].split())
+    assert "status = 'pending'" in sql
+    assert len(resultado) == 1
+
+
+@pytest.mark.asyncio
+async def test_buscar_convite_valido_por_token_hash_filtra_expiracao(fake_pool):
+    fake_pool.set_fetchrow({"id": make_uuid(), "arena_id": "a1", "role": "admin",
+                             "email": "x@x.com", "invited_by": "u1",
+                             "expires_at": "2026-02-01"})
+
+    resultado = await membership_repo.buscar_convite_valido_por_token_hash(fake_pool, "hash123")
+
+    sql = " ".join(fake_pool.fetchrow.call_args[0][0].split())
+    assert "status = 'pending'" in sql
+    assert "expires_at > now()" in sql
+    assert resultado["email"] == "x@x.com"
+
+
+@pytest.mark.asyncio
+async def test_cancelar_convite_so_afeta_pending(fake_pool):
+    fake_pool.set_fetchrow({"id": "c1", "arena_id": "a1", "role": "admin",
+                             "email": "x@x.com", "invited_by": "u1", "criado_em": "2026-01-25"})
+
+    resultado = await membership_repo.cancelar_convite(fake_pool, "c1")
+
+    sql = " ".join(fake_pool.fetchrow.call_args[0][0].split())
+    assert "status = 'cancelled'" in sql
+    assert "token_hash = NULL" in sql
+    assert "WHERE id = $1 AND status = 'pending'" in sql
+    assert resultado["id"] == "c1"
+
+
+@pytest.mark.asyncio
+async def test_cancelar_convite_ja_resolvido_retorna_none(fake_pool):
+    fake_pool.set_fetchrow(None)
+
+    resultado = await membership_repo.cancelar_convite(fake_pool, "c1")
+
+    assert resultado is None
+
+
+@pytest.mark.asyncio
+async def test_aceitar_convite_ativa_membership(fake_pool):
+    fake_pool.set_fetchrow({"id": "c1", "user_id": "u2", "scope": "marca",
+                             "arena_id": "a1", "role": "admin", "ativo": True,
+                             "criado_em": "2026-01-25"})
+
+    resultado = await membership_repo.aceitar_convite(fake_pool, "c1", "u2")
+
+    sql = " ".join(fake_pool.fetchrow.call_args[0][0].split())
+    assert "status = 'active'" in sql
+    assert "ativo = true" in sql
+    assert "token_hash = NULL" in sql
+    assert "WHERE id = $1 AND status = 'pending'" in sql
+    assert resultado["user_id"] == "u2"
+
+
+@pytest.mark.asyncio
+async def test_tem_vinculo_ativo_scoped_a_marca_e_ativo(fake_pool):
+    fake_pool.set_fetchrow({"1": 1})
+
+    resultado = await membership_repo.tem_vinculo_ativo(fake_pool, "u1", "a1")
+
+    sql = " ".join(fake_pool.fetchrow.call_args[0][0].split())
+    assert "scope = 'marca'" in sql
+    assert "ativo = true" in sql
+    assert resultado is True

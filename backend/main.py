@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config import get_settings
 from utils.db import get_pool, close_pool
-from routers import ranking, games, admin, events, event_public, placar_publico, telao_publico, placares_admin, teloes_admin, arenas_admin, arenas_public, memberships, avatares_admin, avatares_publico, perfil
+from routers import ranking, games, admin, events, event_public, placar_publico, telao_publico, placares_admin, teloes_admin, arenas_admin, arenas_public, memberships, avatares_admin, avatares_publico, perfil, convites
 from auth import router as auth_router
 
 # ── Logging estruturado ───────────────────────────────────────────────────────
@@ -72,6 +72,7 @@ app.include_router(memberships.router)
 app.include_router(avatares_admin.router)
 app.include_router(avatares_publico.router)
 app.include_router(perfil.router)
+app.include_router(convites.router)
 app.include_router(auth_router.router)
 
 

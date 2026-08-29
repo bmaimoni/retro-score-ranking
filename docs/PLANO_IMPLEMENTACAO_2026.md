@@ -393,7 +393,7 @@ mesmo Passo 1 — as duas são a mesma tela na prática)
 
 ---
 
-## Fase 10 — Convite assíncrono de colaboradores ⏳ não iniciada
+## Fase 10 — Convite assíncrono de colaboradores 🔶 código pronto, aguardando migração em produção
 
 **Spec**: `docs/ARENA_SPEC.md` Fase F, mais H.1
 **Depende de**: Fase 8 (reaproveita `memberships`, já renomeada na Fase 7)
@@ -434,11 +434,19 @@ Rate limit H.1 (número não fechado na `ARENA_SPEC.md`, decidido aqui):
 vez é o caso de uso normal, não abuso; teto ainda existe pra não virar
 vetor de spam de e-mail em massa (preocupação central do H.1).
 
-- [ ] Migração 030: `user_id` de `memberships` vira nullable; ganha
-  `status` (`pending`/`active`/`cancelled`, default `active`, decisão
-  #2 acima) e colunas de convite (`email`, `invited_by`, `token_hash`,
-  `expires_at`, `accepted_at`) — sem tabela nova (F.3).
-- [ ] Backend: `POST /api/admin/arenas/{id}/convites` (enviar convite —
+- [ ] Migração 030 (`backend/migrations/030_convites_coadministracao.sql`)
+  **escrita, ainda não rodada em produção** — combinado com o Bruno
+  rodar manualmente via Supabase SQL Editor (mesmo fluxo das Fases
+  7/8/9), não pela sessão diretamente. `user_id` de `memberships` vira
+  nullable; ganha `status` (`pending`/`active`/`cancelled`, default
+  `active`, decisão #2 acima) e colunas de convite (`email`,
+  `invited_by`, `token_hash`, `expires_at`, `accepted_at`) — sem tabela
+  nova (F.3). Amplia também o CHECK de `acao` em
+  `membership_audit_log` (3 valores novos). Todo o resto desta fase
+  (backend/frontend/testes) já está implementado e testado
+  (mockado — sem banco real ainda, por depender desta migração rodar
+  primeiro), mas só funciona de ponta a ponta depois dela rodar.
+- [x] Backend: `POST /api/admin/arenas/{id}/convites` (enviar convite —
   token com hash via o mesmo gerador do magic link, nunca texto puro,
   expira em 7 dias — F.4; rate limit 10/dia por Arena+remetente — H.1);
   `GET .../convites` (listar fila pendente da Arena);
@@ -452,19 +460,23 @@ vetor de spam de e-mail em massa (preocupação central do H.1).
   `_exigir_admin_na_arena` já existente em `arenas_admin.py` — mesma
   régua de quem pode conceder vínculo direto, sem regra nova (F.6).
   E-mail via Resend (mesmo provedor do `AUTH_SPEC.md` #10).
-- [ ] **Achado fora do escopo original, corrigido na mesma rodada**:
-  `login.html` recebe `next` na URL do magic link (já enviado pelo
-  backend desde sempre) mas ignora e redireciona sempre pra
+- [x] **Achado fora do escopo original, corrigido na mesma rodada**:
+  `login.html` recebia `next` na URL do magic link (já enviado pelo
+  backend desde sempre) mas ignorava e redirecionava sempre pra
   `index.html` — pendência sinalizada, não bloqueante, ao fechar a
-  Fase 8. Vira bloqueante aqui: sem isso, F.5 quebra pra qualquer
-  convidado sem sessão ativa que entre via Magic Link (login por
-  Google já funciona, o `next` é resolvido no `callback` no backend,
+  Fase 8. Virou bloqueante aqui: sem isso, F.5 quebraria pra qualquer
+  convidado sem sessão ativa que entrasse via Magic Link (login por
+  Google já funcionava, o `next` é resolvido no `callback` no backend,
   não no frontend). Corrigido junto.
-- [ ] Testes: aceite com e-mail divergente é rejeitado, convite
-  expirado não aceita, convite cancelado não aceita, cancelamento
-  antes do aceite funciona, rate limit de envio, dedup de convite
-  pendente pro mesmo e-mail.
-- [ ] Frontend: Passo 2 do wizard em `admin.html` vira funcional (form
+- [x] Testes: 31 novos (repositório de convite, permissão de
+  criar/listar/cancelar, auto-convite bloqueado, colaborador existente
+  bloqueado, dedup, rate limit, falha de envio de e-mail não finge
+  sucesso, preview público, aceite com e-mail divergente rejeitado,
+  convite expirado/cancelado não aceita, corrida de vínculo duplicado
+  no aceite) — 656 passed (18 erros de smoke pré-existentes, exigem
+  browser/servidor rodando — baseline conhecido, confirmado
+  inalterado rodando a suíte antes e depois desta rodada).
+- [x] Frontend: Passo 2 do wizard em `admin.html` virou funcional (form
   de convite + fila com cancelar, no lugar do card estático "em
   breve"); `convite.html` novo — preview do convite, aciona login
   (Google ou Magic Link, preservando `?token=`) se necessário, aceita
