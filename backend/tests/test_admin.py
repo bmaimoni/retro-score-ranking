@@ -188,6 +188,111 @@ async def test_rejeitar_pendente_nao_publica_sse(client):
     broker_mock.assert_not_called()
 
 
+# ── Moderação — escopo por arena (docs/MODERADOR_SPEC.md M.1) ──────────────────
+# Achado: os dois endpoints abaixo não checavam nada além de autenticação,
+# deixando um moderador/admin de qualquer arena moderar entry de arena alheia.
+
+def _pool_com_entry_e_event(entry, event):
+    """Mock de pool cujo fetchrow serve, em sequência, o retorno de
+    entry_repo.buscar_por_id e depois de event_repo.buscar_por_id —
+    mesma ordem de chamada de _resolver_entry_com_acesso_ou_erro."""
+    pool = MagicMock()
+    pool.fetchrow = AsyncMock(side_effect=[entry, event])
+    return pool
+
+
+@pytest.mark.asyncio
+async def test_ocultar_entry_de_outra_arena_retorna_403(client):
+    arena_da_entry = make_uuid()
+    arena_do_moderador = make_uuid()
+    game_id = make_uuid()
+    event_id = make_uuid()
+    entry = {**make_entry(game_id=game_id), "event_id": event_id}
+    event = {"id": event_id, "arena_id": arena_da_entry}
+
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": arena_do_moderador, "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: _pool_com_entry_e_event(entry, event)
+
+    resp = await client.patch(
+        f"/api/admin/entries/{entry['id']}", json={"no_ranking": False})
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_ocultar_entry_da_propria_arena_funciona(client):
+    arena_id = make_uuid()
+    game_id = make_uuid()
+    event_id = make_uuid()
+    entry = {**make_entry(game_id=game_id), "event_id": event_id}
+    event = {"id": event_id, "arena_id": arena_id}
+    entry_ocultada = {**entry, "no_ranking": False}
+
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": arena_id, "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    pool = MagicMock()
+    pool.fetchrow = AsyncMock(side_effect=[entry, event, {"slug": "pac-man"}])
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.entry.atualizar_visibilidade",
+               AsyncMock(return_value=entry_ocultada)), \
+         patch("routers.admin.broker.publish", AsyncMock()):
+        resp = await client.patch(
+            f"/api/admin/entries/{entry['id']}", json={"no_ranking": False})
+
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_resolver_pendente_de_outra_arena_retorna_403(client):
+    arena_da_entry = make_uuid()
+    arena_do_moderador = make_uuid()
+    game_id = make_uuid()
+    event_id = make_uuid()
+    entry = {**make_entry(game_id=game_id, pendente=True), "event_id": event_id}
+    event = {"id": event_id, "arena_id": arena_da_entry}
+
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": arena_do_moderador, "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: _pool_com_entry_e_event(entry, event)
+
+    resp = await client.patch(
+        f"/api/admin/entries/{entry['id']}/pendente", json={"aprovar": True})
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_ocultar_entry_sem_event_id_bloqueia_nao_super(client):
+    """Entry legada (pré multi-evento, sem event_id) não tem arena pra
+    checar — não-super nunca pode moderar, só super."""
+    entry = {**make_entry(), "event_id": None}
+
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    pool = MagicMock()
+    pool.fetchrow = AsyncMock(return_value=entry)
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    resp = await client.patch(
+        f"/api/admin/entries/{entry['id']}", json={"no_ranking": False})
+
+    assert resp.status_code == 403
+
+
 # ── Games ─────────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -329,6 +434,39 @@ async def test_atualizar_config(client):
 
     assert resp.status_code == 200
     assert resp.json()["valor"] == "20"
+
+
+@pytest.mark.asyncio
+async def test_listar_config_nao_super_retorna_403(client):
+    """docs/MODERADOR_SPEC.md M.2 — achado: não tinha checagem nenhuma,
+    nem de super. event_config é singleton de plataforma (kill-switch de
+    upload, rate limit anti-abuso, texto LGPD), não por arena."""
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.get("/api/admin/config")
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_atualizar_config_admin_de_arena_retorna_403(client):
+    """Mesmo admin dono de arena (não só moderador) não pode — config
+    aqui é da plataforma inteira, nível dentro da arena não se aplica."""
+    admin_de_arena = AdminContext(
+        identificador="admin@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_arena
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.patch("/api/admin/config/evento_ativo", json={"valor": "false"})
+
+    assert resp.status_code == 403
 
 
 # ── Manutenção — limpar ranking ───────────────────────────────────────────────

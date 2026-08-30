@@ -966,10 +966,12 @@
       </details>
     </div>
 
-    <div class="section-header" style="margin-top:var(--space-lg)">
-      <span class="section-title">Configurações gerais</span>
+    <div id="config-gerais-secao">
+      <div class="section-header" style="margin-top:var(--space-lg)">
+        <span class="section-title">Configurações gerais</span>
+      </div>
+      <div class="config-grid" id="config-list"></div>
     </div>
-    <div class="config-grid" id="config-list"></div>
   </div>
 
 
@@ -1201,6 +1203,13 @@ function aplicarVisibilidadePorNivel() {
 
   const avatares = document.getElementById('avatares-secao');
   if (avatares) avatares.style.display = super_ ? '' : 'none';
+
+  // Config geral da plataforma (event_config — kill-switch de upload,
+  // rate limit, texto LGPD) é exclusiva de super desde o backend
+  // (docs/MODERADOR_SPEC.md M.2) — esconde aqui também pra não mostrar
+  // uma seção que só vai dar 403.
+  const configGeral = document.getElementById('config-gerais-secao');
+  if (configGeral) configGeral.style.display = super_ ? '' : 'none';
 
   const tabExclusoes = document.getElementById('tab-btn-exclusoes');
   if (tabExclusoes) tabExclusoes.style.display = super_ ? 'block' : 'none';
@@ -1453,7 +1462,9 @@ async function carregarTudo() {
   await carregarFeed();
   // Games e config só carregam uma vez — raramente mudam
   if (!jogosCarregados) await carregarJogos();
-  if (!configCarregada) await carregarConfig();
+  // Config geral é super-only desde docs/MODERADOR_SPEC.md M.2 — não
+  // tenta buscar pra quem vai receber 403 de qualquer forma.
+  if (!configCarregada && meInfo && meInfo.super) await carregarConfig();
   if (btn) { btn.classList.remove('loading'); btn.textContent = '↻ Atualizar'; }
 }
 

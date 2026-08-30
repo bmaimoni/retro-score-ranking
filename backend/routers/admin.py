@@ -6,6 +6,7 @@ from middleware.auth import require_admin, AdminContext
 from utils.db import get_pool
 from services.sse import broker
 import repositories.entry as entry_repo
+import repositories.event as event_repo
 import repositories.game as game_repo
 import repositories.membership as membership_repo
 import repositories.event_game as event_game_repo
@@ -171,6 +172,29 @@ async def quem_sou_eu(pool=Depends(get_pool), admin: AdminContext = Depends(requ
 
 # ── MODERAÇÃO DE ENTRIES ─────────────────────────────────────────────────────
 
+async def _resolver_entry_com_acesso_ou_erro(pool, admin: AdminContext, entry_id: str) -> dict:
+    """
+    Busca a entry e garante que o moderador tem vínculo na arena do
+    evento dela antes de deixar mutar (docs/MODERADOR_SPEC.md M.1) —
+    achado: os dois endpoints de moderação não checavam nada além de
+    autenticação, deixando qualquer moderador de qualquer arena ocultar/
+    reativar/aprovar entry de arena alheia. Entry sem event_id (dado
+    legado pré multi-evento) só é acessível a super, por não haver arena
+    nenhuma pra checar.
+    """
+    entry = await entry_repo.buscar_por_id(pool, entry_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entrada não encontrada")
+    if admin.super:
+        return entry
+    if not entry.get("event_id"):
+        raise HTTPException(status_code=403, detail="Sem permissão para moderar esta entrada")
+    event = await event_repo.buscar_por_id(pool, str(entry["event_id"]))
+    if not event or not admin.tem_acesso_na_arena(event["arena_id"]):
+        raise HTTPException(status_code=403, detail="Sem permissão para moderar esta entrada")
+    return entry
+
+
 @router.patch("/entries/{entry_id}")
 async def moderar_entry(
     entry_id: UUID4,
@@ -183,6 +207,7 @@ async def moderar_entry(
     A foto nunca é deletada — evidência sempre preservada.
     Emite event SSE para os clientes do ranking.
     """
+    await _resolver_entry_com_acesso_ou_erro(pool, moderador, str(entry_id))
     entry = await entry_repo.atualizar_visibilidade(
         pool, str(entry_id), body.no_ranking, moderador.identificador
     )
@@ -228,6 +253,7 @@ async def resolver_pendente(
     - aprovar=true  → pendente=false, no_ranking=true  (aparece no ranking)
     - aprovar=false → pendente=false, no_ranking=false (fica oculta)
     """
+    await _resolver_entry_com_acesso_ou_erro(pool, moderador, str(entry_id))
     entry = await entry_repo.resolver_pendente(
         pool, str(entry_id), body.aprovar, moderador.identificador
     )
@@ -492,12 +518,28 @@ import repositories.event_config as config_repo
 class AtualizarConfig(BaseModel):
     valor: str
 
+def _exigir_super_config(admin: AdminContext):
+    """event_config é tabela legada singleton (pré multi-evento, sem
+    event_id) — guarda kill-switch de upload, rate limit anti-abuso e
+    texto de consentimento LGPD da plataforma inteira. Sem escopo por
+    arena possível sem redesenho do modelo, é exclusiva de super
+    (docs/MODERADOR_SPEC.md M.2 — achado: não tinha checagem nenhuma,
+    nem de super, e a tela carregava isso automaticamente pra qualquer
+    admin/moderador logado)."""
+    if not admin.super:
+        raise HTTPException(
+            status_code=403,
+            detail="Só super-admin pode ver ou alterar configurações da plataforma",
+        )
+
+
 @router.get("/config")
 async def listar_config(
     pool=Depends(get_pool),
-    _: str = Depends(require_admin),
+    admin: AdminContext = Depends(require_admin),
 ):
     """Lista todas as configurações do event."""
+    _exigir_super_config(admin)
     return await config_repo.listar(pool)
 
 
@@ -506,9 +548,10 @@ async def atualizar_config(
     chave: str,
     body: AtualizarConfig,
     pool=Depends(get_pool),
-    _: str = Depends(require_admin),
+    admin: AdminContext = Depends(require_admin),
 ):
     """Atualiza uma configuração pelo nome da chave."""
+    _exigir_super_config(admin)
     cfg = await config_repo.atualizar(pool, chave, body.valor)
     if not cfg:
         raise HTTPException(status_code=404, detail=f"Configuração '{chave}' não encontrada")

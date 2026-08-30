@@ -393,7 +393,7 @@ mesmo Passo 1 — as duas são a mesma tela na prática)
 
 ---
 
-## Fase 10 — Convite assíncrono de colaboradores 🔶 código pronto, aguardando migração em produção
+## Fase 10 — Convite assíncrono de colaboradores 🔶 código e migração em produção, validação de ponta a ponta bloqueada pelo Resend
 
 **Spec**: `docs/ARENA_SPEC.md` Fase F, mais H.1
 **Depende de**: Fase 8 (reaproveita `memberships`, já renomeada na Fase 7)
@@ -434,18 +434,20 @@ Rate limit H.1 (número não fechado na `ARENA_SPEC.md`, decidido aqui):
 vez é o caso de uso normal, não abuso; teto ainda existe pra não virar
 vetor de spam de e-mail em massa (preocupação central do H.1).
 
-- [ ] Migração 030 (`backend/migrations/030_convites_coadministracao.sql`)
-  **escrita, ainda não rodada em produção** — combinado com o Bruno
-  rodar manualmente via Supabase SQL Editor (mesmo fluxo das Fases
-  7/8/9), não pela sessão diretamente. `user_id` de `memberships` vira
-  nullable; ganha `status` (`pending`/`active`/`cancelled`, default
-  `active`, decisão #2 acima) e colunas de convite (`email`,
-  `invited_by`, `token_hash`, `expires_at`, `accepted_at`) — sem tabela
-  nova (F.3). Amplia também o CHECK de `acao` em
-  `membership_audit_log` (3 valores novos). Todo o resto desta fase
-  (backend/frontend/testes) já está implementado e testado
-  (mockado — sem banco real ainda, por depender desta migração rodar
-  primeiro), mas só funciona de ponta a ponta depois dela rodar.
+- [x] Migração 030 (`backend/migrations/030_convites_coadministracao.sql`)
+  **rodada em produção** (confirmado via checagem read-only do schema
+  em 2026-08-30: `memberships.status` NOT NULL presente, colunas de
+  convite — `email`, `invited_by`, `token_hash`, `expires_at`,
+  `accepted_at` — e `user_id` nullable presentes; CHECK de `acao` em
+  `membership_audit_log` amplo com os 3 valores novos de convite).
+  `status` default `active` (decisão #2 acima), sem tabela nova (F.3).
+  Fluxo de ponta a ponta ainda **não validado em produção** —
+  `RESEND_API_KEY` não está configurada corretamente (confirmado com o
+  Bruno em 2026-08-30), então o envio de e-mail de convite (e também
+  o magic link de login, que depende do mesmo flag — `config.py:63`)
+  não funciona hoje. Validação de ponta a ponta da Fase 10 fica
+  bloqueada até o Resend ser configurado; login por Google segue
+  funcionando normalmente nesse meio tempo.
 - [x] Backend: `POST /api/admin/arenas/{id}/convites` (enviar convite —
   token com hash via o mesmo gerador do magic link, nunca texto puro,
   expira em 7 dias — F.4; rate limit 10/dia por Arena+remetente — H.1);
