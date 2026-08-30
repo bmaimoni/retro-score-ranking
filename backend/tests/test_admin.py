@@ -293,6 +293,63 @@ async def test_ocultar_entry_sem_event_id_bloqueia_nao_super(client):
     assert resp.status_code == 403
 
 
+# ── Arquivamento individual (docs/MODERADOR_SPEC.md M.5) ───────────────────────
+
+@pytest.mark.asyncio
+async def test_arquivar_entry_da_propria_arena_funciona(client):
+    arena_id = make_uuid()
+    game_id = make_uuid()
+    event_id = make_uuid()
+    entry = {**make_entry(game_id=game_id), "event_id": event_id}
+    event = {"id": event_id, "arena_id": arena_id}
+    entry_arquivada = {**entry, "arquivado": True}
+
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": arena_id, "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: _pool_com_entry_e_event(entry, event)
+
+    with patch("repositories.entry.arquivar", AsyncMock(return_value=entry_arquivada)):
+        resp = await client.patch(f"/api/admin/entries/{entry['id']}/arquivar")
+
+    assert resp.status_code == 200
+    assert resp.json()["arquivado"] is True
+
+
+@pytest.mark.asyncio
+async def test_arquivar_entry_de_outra_arena_retorna_403(client):
+    arena_da_entry = make_uuid()
+    arena_do_moderador = make_uuid()
+    game_id = make_uuid()
+    event_id = make_uuid()
+    entry = {**make_entry(game_id=game_id), "event_id": event_id}
+    event = {"id": event_id, "arena_id": arena_da_entry}
+
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": arena_do_moderador, "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: _pool_com_entry_e_event(entry, event)
+
+    resp = await client.patch(f"/api/admin/entries/{entry['id']}/arquivar")
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_arquivar_entry_ja_arquivada_retorna_404(client):
+    app.dependency_overrides[get_pool] = lambda: _pool_com_slug()
+
+    with patch("repositories.entry.arquivar", AsyncMock(return_value=None)):
+        resp = await client.patch(
+            f"/api/admin/entries/{make_uuid()}/arquivar", headers=AUTH_HEADER)
+
+    assert resp.status_code == 404
+
+
 # ── Games ─────────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

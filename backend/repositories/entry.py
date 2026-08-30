@@ -177,7 +177,7 @@ async def listar_feed_admin(
     rows = await pool.fetch(
         f"""
         SELECT e.id, e.nick, e.nome, e.pontuacao, e.foto_url, e.event_id, e.no_ranking,
-               e.superado, e.pendente, e.pendente_motivo, e.user_id, e.criado_em, e.moderado_em,
+               e.superado, e.pendente, e.pendente_motivo, e.arquivado, e.user_id, e.criado_em, e.moderado_em,
                e.moderado_por, j.nome AS game_nome, j.slug AS game_slug,
                ev.nome AS event_nome, ev.slug AS event_slug{contexto_pendente_sql}
         FROM entries e
@@ -288,6 +288,24 @@ async def resolver_pendente(
                   no_ranking, pendente, superado, criado_em
         """,
         aprovar, moderado_por, entry_id,
+    )
+    return dict(row) if row else None
+
+
+async def arquivar(pool: Pool, entry_id: str, arquivado_por: str) -> dict | None:
+    """Arquivamento manual individual (NICKNAME_SPEC.md decisão #15 —
+    pontuação nunca-identificada, por julgamento do moderador/admin, sem
+    prazo fixo). Some do ranking público (queries já filtram
+    arquivado=false) independente de no_ranking/pendente."""
+    row = await pool.fetchrow(
+        """
+        UPDATE entries
+        SET arquivado = true, arquivado_em = now(), arquivado_por = $1
+        WHERE id = $2 AND arquivado = false
+        RETURNING id, game_id, nick, pontuacao, no_ranking, pendente,
+                  arquivado, criado_em
+        """,
+        arquivado_por, entry_id,
     )
     return dict(row) if row else None
 

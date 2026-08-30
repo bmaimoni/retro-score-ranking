@@ -1,7 +1,7 @@
 # Moderador: escopo real vs. desenhado, e correção de autorização
 
-> Status: **Fase 1 de 3 fechada e corrigida** (M.1-M.4 implementados,
-> testados, sem regressão — ver §6) de uma revisão completa dos três
+> Status: **Fase 1 de 3 fechada e corrigida** (M.1-M.5 implementados,
+> testados, sem regressão — ver §6/§7) de uma revisão completa dos três
 > níveis (moderador → admin de Arena → super), pedida pelo Bruno pra
 > mapear com calma tudo que cada papel já faz hoje antes de separar
 > `admin.html` em `console.html` (admin de Arena/moderador) e `admin.html`
@@ -116,3 +116,55 @@ registrado como pendência arquitetural separada, sem fase própria ainda.
   conhecido: 18 smoke exigem browser/servidor, inalterado).
 - [ ] M.4 (filtros/busca do feed) — sem mudança, já correto; confirmado
   na auditoria, sem item de implementação.
+- [x] **M.5** — `entry_repo.arquivar` + `PATCH /api/admin/entries/{id}/arquivar`,
+  reaproveitando `_resolver_entry_com_acesso_ou_erro`. Frontend: botão
+  "🗄 Arquivar" no card (só quando `!user_id && !nome`, com confirmação),
+  badge "arquivada" tira as ações normais do card. `e.arquivado` somado
+  ao SELECT de `listar_feed_admin`. Testes: escopo por arena (mesmo
+  padrão de M.1), já-arquivada retorna 404. Suíte completa: 668 passed.
+
+---
+
+## 7. Auditoria funcional (não só autorização)
+
+Pedido explícito do Bruno depois de ver a Fase 1 focada demais em achados
+de segurança: revisar o que o moderador **consegue fazer de verdade**,
+não só o que ele não deveria. Achados:
+
+**O que já funciona bem** (crédito onde é devido): foto com lightbox
+(`abrirLightbox`), histórico de nicks do usuário por trás da entry
+(decisão #4 do `NICKNAME_SPEC.md`), forçar troca de nick direto do card,
+contexto de ranking na fila de pendentes (mostra se a entry ficaria em
+1º/2º/3º, se supera o líder ou o score atual do próprio nick — ajuda a
+decidir sem sair do card), filtros combináveis e busca (`BACKLOG_2026.md`
+§4.1/4.4) todos implementados e corretos, motivo de moderação exibido no
+card.
+
+**Achado A — `pendente_motivo` não é escrito no INSERT.**
+`entry_repo.inserir()` (chamado por `event_public.py` no upload) nunca
+inclui essa coluna; não há default nem trigger no banco. Toda entry nova
+que fica pendente por rate limit nasce hoje com `pendente_motivo = NULL`
+— contraria a decisão #7 do `NICKNAME_SPEC.md` ("motivo de verdade
+gravado no banco, não inferência"). **Não é urgente**: os valores
+corretos vistos em produção são resíduo do backfill da migração 020
+(24/08) — não há entry pendente criada depois disso pra provar que o
+código atual escreve certo, e o frontend hoje mascara o problema
+inferindo pelo `foto_url` (funciona por coincidência, porque as duas
+únicas causas de `pendente=true` hoje são mutuamente exclusivas nesse
+campo). Risco é latente, não visível: se uma terceira causa de pendência
+for adicionada no futuro sem atualizar a inferência do frontend, o
+moderador veria um motivo errado sem perceber. **Fica registrado como
+dívida de correção, não corrigido nesta rodada** — decisão do Bruno,
+prioridade baixa.
+
+**Achado B — arquivamento individual de entry nunca foi construído.**
+`NICKNAME_SPEC.md` decisão #15 ("arquivamento de pontuação
+nunca-identificada é manual, por admin, usando o filtro 'sem
+identificação' do feed, com julgamento próprio") não tem endpoint nem
+botão — só existe arquivamento em massa por game ou geral
+(`Manutenção`), exclusivo de super. O filtro existe e funciona; a ação
+que ele deveria habilitar, não. **Decisão: construir agora** (ver M.5).
+
+| # | Tópico | Decisão |
+|---|---|---|
+| M.5 | Arquivar entry individual (achado B) | Novo endpoint `PATCH /api/admin/entries/{id}/arquivar`, reaproveitando `_resolver_entry_com_acesso_ou_erro` (M.1) — mesma régua de escopo por arena que já vale pra ocultar/aprovar. Sem restrição de backend sobre *quais* entries podem ser arquivadas (moderador já tem acesso a todas as da própria arena); o botão só aparece no frontend pra entries "sem identificação" (`!user_id && !nome`), fiel ao escopo da decisão #15 original, sem expandir silenciosamente pra "arquivar qualquer coisa" |

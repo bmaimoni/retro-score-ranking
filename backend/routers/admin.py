@@ -281,6 +281,28 @@ async def resolver_pendente(
     return entry
 
 
+@router.patch("/entries/{entry_id}/arquivar")
+async def arquivar_entry(
+    entry_id: UUID4,
+    pool=Depends(get_pool),
+    moderador: AdminContext = Depends(require_admin),
+):
+    """
+    Arquivamento manual individual (docs/MODERADOR_SPEC.md M.5,
+    NICKNAME_SPEC.md decisão #15) — some do ranking público
+    permanentemente (reversível só via restaurar-ranking em massa, ação
+    de super), independente de estar pendente/visível/oculta. Mesmo
+    escopo por arena de moderar_entry/resolver_pendente.
+    """
+    await _resolver_entry_com_acesso_ou_erro(pool, moderador, str(entry_id))
+    entry = await entry_repo.arquivar(pool, str(entry_id), moderador.identificador)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entrada não encontrada ou já arquivada")
+
+    log.info("entry_arquivada", entry_id=str(entry_id), moderador=moderador.identificador)
+    return entry
+
+
 # ── GESTÃO DE GAMES ───────────────────────────────────────────────────────────
 
 RATE_LIMIT_GAMES_MANUAL_POR_DIA = 5

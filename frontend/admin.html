@@ -2305,9 +2305,13 @@ function cardEntrada(e, tipo) {
   const oculta  = !e.no_ranking && !e.pendente;
   const classes = `entry-card ${oculta ? 'oculta' : ''} ${e.pendente ? 'pendente-card' : ''}`;
 
-  // Ações: pendentes têm aprovar/ocultar; visíveis têm ocultar; ocultos têm reativar
+  // Ações: pendentes têm aprovar/ocultar; visíveis têm ocultar; ocultos têm
+  // reativar. Arquivada é estado final (docs/MODERADOR_SPEC.md M.5) — sem
+  // ação de moderação normal, só reversível via restaurar-ranking (super).
   let acoes = '';
-  if (e.pendente) {
+  if (e.arquivado) {
+    acoes = '';
+  } else if (e.pendente) {
     acoes = `
       <button class="btn-action btn-aprovar"  data-id="${e.id}">Aprovar</button>
       <button class="btn-action btn-rejeitar" data-id="${e.id}">Ocultar</button>`;
@@ -2317,13 +2321,22 @@ function cardEntrada(e, tipo) {
     acoes = `<button class="btn-action btn-reativar" data-id="${e.id}">Reativar</button>`;
   }
 
+  // Arquivar — só pra entry sem identificação (NICKNAME_SPEC.md decisão
+  // #15), fiel ao escopo original em vez de virar "arquivar qualquer
+  // coisa". Some do ranking público de vez.
+  const arquivarBtnHtml = (!e.user_id && !e.nome && !e.arquivado)
+    ? `<button class="btn-action btn-arquivar-entry" style="padding:4px 10px;font-size:10px" data-id="${e.id}" title="Arquiva definitivamente — some do ranking, reversível só via restaurar-ranking (super)">🗄 Arquivar</button>`
+    : '';
+
   // Status badge + motivo da moderação
   const motivo = motivoModeracao(e);
   const motivoHtml = motivo
     ? `<span style="font-size:var(--text-xs);color:var(--color-text-dim);font-style:italic;margin-top:2px;display:block">⚑ ${motivo}</span>`
     : '';
 
-  const status = e.pendente
+  const status = e.arquivado
+    ? '<span class="badge badge-error">arquivada</span>'
+    : e.pendente
     ? '<span class="badge badge-pending">pendente</span>'
     : (!e.no_ranking ? '<span class="badge badge-error">oculto</span>' : '');
 
@@ -2377,7 +2390,7 @@ function cardEntrada(e, tipo) {
         </div>
         <div class="historico-nicks" id="historico-nicks-${e.id}" style="display:none;margin-top:8px"></div>
       </div>
-      <div class="entry-actions">${acoes}${nicksBtnHtml}</div>
+      <div class="entry-actions">${acoes}${arquivarBtnHtml}${nicksBtnHtml}</div>
     </div>
   `;
 }
@@ -2454,6 +2467,25 @@ function bindCardActions(container) {
       await resolverPendente(btn.dataset.id, false);
     });
   });
+  container.querySelectorAll('.btn-arquivar-entry').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Arquivar esta entry? Some do ranking pra sempre — só um super-admin consegue reverter (Manutenção → Restaurar ranking).')) return;
+      await arquivarEntrada(btn.dataset.id);
+    });
+  });
+}
+
+async function arquivarEntrada(id) {
+  try {
+    const resp = await apiFetch(`/api/admin/entries/${id}/arquivar`, 'PATCH');
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      showToast(err.detail || `Erro ${resp.status}`, 'error');
+      return;
+    }
+    showToast('Entry arquivada', 'success');
+    carregarFeed();
+  } catch { showToast('Erro ao arquivar entry', 'error'); }
 }
 
 async function moderarEntrada(id, noRanking) {
