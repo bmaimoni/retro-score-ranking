@@ -635,6 +635,42 @@ async def test_listar_events_da_arena(client):
     assert len(resp.json()) == 1
 
 
+@pytest.mark.asyncio
+async def test_listar_events_de_arena_alheia_retorna_403(client):
+    """docs/ARENA_ADMIN_SPEC.md AA.1 — achado: não checava escopo nenhum,
+    deixando admin/moderador de qualquer arena listar eventos (inclusive
+    não públicos) de arena alheia."""
+    arena_alheia = make_uuid()
+    admin_de_outra_arena = AdminContext(
+        identificador="admin@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_outra_arena
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.get(f"/api/admin/arenas/{arena_alheia}/events")
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_moderador_lista_events_da_propria_arena(client):
+    """Leitura liberada pra qualquer vínculo (admin ou moderador),
+    mesmo padrão de listar_games_do_event."""
+    arena_id = make_uuid()
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": arena_id, "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.arena.listar_events_da_arena", AsyncMock(return_value=[])):
+        resp = await client.get(f"/api/admin/arenas/{arena_id}/events")
+
+    assert resp.status_code == 200
+
+
 # ── Parcerias entre arenas (docs/RANKINGS_CONFIGURAVEIS_SPEC.md §2.2) ──────────
 
 def _parceria(**overrides):

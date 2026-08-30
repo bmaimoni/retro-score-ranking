@@ -334,9 +334,12 @@ async def test_atualizar_game_super(client):
 
 
 @pytest.mark.asyncio
-async def test_atualizar_game_admin_escopado(client):
-    """Admin (não só super) também edita game — a régua é 'não é
-    moderador', não 'é super' (decisão #1 do PERMISSOES_SPEC.md)."""
+async def test_atualizar_game_admin_de_arena_retorna_403(client):
+    """docs/ARENA_ADMIN_SPEC.md AA.2 — revisão de PERMISSOES_SPEC.md §4:
+    games é catálogo global desde a IGDB (CATALOGO_JOGOS_SPEC.md Fase 5),
+    editar o registro deixou de ser 'editar o jogo da minha arena' e virou
+    exclusivo de super. Admin de arena continua controlando via
+    event_games (ver routers/events.py)."""
     admin_de_arena = AdminContext(
         identificador="admin@x.com", user_id="u1", super=False,
         vinculos=[{"arena_id": make_uuid(), "role": "admin"}],
@@ -344,16 +347,16 @@ async def test_atualizar_game_admin_escopado(client):
     app.dependency_overrides[require_admin] = lambda: admin_de_arena
     app.dependency_overrides[get_pool] = lambda: MagicMock()
 
-    with patch("repositories.game.atualizar", AsyncMock(return_value=make_game())):
-        resp = await client.patch(f"/api/admin/games/{make_uuid()}", json={"ativo": False})
+    resp = await client.patch(f"/api/admin/games/{make_uuid()}", json={"ativo": False})
 
-    assert resp.status_code == 200
+    assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
 async def test_atualizar_game_moderador_retorna_403(client):
-    """Achado incidental: este endpoint não tinha checagem nenhuma além
-    de estar autenticado — moderador editava/desativava qualquer game."""
+    """Moderador nunca editou game (decisão #1 do PERMISSOES_SPEC.md) —
+    continua bloqueado depois da revisão AA.2, que aperta ainda mais
+    (nem admin de arena edita mais)."""
     moderador = AdminContext(
         identificador="mod@x.com", user_id="u1", super=False,
         vinculos=[{"arena_id": make_uuid(), "role": "moderador"}],
@@ -862,12 +865,35 @@ async def test_criar_game_com_event_id_vincula_so_a_esse_event(client):
     with patch("repositories.game.criar", criar_mock), \
          patch("repositories.game.contar_manuais_por_criador_ultimas_24h", AsyncMock(return_value=0)), \
          patch("repositories.game.listar_nome_ativos", AsyncMock(return_value=[])), \
+         patch("repositories.event.buscar_por_id", AsyncMock(return_value={"id": "ev1", "arena_id": "m1"})), \
          patch("repositories.event_game.adicionar", adicionar_mock):
         resp = await client.post("/api/admin/games",
             json={"nome": "Frogger", "slug": "frogger", "event_id": "ev1"})
 
     assert resp.status_code == 201
     adicionar_mock.assert_called_once_with(pool, "ev1", str(game_criado["id"]))
+
+
+@pytest.mark.asyncio
+async def test_criar_game_com_event_id_de_outra_arena_retorna_403(client):
+    """docs/ARENA_ADMIN_SPEC.md AA.3 — achado: vinculava sem checar a
+    arena do event_id recebido, deixando admin de uma arena vincular
+    jogo a event de arena alheia."""
+    escopado = AdminContext(
+        identificador="pessoa@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": "m1", "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: escopado
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.game.criar", AsyncMock(return_value=make_game(pendente_aprovacao=True))), \
+         patch("repositories.game.contar_manuais_por_criador_ultimas_24h", AsyncMock(return_value=0)), \
+         patch("repositories.game.listar_nome_ativos", AsyncMock(return_value=[])), \
+         patch("repositories.event.buscar_por_id", AsyncMock(return_value={"id": "ev2", "arena_id": "outra-arena"})):
+        resp = await client.post("/api/admin/games",
+            json={"nome": "Frogger", "slug": "frogger", "event_id": "ev2"})
+
+    assert resp.status_code == 403
 
 
 @pytest.mark.asyncio

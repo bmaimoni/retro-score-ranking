@@ -1660,7 +1660,11 @@ function renderJogos(games) {
                   title="Arquivar ranking deste game" style="padding:4px 10px;font-size:10px">
             ⬇ Arquivar
           </button>` : ''}
-          ${ehAdminEmAlgumaMarca() ? `
+          ${meInfo && meInfo.super ? `
+          <!-- Catálogo global — exclusivo de super desde
+               docs/ARENA_ADMIN_SPEC.md AA.2. Ativar/desativar por
+               event fica pra quando a aba usar event_games (Fase I
+               de docs/PAINEIS_ADMIN_SPEC.md). -->
           <div class="toggle-ativo ${j.ativo !== false ? 'on' : ''}"
                data-id="${j.id}" data-ativo="${j.ativo !== false}"
                title="${j.ativo !== false ? 'Ativo — clique para desativar' : 'Inativo — clique para ativar'}">

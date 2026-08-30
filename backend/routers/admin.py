@@ -402,9 +402,34 @@ async def criar_game(
             raise HTTPException(status_code=500, detail="Erro ao criar game")
 
     if body.event_id:
+        # docs/ARENA_ADMIN_SPEC.md AA.3 — achado: vinculava sem checar
+        # se o event_id recebido pertence a uma arena onde o admin tem
+        # vínculo, deixando vincular jogo a event de arena alheia.
+        if not admin.super:
+            event = await event_repo.buscar_por_id(pool, body.event_id)
+            if not event or not admin.tem_acesso_na_arena(event["arena_id"]):
+                raise HTTPException(status_code=403, detail="Sem permissão para vincular a este event")
         await event_game_repo.adicionar(pool, body.event_id, str(game["id"]))
 
     return game
+
+
+def _exigir_super_editar_game(admin: AdminContext):
+    """docs/ARENA_ADMIN_SPEC.md AA.2 — revisão de PERMISSOES_SPEC.md §4:
+    'games' é catálogo global compartilhado entre arenas desde a
+    integração IGDB (CATALOGO_JOGOS_SPEC.md Fase 5), não mais 'o jogo da
+    minha marca'. Editar o registro global (nome/capa/plataforma/
+    score_max/ativo) afeta toda arena que usa aquele jogo — vira
+    exclusivo de super. O que admin de arena continua controlando de
+    verdade é o vínculo (event_games.ativo/ordem, já escopado em
+    events.py). Achado anterior (só bloqueava moderador, não escopava
+    por arena) fica substituído por esta regra mais simples e correta."""
+    if not admin.super:
+        raise HTTPException(
+            status_code=403,
+            detail="Só super-admin edita o catálogo global de games — "
+                   "para ativar/desativar no seu event, use o vínculo do event",
+        )
 
 
 @router.patch("/games/{game_id}")
@@ -414,15 +439,9 @@ async def atualizar_game(
     pool=Depends(get_pool),
     admin: AdminContext = Depends(require_admin),
 ):
-    """Ativa/desativa um game ou atualiza seu score_max. Mesma regra de
-    criar_game — moderador nunca edita game (decisão #1 do
-    docs/PERMISSOES_SPEC.md), achado incidental: este endpoint não
-    tinha checagem nenhuma além de estar autenticado."""
-    if not admin.super and not any(v["role"] == "admin" for v in admin.vinculos):
-        raise HTTPException(
-            status_code=403,
-            detail="Moderador não pode editar games — só admin ou super-admin",
-        )
+    """Ativa/desativa um game ou atualiza seu score_max/metadado no
+    catálogo global — exclusivo de super (docs/ARENA_ADMIN_SPEC.md AA.2)."""
+    _exigir_super_editar_game(admin)
 
     game = await game_repo.atualizar(
         pool, str(game_id), body.ativo, body.score_max,

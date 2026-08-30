@@ -490,10 +490,17 @@ async def cancelar_convite(
 async def listar_events_da_arena(
     arena_id: str,
     pool=Depends(get_pool),
-    _=Depends(require_admin),
+    admin: AdminContext = Depends(require_admin),
 ):
     """Events vinculados a esta arena (o vínculo em si é feito via
-    PATCH /api/admin/events/{id}, atualizando events.arena_id)."""
+    PATCH /api/admin/events/{id}, atualizando events.arena_id).
+
+    docs/ARENA_ADMIN_SPEC.md AA.1 — achado: não checava escopo nenhum,
+    deixando qualquer admin/moderador listar eventos (inclusive não
+    públicos) de arena alheia. Leitura liberada pra quem tem qualquer
+    vínculo na arena, mesmo padrão de listar_games_do_event."""
+    if not admin.super and not admin.tem_acesso_na_arena(arena_id):
+        raise HTTPException(status_code=403, detail="Sem acesso a esta arena")
     return await arena_repo.listar_events_da_arena(pool, arena_id)
 
 
