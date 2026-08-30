@@ -192,10 +192,13 @@ async def listar_events_acessiveis_detalhado(pool: Pool, user_id: str) -> list[d
     que esconder (GET /api/admin/me). role vem do vínculo na arena
     daquele event — cada event carrega o nível efetivo da pessoa ali,
     já resolvido, sem o frontend precisar cruzar arena_id à parte.
+    arena_id também vem junto (docs/PAINEIS_ADMIN_SPEC.md F0.2) — o
+    seletor de event no topbar filtra pela Arena ativa, não mostra mais
+    events de todas as Arenas do admin misturados.
     """
     rows = await pool.fetch(
         """
-        SELECT DISTINCT e.id, e.nome, e.slug, av.role
+        SELECT DISTINCT e.id, e.nome, e.slug, e.arena_id, av.role
         FROM events e
         JOIN memberships av
           ON av.scope = 'marca' AND av.arena_id = e.arena_id

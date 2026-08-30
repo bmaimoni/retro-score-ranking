@@ -195,6 +195,27 @@ async def listar_events_da_arena(pool: Pool, arena_id: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+async def listar_resumo_events_da_arena(pool: Pool, arena_id: str) -> list[dict]:
+    """Events da arena com janela de envio e contagem de recordes —
+    base da tela inicial do painel (docs/PAINEIS_ADMIN_SPEC.md F0.3).
+    'Recordes' = entries não-arquivadas (F0.7) — inclui pendente/oculta
+    (ainda é um envio real), exclui só o formalmente invalidado."""
+    rows = await pool.fetch(
+        """
+        SELECT ev.id, ev.nome, ev.slug, ev.ativo, ev.publico,
+               ev.data_inicio, ev.data_fim, ev.criado_em,
+               COUNT(e.id) FILTER (WHERE NOT e.arquivado) AS total_recordes
+        FROM events ev
+        LEFT JOIN entries e ON e.event_id = ev.id
+        WHERE ev.arena_id = $1
+        GROUP BY ev.id
+        ORDER BY ev.criado_em DESC
+        """,
+        arena_id,
+    )
+    return [dict(r) for r in rows]
+
+
 async def listar_com_event_ativo(pool: Pool) -> list[dict]:
     """
     Arenas com pelo menos um event ativo+público — critério de "arena

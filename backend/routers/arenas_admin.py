@@ -383,6 +383,23 @@ async def wizard_status(
     }
 
 
+@router.get("/{arena_id}/resumo")
+async def resumo_arena(
+    arena_id: str,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """Tela inicial do painel (docs/PAINEIS_ADMIN_SPEC.md F0.3) — events
+    da Arena ativa com janela de envio e contagem de recordes. Mesma
+    checagem de acesso do wizard-status: super ou vínculo na arena."""
+    await _resolver_arena_ou_404(pool, arena_id)
+    if not admin.super and not admin.tem_acesso_na_arena(arena_id):
+        raise HTTPException(status_code=403, detail="Sem acesso a esta arena")
+
+    events = await arena_repo.listar_resumo_events_da_arena(pool, arena_id)
+    return {"events": events}
+
+
 @router.post("/{arena_id}/convites", status_code=201)
 async def criar_convite(
     arena_id: str,

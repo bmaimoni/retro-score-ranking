@@ -182,6 +182,41 @@
       align-items: center;
       gap: var(--space-md);
     }
+    /* Identidade da Arena ativa — docs/PAINEIS_ADMIN_SPEC.md F0.3:
+       "onde eu estou", não só "ADMIN PANEL" genérico. */
+    .topbar-arena-atual {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-left: var(--space-md);
+      border-left: 2px solid var(--color-primary);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--color-text);
+    }
+    .topbar-arena-atual img {
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      object-fit: cover;
+    }
+    .inicio-event-card {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      padding: var(--space-md);
+      background: var(--color-bg-surface2);
+      border-radius: 6px;
+      border: 1px solid var(--color-border);
+      margin-bottom: 8px;
+    }
+    .inicio-event-recordes {
+      font-family: var(--font-display);
+      font-size: var(--text-lg, 18px);
+      color: var(--color-primary);
+      min-width: 64px;
+      text-align: center;
+    }
     .btn-logout {
       font-size: var(--text-xs);
       color: var(--color-text-muted);
@@ -739,7 +774,12 @@
   <!-- Top bar -->
   <div class="admin-topbar">
     <span class="topbar-title">ADMIN PANEL</span>
+    <span class="topbar-arena-atual" id="topbar-arena-atual" style="display:none">
+      <img id="topbar-arena-logo" alt="" style="display:none">
+      <span id="topbar-arena-nome"></span>
+    </span>
     <div class="topbar-right">
+      <select class="event-selector" id="arena-selector" style="display:none"></select>
       <div class="admin-identidade" id="admin-identidade" style="display:none"></div>
       <select class="event-selector" id="event-selector" style="display:none"></select>
       <div class="polling-dot" id="polling-dot" title="Atualizando..." style="display:none"></div>
@@ -751,7 +791,8 @@
 
   <!-- Abas -->
   <div class="admin-tabs">
-    <button class="admin-tab active" data-tab="feed">
+    <button class="admin-tab active" data-tab="inicio">Início</button>
+    <button class="admin-tab" data-tab="feed">
       Feed
       <span class="tab-badge" id="badge-feed" style="display:none">0</span>
     </button>
@@ -759,13 +800,24 @@
     <button class="admin-tab" data-tab="wizard" id="tab-btn-wizard" style="display:none">Wizard</button>
     <button class="admin-tab" data-tab="games">Games</button>
     <button class="admin-tab" data-tab="config">Event</button>
-    <button class="admin-tab" data-tab="manutencao">Manutenção</button>
+    <button class="admin-tab" data-tab="telao">Telão</button>
     <button class="admin-tab" data-tab="administradores" id="tab-btn-administradores" style="display:none">Administradores</button>
     <button class="admin-tab" data-tab="exclusoes" id="tab-btn-exclusoes" style="display:none">Exclusões</button>
   </div>
 
+  <!-- ── ABA: INÍCIO (docs/PAINEIS_ADMIN_SPEC.md Fase 0) ── -->
+  <div class="tab-content active" id="tab-inicio">
+    <div class="section-header">
+      <span class="section-title">Resumo da Arena</span>
+    </div>
+    <div id="inicio-sem-arena" style="display:none;color:var(--color-text-muted);font-size:var(--text-sm)">
+      Sem Arena vinculada ainda.
+    </div>
+    <div id="inicio-lista-events"></div>
+  </div>
+
   <!-- ── ABA: FEED ── -->
-  <div class="tab-content active" id="tab-feed">
+  <div class="tab-content" id="tab-feed">
     <div class="section-header">
       <span class="section-title">Entries recentes</span>
       <span class="section-count" id="feed-count"></span>
@@ -943,58 +995,22 @@
       </details>
     </div>
 
-    <div class="section-header" style="margin-top:var(--space-lg)">
-      <span class="section-title">Avatares</span>
-    </div>
-
-    <!-- Avatares (super only) -->
-    <div class="manut-card" id="avatares-secao">
-      <h3 class="manut-titulo">Galeria de avatares</h3>
-      <p class="manut-desc">
-        Curada por você — o jogador escolhe um desses no próprio perfil.
-        Desativar tira da galeria, mas quem já tinha escolhido continua com ele.
-      </p>
-      <div id="avatares-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:var(--space-md)">Carregando...</div>
-
-      <details style="margin-top:var(--space-md)">
-        <summary style="cursor:pointer;font-size:var(--text-xs);color:var(--color-text-muted);letter-spacing:0.08em">ADICIONAR AVATAR</summary>
-        <div style="margin-top:var(--space-sm);display:flex;flex-direction:column;gap:var(--space-sm)">
-          <input class="field-input" id="avatar-nome" placeholder="Nome (ex: Robô Azul)" maxlength="80">
-          <input class="field-input" id="avatar-url" placeholder="URL da imagem" maxlength="300">
-          <button class="btn-action btn-reativar" onclick="criarAvatar()">+ Adicionar avatar</button>
-        </div>
-      </details>
-    </div>
-
-    <div id="config-gerais-secao">
-      <div class="section-header" style="margin-top:var(--space-lg)">
-        <span class="section-title">Configurações gerais</span>
-      </div>
-      <div class="config-grid" id="config-list"></div>
+    <!-- Avatares, config de plataforma e manutenção viraram exclusivos
+         de super e saíram daqui pro console.html (docs/PAINEIS_ADMIN_SPEC.md
+         Fase 0, F0.4/F0.5) — misturar "geral/plataforma" com "deste
+         event" na mesma aba era o próprio bug relatado. -->
+    <div id="link-console-secao" style="display:none;margin-top:var(--space-lg)">
+      <a href="console.html" class="btn-action btn-reativar" style="display:inline-block;text-decoration:none">
+        ⚙ Ir para o Console (configurações de plataforma, avatares, manutenção)
+      </a>
     </div>
   </div>
 
 
-  <!-- ── ABA: MANUTENÇÃO ── -->
-  <div class="tab-content" id="tab-manutencao">
+  <!-- ── ABA: TELÃO ── -->
+  <div class="tab-content" id="tab-telao">
     <div class="section-header">
-      <span class="section-title">Manutenção de Rankings</span>
-    </div>
-
-    <!-- Soft delete por game -->
-    <div class="manut-card" id="manut-por-game">
-      <h3 class="manut-titulo">Arquivar ranking por game</h3>
-      <p class="manut-desc">Oculta todas as entries do game selecionado. As entries podem ser restauradas depois.</p>
-      <div class="field" style="margin-bottom:var(--space-sm)">
-        <label class="field-label" for="manut-game-select">Game</label>
-        <select class="field-input" id="manut-game-select">
-          <option value="">Carregando games...</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
-        <button class="btn-action btn-rejeitar" style="flex:1" onclick="arquivarJogo()">⬇ Arquivar ranking</button>
-        <button class="btn-action btn-reativar" style="flex:1" onclick="restaurarJogo()">⬆ Restaurar ranking</button>
-      </div>
+      <span class="section-title">Telão</span>
     </div>
 
     <!-- Config telão -->
@@ -1028,38 +1044,6 @@
          class="btn-action btn-reativar" style="display:block;text-decoration:none;text-align:center;width:100%;margin-top:var(--space-sm)">
         ▶ Abrir telão
       </a>
-    </div>
-
-    <!-- Limpeza geral -->
-    <div class="manut-card manut-danger" id="manut-geral">
-      <h3 class="manut-titulo">⚠️ Limpeza geral</h3>
-      <p class="manut-desc">Afeta <strong>todos os games</strong>. Escolha entre arquivar (reversível) ou deletar permanentemente (irreversível).</p>
-
-      <div class="field" style="margin-bottom:var(--space-sm)">
-        <label class="field-label">Tipo de limpeza</label>
-        <div style="display:flex;gap:var(--space-sm)">
-          <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-sm);cursor:pointer">
-            <input type="radio" name="tipo-limpeza" value="soft" checked> Arquivar (reversível)
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-sm);cursor:pointer">
-            <input type="radio" name="tipo-limpeza" value="permanente"> Deletar permanentemente
-          </label>
-        </div>
-      </div>
-
-      <div class="field" style="margin-bottom:var(--space-sm)">
-        <label class="field-label" for="manut-confirmar">Digite CONFIRMAR para prosseguir</label>
-        <input class="field-input" type="text" id="manut-confirmar" placeholder="CONFIRMAR" autocomplete="off">
-      </div>
-
-      <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap">
-        <button class="btn-action btn-rejeitar" style="flex:1;background:rgba(240,64,96,0.25)" onclick="limparGeral()">
-          🗑 Limpar todos os rankings
-        </button>
-        <button class="btn-action btn-reativar" style="flex:1" onclick="restaurarGeral()">
-          ⬆ Restaurar todos arquivados
-        </button>
-      </div>
     </div>
   </div>
 
@@ -1154,7 +1138,6 @@ const POLL_INTERVAL = 300000; // 5 minutos
 let tempoRestante = 300;
 let jogosCarregados = false;
 let jogosCache = [];  // usado pelo select de "mesclar com" em games pendentes
-let configCarregada = false;
 
 // ── ESTADO ────────────────────────────────────────────────────────────────────
 let adminSecret = '';
@@ -1195,21 +1178,10 @@ function aplicarVisibilidadePorNivel() {
   const criarEvento = document.getElementById('event-form-details');
   if (criarEvento) criarEvento.style.display = ehAdminEmAlgumaMarca() ? '' : 'none';
 
-  const manutPorJogo = document.getElementById('manut-por-game');
-  if (manutPorJogo) manutPorJogo.style.display = super_ ? '' : 'none';
-
-  const manutGeral = document.getElementById('manut-geral');
-  if (manutGeral) manutGeral.style.display = super_ ? '' : 'none';
-
-  const avatares = document.getElementById('avatares-secao');
-  if (avatares) avatares.style.display = super_ ? '' : 'none';
-
-  // Config geral da plataforma (event_config — kill-switch de upload,
-  // rate limit, texto LGPD) é exclusiva de super desde o backend
-  // (docs/MODERADOR_SPEC.md M.2) — esconde aqui também pra não mostrar
-  // uma seção que só vai dar 403.
-  const configGeral = document.getElementById('config-gerais-secao');
-  if (configGeral) configGeral.style.display = super_ ? '' : 'none';
+  // Avatares/config de plataforma/manutenção viraram console.html,
+  // exclusivo de super (docs/PAINEIS_ADMIN_SPEC.md Fase 0, F0.4/F0.5).
+  const linkConsole = document.getElementById('link-console-secao');
+  if (linkConsole) linkConsole.style.display = super_ ? '' : 'none';
 
   const tabExclusoes = document.getElementById('tab-btn-exclusoes');
   if (tabExclusoes) tabExclusoes.style.display = super_ ? 'block' : 'none';
@@ -1360,6 +1332,10 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
   }
   sessionStorage.removeItem('admin_secret');
   adminSecret = ''; authMode = null; meInfo = null; eventoAtual = null;
+  arenaAtual = null; arenasDisponiveis = [];
+  document.documentElement.style.removeProperty('--color-primary');
+  document.documentElement.style.removeProperty('--font-display');
+  document.getElementById('topbar-arena-atual').style.display = 'none';
   clearInterval(pollTimer);
   document.getElementById('admin-panel').style.display = 'none';
   document.getElementById('login-gate').style.display = 'flex';
@@ -1387,9 +1363,12 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 })();
 
 // ── PAINEL ────────────────────────────────────────────────────────────────────
-function mostrarPainel() {
+async function mostrarPainel() {
   document.getElementById('login-gate').style.display = 'none';
   document.getElementById('admin-panel').style.display = 'grid';
+  // Arena ativa primeiro — configurarIdentidadeEEscopo() já filtra o
+  // event-selector por ela (docs/PAINEIS_ADMIN_SPEC.md F0.2).
+  await configurarArenaAtiva();
   configurarIdentidadeEEscopo();
   carregarTudo();
   iniciarContador();
@@ -1421,17 +1400,139 @@ function configurarIdentidadeEEscopo() {
     return;
   }
 
-  elSelector.style.display = 'inline-block';
-  elSelector.innerHTML = meInfo.events.map(e =>
-    `<option value="${e.id}">${escapar(e.nome)}</option>`
-  ).join('');
-  eventoAtual = meInfo.events[0].id;
-  elSelector.value = eventoAtual;
+  filtrarEventSelectorPorArena();
   elSelector.onchange = () => {
     eventoAtual = elSelector.value;
     feedOffset = 0;  // troca de event sempre volta pra primeira página
     carregarTudo();
   };
+}
+
+// ── ARENA ATIVA (docs/PAINEIS_ADMIN_SPEC.md Fase 0) ────────────────────────────
+// Todas as abas passam a ser relativas a uma Arena por vez — troca de
+// Arena é ação explícita, em vez da lista achatada de tudo que o admin
+// tinha acesso (o bug relatado pelo Bruno).
+let arenaAtual = null;
+let arenasDisponiveis = [];
+
+const TIPOGRAFIAS_ADMIN = {
+  arcade:    "'Press Start 2P', 'Pixel Operator', monospace",
+  futurista: "'Orbitron', sans-serif",
+  terminal:  "'Share Tech Mono', monospace",
+};
+
+async function configurarArenaAtiva() {
+  const elArenaSel = document.getElementById('arena-selector');
+  try {
+    const resp = await apiFetch('/api/admin/arenas');
+    if (!resp.ok) return;
+    arenasDisponiveis = await resp.json();
+  } catch { return; }
+
+  if (arenasDisponiveis.length === 0) {
+    elArenaSel.style.display = 'none';
+    document.getElementById('inicio-sem-arena').style.display = 'block';
+    return;
+  }
+
+  if (arenasDisponiveis.length === 1) {
+    elArenaSel.style.display = 'none';
+  } else {
+    elArenaSel.style.display = 'inline-block';
+    elArenaSel.innerHTML = arenasDisponiveis.map(a =>
+      `<option value="${a.id}">${escapar(a.nome)}</option>`
+    ).join('');
+    elArenaSel.onchange = () => selecionarArenaAtiva(elArenaSel.value);
+  }
+
+  selecionarArenaAtiva(arenasDisponiveis[0].id);
+}
+
+function selecionarArenaAtiva(arenaId) {
+  arenaAtual = arenaId;
+  const elArenaSel = document.getElementById('arena-selector');
+  if (elArenaSel.value !== arenaId) elArenaSel.value = arenaId;
+
+  aplicarBrandingArena(arenasDisponiveis.find(a => a.id === arenaId));
+  filtrarEventSelectorPorArena();
+  carregarInicio();
+  if (document.getElementById('tab-config').classList.contains('active')) carregarEventos();
+}
+
+function aplicarBrandingArena(arena) {
+  const elWrap = document.getElementById('topbar-arena-atual');
+  const elLogo = document.getElementById('topbar-arena-logo');
+  const elNome = document.getElementById('topbar-arena-nome');
+  if (!arena) { elWrap.style.display = 'none'; return; }
+
+  elWrap.style.display = 'flex';
+  elNome.textContent = arena.nome;
+  elLogo.style.display = arena.logo_url ? '' : 'none';
+  if (arena.logo_url) elLogo.src = arena.logo_url;
+
+  if (arena.cor_primaria) {
+    document.documentElement.style.setProperty('--color-primary', arena.cor_primaria);
+  } else {
+    document.documentElement.style.removeProperty('--color-primary');
+  }
+  if (arena.tipografia && TIPOGRAFIAS_ADMIN[arena.tipografia]) {
+    document.documentElement.style.setProperty('--font-display', TIPOGRAFIAS_ADMIN[arena.tipografia]);
+  } else {
+    document.documentElement.style.removeProperty('--font-display');
+  }
+}
+
+// event-selector (Feed) também herda a Arena ativa — super continua
+// sem seletor de event (vê tudo, comportamento de sempre).
+function filtrarEventSelectorPorArena() {
+  if (!meInfo || meInfo.super) return;
+  const elSelector = document.getElementById('event-selector');
+  const eventosDaArena = (meInfo.events || []).filter(e => e.arena_id === arenaAtual);
+
+  if (eventosDaArena.length === 0) {
+    elSelector.style.display = 'none';
+    eventoAtual = null;
+    return;
+  }
+  elSelector.style.display = 'inline-block';
+  elSelector.innerHTML = eventosDaArena.map(e =>
+    `<option value="${e.id}">${escapar(e.nome)}</option>`
+  ).join('');
+  eventoAtual = eventosDaArena[0].id;
+  elSelector.value = eventoAtual;
+  feedOffset = 0;
+  carregarTudo();
+}
+
+async function carregarInicio() {
+  const container = document.getElementById('inicio-lista-events');
+  document.getElementById('inicio-sem-arena').style.display = arenaAtual ? 'none' : 'block';
+  if (!arenaAtual) { container.innerHTML = ''; return; }
+
+  try {
+    const resp = await apiFetch(`/api/admin/arenas/${arenaAtual}/resumo`);
+    if (!resp.ok) { container.innerHTML = emptyState('Erro ao carregar resumo'); return; }
+    const { events } = await resp.json();
+    if (events.length === 0) { container.innerHTML = emptyState('Nenhum event nesta Arena ainda'); return; }
+
+    container.innerHTML = events.map(e => {
+      const inicio = e.data_inicio ? new Date(e.data_inicio).toLocaleDateString('pt-BR') : '—';
+      const fim    = e.data_fim    ? new Date(e.data_fim).toLocaleDateString('pt-BR')    : '—';
+      return `
+        <div class="inicio-event-card">
+          <div class="inicio-event-recordes">${e.total_recordes}<div style="font-size:10px;color:var(--color-text-muted);font-family:var(--font-body)">recordes</div></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:var(--text-sm);font-weight:600">
+              ${escapar(e.nome)} ${e.ativo ? '' : '<span style="color:var(--color-text-muted)">(arquivado)</span>'}
+            </div>
+            <div style="font-size:var(--text-xs);color:var(--color-text-muted)">
+              ${inicio} → ${fim} · ${e.publico ? 'público' : 'inacessível'}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch { container.innerHTML = emptyState('Erro ao carregar resumo'); }
 }
 
 function iniciarContador() {
@@ -1460,11 +1561,8 @@ async function carregarTudo() {
   if (btn) { btn.classList.add('loading'); btn.textContent = '↻ Atualizando...'; }
   // Feed já inclui pendentes via filtro
   await carregarFeed();
-  // Games e config só carregam uma vez — raramente mudam
+  // Games só carrega uma vez — raramente muda
   if (!jogosCarregados) await carregarJogos();
-  // Config geral é super-only desde docs/MODERADOR_SPEC.md M.2 — não
-  // tenta buscar pra quem vai receber 403 de qualquer forma.
-  if (!configCarregada && meInfo && meInfo.super) await carregarConfig();
   if (btn) { btn.classList.remove('loading'); btn.textContent = '↻ Atualizar'; }
 }
 
@@ -1475,9 +1573,10 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+    if (tab.dataset.tab === 'inicio') carregarInicio();
     if (tab.dataset.tab === 'administradores') carregarVinculos();
     if (tab.dataset.tab === 'exclusoes') carregarExclusoesPendentes();
-    if (tab.dataset.tab === 'config') { carregarMarcas(); carregarEventos(); carregarAvatares(); }
+    if (tab.dataset.tab === 'config') { carregarMarcas(); carregarEventos(); }
     if (tab.dataset.tab === 'games' && meInfo && meInfo.super) carregarJogosPendentes();
     if (tab.dataset.tab === 'wizard') carregarWizard();
   });
@@ -1701,14 +1800,6 @@ function renderJogos(games) {
       } catch { showToast('Erro ao atualizar game', 'error'); }
     });
   });
-
-  // Popula select da aba Manutenção
-  const selManut = document.getElementById('manut-game-select');
-  if (selManut) {
-    selManut.innerHTML = games.map(j =>
-      `<option value="${j.id}">${escapar(j.nome)}</option>`
-    ).join('');
-  }
 
   // Popula filtro de game do feed (docs/BACKLOG_2026.md §4.1) —
   // preserva a seleção atual, já que games podem recarregar sem o
@@ -2236,51 +2327,6 @@ async function salvarBrandingWizard() {
 }
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-async function carregarConfig() {
-  configCarregada = true;
-  try {
-    const resp = await apiFetch('/api/admin/config');
-    const cfg  = await resp.json();
-    renderConfig(cfg);
-  } catch { /* silencioso */ }
-}
-
-function renderConfig(cfg) {
-  const container = document.getElementById('config-list');
-  const items = Object.entries(cfg);
-  if (items.length === 0) {
-    container.innerHTML = emptyState('Nenhuma configuração encontrada');
-    return;
-  }
-
-  container.innerHTML = items.map(([chave, item]) => `
-    <div class="config-item">
-      <div>
-        <div class="config-chave">${chave}</div>
-        <div class="config-descricao">${item.descricao || ''}</div>
-        <input class="config-input" type="text"
-               id="config-${chave}"
-               value="${escapar(item.valor)}"
-               data-original="${escapar(item.valor)}">
-      </div>
-      <button class="btn-salvar-config" data-chave="${chave}">Salvar</button>
-    </div>
-  `).join('');
-
-  container.querySelectorAll('.btn-salvar-config').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const chave = btn.dataset.chave;
-      const valor = document.getElementById(`config-${chave}`).value;
-      try {
-        await apiFetch(`/api/admin/config/${chave}`, 'PATCH', { valor });
-        btn.textContent = '✓ Salvo';
-        btn.classList.add('saved');
-        setTimeout(() => { btn.textContent = 'Salvar'; btn.classList.remove('saved'); }, 2000);
-      } catch { showToast('Erro ao salvar configuração', 'error'); }
-    });
-  });
-}
-
 // ── CARD DE ENTRY ───────────────────────────────────────────────────────────
 function motivoModeracao(e) {
   const motivos = [];
@@ -2550,69 +2596,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 100);
 });
 
-async function arquivarJogo() {
-  const jogoId = document.getElementById('manut-game-select').value;
-  const nome   = document.getElementById('manut-game-select').selectedOptions[0]?.text || '';
-  if (!jogoId) { showToast('Selecione um game', 'error'); return; }
-  if (!confirm(`Arquivar todo o ranking de "${nome}"? Reversível.`)) return;
-  try {
-    const resp = await apiFetch('/api/admin/manutencao/limpar-ranking', 'POST', {
-      game_id: jogoId, permanente: false, confirmar: 'CONFIRMAR'
-    });
-    const data = await resp.json();
-    showToast(`${data.total_afetadas} entries arquivadas`, 'success');
-    carregarFeed();
-  } catch { showToast('Erro ao arquivar', 'error'); }
-}
-
-async function restaurarJogo() {
-  const jogoId = document.getElementById('manut-game-select').value;
-  const nome   = document.getElementById('manut-game-select').selectedOptions[0]?.text || '';
-  if (!jogoId) { showToast('Selecione um game', 'error'); return; }
-  if (!confirm(`Restaurar entries arquivadas de "${nome}"?`)) return;
-  try {
-    const resp = await apiFetch('/api/admin/manutencao/restaurar-ranking', 'POST', {
-      game_id: jogoId, confirmar: 'CONFIRMAR'
-    });
-    const data = await resp.json();
-    showToast(`${data.total_restauradas} entries restauradas`, 'success');
-    carregarFeed();
-  } catch { showToast('Erro ao restaurar', 'error'); }
-}
-
-async function limparGeral() {
-  const confirmar  = document.getElementById('manut-confirmar').value;
-  const permanente = document.querySelector('input[name="tipo-limpeza"]:checked')?.value === 'permanente';
-
-  if (confirmar !== 'CONFIRMAR') { showToast('Digite CONFIRMAR no campo acima', 'error'); return; }
-
-  const aviso = permanente
-    ? '⚠️ ATENÇÃO: Esta ação é IRREVERSÍVEL! Todas as entries serão deletadas permanentemente. Tem certeza?'
-    : 'Arquivar TODOS os rankings de todos os games? Poderá ser restaurado depois.';
-  if (!confirm(aviso)) return;
-
-  try {
-    const resp = await apiFetch('/api/admin/manutencao/limpar-ranking', 'POST', {
-      permanente, confirmar: 'CONFIRMAR'
-    });
-    const data = await resp.json();
-    document.getElementById('manut-confirmar').value = '';
-    showToast(`${data.total_afetadas} entries ${permanente ? 'deletadas' : 'arquivadas'}`, permanente ? 'error' : 'success');
-    carregarFeed();
-  } catch { showToast('Erro na limpeza', 'error'); }
-}
-
-async function restaurarGeral() {
-  if (!confirm('Restaurar TODAS as entries arquivadas de todos os games?')) return;
-  try {
-    const resp = await apiFetch('/api/admin/manutencao/restaurar-ranking', 'POST', {
-      confirmar: 'CONFIRMAR'
-    });
-    const data = await resp.json();
-    showToast(`${data.total_restauradas} entries restauradas`, 'success');
-    carregarFeed();
-  } catch { showToast('Erro ao restaurar', 'error'); }
-}
+// arquivarJogo/restaurarJogo/limparGeral/restaurarGeral migraram pro
+// console.html (docs/PAINEIS_ADMIN_SPEC.md Fase 0, F0.5) — manutenção
+// de ranking já era exclusiva de super no backend.
 
 // ── HELPERS ─────────────────────────────────────────────────────────────────────
 async function apiFetch(path, method = 'GET', body = null) {
@@ -2920,64 +2906,6 @@ window.salvarMarca = async function() {
 };
 
 // ── AVATARES (só super — BACKLOG_2026.md §1 ponto cego #3) ────
-async function carregarAvatares() {
-  const lista = document.getElementById('avatares-lista');
-  if (!lista) return;
-  try {
-    const resp = await apiFetch('/api/admin/avatares');
-    if (!resp.ok) { lista.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar avatares</div>`; return; }
-    const avatares = await resp.json();
-
-    if (avatares.length === 0) {
-      lista.innerHTML = `<div style="color:var(--color-text-muted);font-size:var(--text-sm)">Nenhum avatar cadastrado ainda</div>`;
-      return;
-    }
-
-    lista.innerHTML = avatares.map(a => `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--color-bg-surface2);border-radius:6px;border:1px solid var(--color-border);${a.ativo ? '' : 'opacity:0.5'}">
-        <img src="${escapar(a.url)}" alt="${escapar(a.nome)}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0" loading="lazy">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:var(--text-sm);font-weight:600">${escapar(a.nome)}</div>
-          <div style="font-size:var(--text-xs);color:var(--color-text-muted)">${a.ativo ? 'Ativo' : 'Inativo'}</div>
-        </div>
-        <button class="btn-action ${a.ativo ? 'btn-rejeitar' : 'btn-reativar'}" style="padding:4px 10px;font-size:10px"
-                onclick="toggleAvatarAtivo('${a.id}', ${!a.ativo})">
-          ${a.ativo ? 'Desativar' : 'Reativar'}
-        </button>
-      </div>
-    `).join('');
-  } catch {
-    lista.innerHTML = `<div style="color:var(--color-error);font-size:var(--text-sm)">Erro ao carregar avatares</div>`;
-  }
-}
-
-window.criarAvatar = async function() {
-  const nome = document.getElementById('avatar-nome').value.trim();
-  const url  = document.getElementById('avatar-url').value.trim();
-  if (!nome || !url) { showToast('Nome e URL são obrigatórios', 'error'); return; }
-
-  const resp = await apiFetch('/api/admin/avatares', 'POST', { nome, url });
-  if (resp.ok) {
-    showToast('Avatar adicionado!', 'success');
-    document.getElementById('avatar-nome').value = '';
-    document.getElementById('avatar-url').value = '';
-    carregarAvatares();
-  } else {
-    const d = await resp.json();
-    showToast(d.detail || 'Erro ao adicionar avatar', 'error');
-  }
-};
-
-window.toggleAvatarAtivo = async function(id, novoAtivo) {
-  const resp = await apiFetch(`/api/admin/avatares/${id}`, 'PATCH', { ativo: novoAtivo });
-  if (resp.ok) {
-    showToast(novoAtivo ? 'Avatar reativado' : 'Avatar desativado', 'success');
-    carregarAvatares();
-  } else {
-    showToast('Erro ao atualizar avatar', 'error');
-  }
-};
-
 // ── EVENTS ──────────────────────────────────────────────────
 // Não existe mais "o event ativo" (conceito antigo, pré-EVENTOS_SPEC.md)
 // — vários events podem rodar simultaneamente. 'ativo' e 'publico' são
@@ -3011,25 +2939,26 @@ async function carregarEventos() {
     const selectMarca = document.getElementById('novo-event-arena');
     selectMarca.innerHTML = '<option value="">Selecione…</option>' +
       marcasCriaveis.map(m => `<option value="${m.id}">${escapar(m.nome)}</option>`).join('');
+    if (arenaAtual && marcasCriaveis.some(m => m.id === arenaAtual)) selectMarca.value = arenaAtual;
+
+    // Lista escopada à Arena ativa (docs/PAINEIS_ADMIN_SPEC.md F0.2) —
+    // antes misturava events de todas as Arenas do admin numa lista só.
+    const eventsDaArena = arenaAtual ? events.filter(e => e.arena_id === arenaAtual) : events;
 
     const lista = document.getElementById('events-lista');
-    if (events.length === 0) {
-      lista.innerHTML = `<div style="color:var(--color-text-muted);font-size:var(--text-sm)">Nenhum event cadastrado ainda</div>`;
+    if (eventsDaArena.length === 0) {
+      lista.innerHTML = `<div style="color:var(--color-text-muted);font-size:var(--text-sm)">Nenhum event nesta Arena ainda</div>`;
       return;
     }
 
-    lista.innerHTML = events.map(e => {
-      const arena = marcasCacheEventos.find(m => m.id === e.arena_id);
+    lista.innerHTML = eventsDaArena.map(e => {
       const inicio = e.data_inicio ? new Date(e.data_inicio).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
       const fim    = e.data_fim    ? new Date(e.data_fim).toLocaleString('pt-BR',    {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
       return `
         <div style="padding:10px;background:var(--color-bg-surface2);border-radius:6px;border:1px solid ${e.publico ? 'var(--color-primary)' : 'var(--color-border)'}">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
             <div style="flex:1;min-width:0">
-              <div style="font-size:var(--text-sm);font-weight:600">
-                ${escapar(e.nome)}
-                ${arena ? `<span style="font-size:10px;color:var(--color-text-muted)">· ${escapar(arena.nome)}</span>` : ''}
-              </div>
+              <div style="font-size:var(--text-sm);font-weight:600">${escapar(e.nome)}</div>
               <div style="font-size:var(--text-xs);color:var(--color-text-muted)">${escapar(e.slug)} · envios: ${inicio} → ${fim}</div>
             </div>
           </div>

@@ -1,11 +1,113 @@
 # Painéis Admin: separação Console (super) vs. Painel de Arena, e correção do escopo de jogos por evento
 
-> Status: **em especificação — decisões abertas, nenhuma fechada ainda**.
+> Status: **Fase 0 implementada, pendente de validação manual em
+> navegador e de checagem da query nova contra Postgres real** (contexto
+> de Arena + tela inicial + extração mínima de `console.html` — ver §0).
+> Fases I-III seguem **em especificação — decisões abertas, nenhuma
+> fechada ainda**.
 > Complementa `PERMISSOES_SPEC.md` (regras de nível/escopo, que não mudam
 > aqui) e se sobrepõe parcialmente a `CATALOGO_JOGOS_SPEC.md` Fases 2-4
 > (painel "Jogos" revisitado pra escala self-serve) — ver §5. Escrito a
 > partir de uma queixa concreta do Bruno sobre a experiência de admin
 > hoje, não de uma ideia abstrata de reorganizar telas.
+
+---
+
+## 0. Fase 0 — Contexto de Arena + tela inicial (2026-08-30)
+
+Nasceu de uma segunda queixa concreta do Bruno, depois de fechadas as 3
+specs de papel (`MODERADOR_SPEC.md`, `ARENA_ADMIN_SPEC.md`,
+`SUPER_SPEC.md`): `admin.html` não mostra pro admin **onde ele está**
+(sem logo/identidade visual da própria Arena), não tem tela inicial com
+resumo dos próprios events, e mistura configuração de **plataforma
+inteira** com configuração de **event/arena específico** na mesma aba,
+sem indicar a diferença — risco real de o admin achar que está mudando
+algo estreito e na verdade mudar algo global.
+
+Investigando antes de desenhar: isso não é uma queixa nova e sim a peça
+que faltou pra Fase II.1 (§4) já fechada neste documento — aquela fase
+já escreve "`admin.html` continua sendo o painel de quem administra
+**uma** Arena", mas isso nunca foi implementado. Hoje `admin.html` trata
+"admin de N Arenas" como lista achatada (`carregarEventos()` em
+`frontend/admin.html:2995` busca `/events` de todas as Arenas do admin
+de uma vez e renderiza tudo junto, distinguindo só por um `· {arena}`
+discreto ao lado do nome — fácil de não notar com 2+ Arenas). A aba
+"Event" (`id="tab-config"`, `admin.html:848-975`) empilha, sem
+hierarquia visual: identidade/lista de Arenas, lista de events de todas
+as Arenas, Avatares (catálogo global), e "Configurações gerais"
+(`event_config` — kill-switch de upload, rate limit, texto LGPD,
+**plataforma inteira**, não do event/arena atual). Essa última seção é
+o achado mais grave: já é `super`-only no backend desde
+`MODERADOR_SPEC.md` M.2, mas continua misturada visualmente com
+configuração de escopo estreito pra quem é super.
+
+### Decisões (fechadas com o Bruno)
+
+| # | Tópico | Decisão |
+|---|---|---|
+| F0.1 | Onde documentar | Dobrar neste documento como Fase 0, não abrir spec nova — evita 2 documentos falando da mesma tela e mantém os achados 1-5 (§2) junto da decisão que os antecede |
+| F0.2 | Contexto de escopo | **Seletor de "Arena ativa" na topbar, todas as abas herdam.** Troca de Arena vira ação explícita (mesmo espírito do seletor de event que já existe pro Feed, promovido pra nível de Arena inteira); o resto da tela passa a ser sempre relativo à Arena ativa, nunca lista achatada de tudo que o admin tem acesso |
+| F0.3 | Tela inicial | Nova aba "Início" (landing, antes de "Feed"), mostrando identidade visual da Arena ativa (logo/cor aplicados na própria topbar do painel, não só no site público) e um resumo dos events dessa Arena: nome, ativo/arquivado, janela de envio (`data_inicio`/`data_fim`), contagem de recordes (`entries` não-arquivadas) por event |
+| F0.4 | "Configurações gerais" (plataforma inteira) | **Sair de `admin.html` agora**, não esperar a Fase II inteira — já é `super`-only no backend (M.2), deixar misturada com config de escopo estreito é o próprio bug relatado. Migra pra um `console.html` novo, mínimo |
+| F0.5 | Escopo do `console.html` nesta rodada | Além de Configurações gerais: **Avatares** (mesma classe — catálogo global, já `super`-only) e **Manutenção** (limpar/restaurar ranking — já `super`-only, e é o achado 5/§2 item 5 deste documento: aba visível indevidamente pra não-super hoje). Games pendentes/aprovação, fila de revisão de Arena e Exclusões ficam pra Fase II/III completas — não expandir mais que isso agora |
+| F0.6 | Código compartilhado | Decisão original era extrair `admin-common.js` com o login-gate inteiro. **Revisado na implementação** (ver nota abaixo) — o login-gate (Google/Magic Link, ~200 linhas testadas em produção) ficou só em `admin.html`; `console.html` reaproveita a mesma sessão (cookie ou `sessionStorage.admin_secret`, mesma origem) sem formulário de login próprio, chamando `/api/admin/me` direto — se falhar ou não for super, manda a pessoa pra `admin.html`. `apiFetch`/`escapar`/`showToast` foram duplicados (poucas linhas, estáveis, baixo risco), não extraídos em módulo — ver risco 4 |
+| F0.7 | Definição de "recordes gerados" | `COUNT(entries)` do event com `arquivado = false` — inclui pendentes/ocultas (ainda são um envio real), exclui só o que foi formalmente invalidado por moderação. Decisão reversível, fácil de trocar se o Bruno achar que devia contar diferente depois de ver a tela |
+
+### O que NÃO muda nesta rodada
+
+Escopo de jogos por evento (Fase I — achado 1/2, toggle "ativo" ainda
+chama o catálogo global) e a separação completa Console/Painel (Fase II
+inteira — fila de revisão de Arena, aprovação de jogos, Exclusões)
+continuam em aberto, sem decisão fechada. `console.html` nasce nesta
+rodada, mas só com o conteúdo do F0.5 — crescer pra abrigar o resto da
+Fase II é trabalho futuro, não incluído aqui.
+
+### Riscos identificados
+
+1. **F0.6 revisado — duplicação de `apiFetch`/`escapar`/`showToast` entre
+   `admin.html` e `console.html`.** Aceito conscientemente: são funções
+   pequenas e estáveis (não mudaram desde que o projeto existe), e o
+   login-gate inteiro (Google OAuth + Magic Link, com popup/redirect,
+   ~200 linhas) é frágil demais pra refatorar sem conseguir testar em
+   navegador de verdade nesta sessão. Extrair `admin-common.js` de
+   verdade (login incluso) fica pra quando a Fase II for implementada
+   com espaço pra testar o fluxo de login pós-refatoração.
+2. **Query de `resumo` (F0.3) não tem teste contra Postgres real** — só
+   testada com repositório mockado (ver `tests/test_arenas_resumo.py`).
+   `COUNT(...) FILTER (WHERE NOT e.arquivado)` com `LEFT JOIN` é simples,
+   mas o padrão do projeto (`CLAUDE.md`) pede validação contra banco
+   real antes de declarar "correto" — pendente até o Bruno rodar/revisar
+   em ambiente com Postgres.
+3. **Sem teste de navegador pra `admin.html`/`console.html`** — mudança
+   grande de frontend (novo seletor de Arena, aba Início, arquivo novo)
+   validada só por checagem de sintaxe JS e leitura de código, não por
+   uso real na tela. Precisa de smoke test manual antes de considerar
+   fechado — ver §6 desta seção.
+
+### Implementação (parcial — pendente de validação manual em navegador)
+
+- [x] Backend: `arena_repo.listar_resumo_events_da_arena` +
+  `GET /api/admin/arenas/{arena_id}/resumo` (mesmo padrão de escopo do
+  `wizard-status` — super ou vínculo na arena). `arena_id` adicionado a
+  `listar_events_acessiveis_detalhado` (base de `GET /me`), pra o
+  event-selector do Feed também filtrar pela Arena ativa.
+- [x] Frontend `admin.html`: seletor de Arena ativa no topbar (herdado
+  por Início, Event/Games-config e Feed), aba "Início" nova com
+  identidade visual aplicada (logo/cor/tipografia) e resumo de events
+  com contagem de recordes, link pro `console.html` pra quem é super.
+  Aba "Manutenção" renomeada pra "Telão" (só sobrou o card de telão,
+  que nunca foi super-only).
+- [x] `console.html` novo: Configurações gerais, Avatares e Manutenção
+  — todo o conteúdo já `super`-only no backend, sem endpoint novo.
+- [x] Testes: 4 novos (`tests/test_arenas_resumo.py` — resumo com
+  contagem, 404, 403 de arena alheia, 200 de arena própria). Suíte
+  completa: 677 passed (18 erros de smoke pré-existentes, baseline
+  inalterado).
+- [ ] Validação manual em navegador (login, troca de Arena, aba
+  Início, `console.html` como super e como não-super) — pendente, ver
+  risco 3.
+- [ ] Validação da query `resumo` contra Postgres real — pendente, ver
+  risco 2.
 
 ---
 
