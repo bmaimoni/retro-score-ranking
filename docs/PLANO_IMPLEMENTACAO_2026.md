@@ -393,7 +393,7 @@ mesmo Passo 1 — as duas são a mesma tela na prática)
 
 ---
 
-## Fase 10 — Convite assíncrono de colaboradores 🔶 código e migração em produção, validação de ponta a ponta bloqueada pelo Resend
+## Fase 10 — Convite assíncrono de colaboradores 🔶 código e migração em produção, magic link validado; aceite de convite ainda não testado ponta a ponta
 
 **Spec**: `docs/ARENA_SPEC.md` Fase F, mais H.1
 **Depende de**: Fase 8 (reaproveita `memberships`, já renomeada na Fase 7)
@@ -441,13 +441,27 @@ vetor de spam de e-mail em massa (preocupação central do H.1).
   `accepted_at` — e `user_id` nullable presentes; CHECK de `acao` em
   `membership_audit_log` amplo com os 3 valores novos de convite).
   `status` default `active` (decisão #2 acima), sem tabela nova (F.3).
-  Fluxo de ponta a ponta ainda **não validado em produção** —
-  `RESEND_API_KEY` não está configurada corretamente (confirmado com o
-  Bruno em 2026-08-30), então o envio de e-mail de convite (e também
-  o magic link de login, que depende do mesmo flag — `config.py:63`)
-  não funciona hoje. Validação de ponta a ponta da Fase 10 fica
-  bloqueada até o Resend ser configurado; login por Google segue
-  funcionando normalmente nesse meio tempo.
+  **Atualização 2026-08-30**: causa raiz do bloqueio do Resend
+  encontrada e corrigida — o domínio verificado no Resend é
+  `canal3expo.com.br`, mas `RESEND_FROM_EMAIL` (env var do Railway,
+  sem valor setado) caía no default de `config.py`
+  (`login@canal3.com.br`, domínio nunca verificado), causando 403 do
+  Resend em toda tentativa de envio. Setado
+  `RESEND_FROM_EMAIL=no-reply@canal3expo.com.br` no Railway (produção
+  apenas — decisão do Bruno de não mudar o default no código, por ora
+  o domínio `canal3expo.com.br` é tratado como temporário, não
+  definitivo). Precisou de um build+deploy novo pra pegar a env var (um
+  redeploy sozinho não bastou, sintoma de que o deployment anterior
+  continuava ativo). **Magic link validado de ponta a ponta em
+  produção**: `POST /auth/magic-link/request` real disparado pro
+  e-mail do Bruno, e-mail chegou, link clicado, sessão criada
+  corretamente. Fluxo de **aceite de convite** (o resto da Fase 10)
+  ainda **não foi testado ponta a ponta** — usa o mesmo remetente já
+  corrigido, então tem alta chance de funcionar, mas não está
+  confirmado. Adiado por decisão do Bruno: há mudanças pendentes no
+  modelo geral de administração de Arenas e no `admin.html` que ele
+  quer resolver antes de validar o aceite de convite. Login por Google
+  segue funcionando normalmente.
 - [x] Backend: `POST /api/admin/arenas/{id}/convites` (enviar convite —
   token com hash via o mesmo gerador do magic link, nunca texto puro,
   expira em 7 dias — F.4; rate limit 10/dia por Arena+remetente — H.1);
