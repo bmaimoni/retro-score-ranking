@@ -477,10 +477,16 @@ async def atualizar_game(
 @router.get("/games-todos")
 async def listar_games_todos(
     pool=Depends(get_pool),
-    _: str = Depends(require_admin),
+    admin: AdminContext = Depends(require_admin),
 ):
-    """Lista todos os games incluindo inativos — para o painel admin."""
-    return await game_repo.listar_todos(pool)
+    """Lista todos os games incluindo inativos — para o painel admin.
+    Pendentes de aprovação só aparecem pra super (docs/SUPER_SPEC.md
+    S.2) — não-super não tem por que ver o que outras arenas estão
+    tentando cadastrar antes da revisão, nem o próprio pendente."""
+    games = await game_repo.listar_todos(pool)
+    if not admin.super:
+        games = [g for g in games if not g["pendente_aprovacao"]]
+    return games
 
 
 def _exigir_super_games(admin: AdminContext):
@@ -704,15 +710,29 @@ async def restaurar_ranking(
 
 # ── MODERAÇÃO DE NICK (NICKNAME_SPEC.md decisões #4/#9/#10) ────────────────────
 
+async def _exigir_acesso_ao_usuario(pool, admin: AdminContext, user_id: str) -> None:
+    """docs/SUPER_SPEC.md S.1 — moderação de nick age sobre identidade
+    global do jogador, mas só faz sentido escopada: admin/moderador só
+    pode agir sobre quem já tem ao menos 1 entry numa arena onde ele
+    tem vínculo, mesmo padrão do M.1 pra entries. Super irrestrito."""
+    if admin.super:
+        return
+    for vinculo in admin.vinculos:
+        if await entry_repo.usuario_tem_entry_na_arena(pool, user_id, vinculo["arena_id"]):
+            return
+    raise HTTPException(status_code=403, detail="Sem permissão para moderar nick deste usuário")
+
+
 @router.get("/usuarios/{user_id}/nicks")
 async def historico_nicks(
     user_id: str,
     pool=Depends(get_pool),
-    _: AdminContext = Depends(require_admin),
+    admin: AdminContext = Depends(require_admin),
 ):
     """Histórico de nicks do usuário — decisão #4: painel de moderação
     mostra o histórico completo, não só o nick da entry isolada
     sendo revisada."""
+    await _exigir_acesso_ao_usuario(pool, admin, user_id)
     return await auth_repo.listar_historico_nicks(pool, user_id)
 
 
@@ -730,6 +750,7 @@ async def forcar_troca_nick(
     Toda troca forçada fica auditada (decisão #10) — nome antigo, nome
     novo, quem forçou, quando.
     """
+    await _exigir_acesso_ao_usuario(pool, admin, user_id)
     claim_atual = await auth_repo.buscar_claim_ativo_do_usuario(pool, user_id)
 
     try:

@@ -1210,6 +1210,43 @@ async def test_mesclar_game_sucesso(client):
     mesclar_mock.assert_called_once()
 
 
+# ── Catálogo global de games (docs/SUPER_SPEC.md S.2) ───────────────────────────
+
+@pytest.mark.asyncio
+async def test_games_todos_esconde_pendentes_de_nao_super(client):
+    aprovado = make_game(pendente_aprovacao=False)
+    pendente = make_game(pendente_aprovacao=True)
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.game.listar_todos", AsyncMock(return_value=[aprovado, pendente])):
+        resp = await client.get("/api/admin/games-todos")
+
+    assert resp.status_code == 200
+    ids = [g["id"] for g in resp.json()]
+    assert aprovado["id"] in ids
+    assert pendente["id"] not in ids
+
+
+@pytest.mark.asyncio
+async def test_games_todos_super_ve_pendentes(client):
+    aprovado = make_game(pendente_aprovacao=False)
+    pendente = make_game(pendente_aprovacao=True)
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.game.listar_todos", AsyncMock(return_value=[aprovado, pendente])):
+        resp = await client.get("/api/admin/games-todos", headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    ids = [g["id"] for g in resp.json()]
+    assert aprovado["id"] in ids
+    assert pendente["id"] in ids
+
+
 # ── Moderação de nick (NICKNAME_SPEC.md decisões #4/#9/#10) ────────────────────
 
 @pytest.mark.asyncio
@@ -1223,6 +1260,64 @@ async def test_historico_nicks(client):
 
     assert resp.status_code == 200
     assert len(resp.json()) == 1
+
+
+# ── Escopo de moderação de nick (docs/SUPER_SPEC.md S.1) ───────────────────────
+
+@pytest.mark.asyncio
+async def test_historico_nicks_de_usuario_sem_entry_na_arena_retorna_403(client):
+    """Moderador não pode ver histórico de nick de um usuário que
+    nunca jogou na própria arena — mesmo que ele exista na plataforma."""
+    user_id = make_uuid()
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    pool = MagicMock()
+    pool.fetchval = AsyncMock(return_value=None)
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    resp = await client.get(f"/api/admin/usuarios/{user_id}/nicks")
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_historico_nicks_de_usuario_da_propria_arena_funciona(client):
+    user_id = make_uuid()
+    arena_id = make_uuid()
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": arena_id, "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    pool = MagicMock()
+    pool.fetchval = AsyncMock(return_value=1)
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("auth.repository.listar_historico_nicks", AsyncMock(return_value=[])):
+        resp = await client.get(f"/api/admin/usuarios/{user_id}/nicks")
+
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_forcar_troca_nick_de_usuario_sem_entry_na_arena_retorna_403(client):
+    user_id = make_uuid()
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id="u1", super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    pool = MagicMock()
+    pool.fetchval = AsyncMock(return_value=None)
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    resp = await client.post(
+        f"/api/admin/usuarios/{user_id}/trocar-nick", json={"novo_nick": "Corrigido"})
+
+    assert resp.status_code == 403
 
 
 @pytest.mark.asyncio

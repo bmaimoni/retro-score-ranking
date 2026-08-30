@@ -385,6 +385,22 @@ async def listar_por_usuario(pool: Pool, user_id: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+async def usuario_tem_entry_na_arena(pool: Pool, user_id: str, arena_id: str) -> bool:
+    """True se o usuário tem ao menos 1 entry num event desta arena —
+    base do escopo de moderação de nick (docs/SUPER_SPEC.md S.1):
+    admin/moderador só age sobre jogadores que já passaram pela
+    própria arena, mesmo padrão do M.1 pra entries."""
+    return bool(await pool.fetchval(
+        """
+        SELECT 1 FROM entries e
+        JOIN events ev ON ev.id = e.event_id
+        WHERE e.user_id = $1 AND ev.arena_id = $2
+        LIMIT 1
+        """,
+        user_id, arena_id,
+    ))
+
+
 async def historico_nick(pool: Pool, game_id: str, nick_norm: str) -> list[dict]:
     """
     Histórico de todas as entries de um nick em um game,
