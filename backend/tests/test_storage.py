@@ -95,3 +95,30 @@ async def test_png_gera_extensao_png():
         url = await upload_foto(foto)
 
     assert url.endswith(".png")
+
+
+@pytest.mark.asyncio
+async def test_upload_logo_usa_prefixo_por_arena():
+    """docs/PAINEIS_ADMIN_SPEC.md III.1 — logo usa o mesmo bucket da
+    evidência de score, mas com prefixo `logos/{arena_id}/` pra não
+    herdar a semântica de 'evidência de moderação'."""
+    from services.storage import upload_logo
+    foto = _make_upload()
+    mock_resp = MagicMock(status_code=200, text="ok")
+    arena_id = "84392bba-6db2-4c82-998d-867d9c3656d0"
+
+    with patch("services.storage.get_settings") as cfg, \
+         patch("services.storage.httpx.AsyncClient") as mock_client:
+        cfg.return_value.supabase_url = "https://proj.supabase.co"
+        cfg.return_value.supabase_service_key = "key123"
+        cfg.return_value.storage_bucket = "fotos-ranking"
+        client_mock = MagicMock()
+        client_mock.post = AsyncMock(return_value=mock_resp)
+        mock_client.return_value.__aenter__ = AsyncMock(return_value=client_mock)
+        mock_client.return_value.__aexit__ = AsyncMock(return_value=False)
+        url = await upload_logo(foto, arena_id)
+
+    assert url.startswith(
+        f"https://proj.supabase.co/storage/v1/object/public/fotos-ranking/logos/{arena_id}/"
+    )
+    assert url.endswith(".jpg")

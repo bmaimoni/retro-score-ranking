@@ -8,8 +8,11 @@
 > descoberta: I.5 já estava corrigida antes desta fase (`dce422c`/AA.2),
 > escopo real virou "religar frontend nos endpoints certos", não mais
 > bug de segurança. Bruno notou elementos de UI que vai querer ajustar
-> depois (não especificado ainda). Fases II-III seguem **em
-> especificação — decisões abertas, nenhuma fechada ainda**.
+> depois (não especificado ainda). Fase III.1 (upload de logo real)
+> implementada em 2026-09-01, pendente de validação manual; III.3 já
+> estava resolvida pela Fase 0 sem ter sido marcada. Resto de Fase
+> II-III segue **em especificação — decisões abertas, nenhuma fechada
+> ainda**.
 > Complementa `PERMISSOES_SPEC.md` (regras de nível/escopo, que não mudam
 > aqui) e se sobrepõe parcialmente a `CATALOGO_JOGOS_SPEC.md` Fases 2-4
 > (painel "Jogos" revisitado pra escala self-serve) — ver §5. Escrito a
@@ -286,11 +289,37 @@ decisões acima):
 
 ## 5. Fase III — Fechar gaps funcionais por persona
 
-| # | Tópico | Proposta |
+| # | Tópico | Decisão/Status |
 |---|---|---|
-| III.1 | Logo real (achado 3) | Reaproveitar `services/storage.py::upload_foto` — decisão a fechar: mesmo bucket `fotos-ranking` com prefixo (`logos/{arena_id}/...`) ou bucket novo dedicado. Logo é asset de branding permanente (nunca devia ser arquivado/expirado como evidência de score) — vale bucket/prefixo próprio pra não herdar semântica errada do bucket de evidência |
-| III.2 | Console: fila de revisão + suspensão de Arena (achado 4) | UI simples sobre os endpoints já existentes — sem endpoint novo |
-| III.3 | Aba Manutenção — visibilidade (achado 5) | Esconder a aba inteira de quem não é `super`, mesmo padrão já usado pra `tab-btn-wizard`/`tab-btn-administradores`/`tab-btn-exclusoes` |
+| III.1 | Logo real (achado 3) | **Fechada e implementada em 2026-09-01.** Decisão do bucket: **mesmo bucket `fotos-ranking`, com prefixo `logos/{arena_id}/`** — não bucket novo. Motivo prático que resolveu o "a fechar": criar bucket novo no Supabase Storage é passo manual fora do código (dashboard ou Management API, que usa credencial diferente da já disponível), enquanto o prefixo resolve a mesma preocupação de semântica (branding permanente vs. evidência de moderação) sem dependência externa nem passo manual — ambos os arquivos já são "nunca deletados" de qualquer forma. Ver §implementação abaixo |
+| III.2 | Console: fila de revisão + suspensão de Arena (achado 4) | Ainda proposta, não implementada |
+| III.3 | Aba Manutenção — visibilidade (achado 5) | ~~Ainda proposta~~ **Já resolvida pela Fase 0** (2026-08-30, não documentado na hora): a aba virou "Telão" (só o card que nunca foi super-only) e as ações de manutenção de verdade saíram pra `console.html` (F0.4/F0.5), que já é super-only por inteiro. Nada a fazer aqui |
+
+### Implementação III.1 (fechada — pendente de validação manual)
+
+- [x] Backend: `services/storage.py` ganhou `upload_logo(foto, arena_id)`
+  (reusa a lógica de `upload_foto` via helper `_fazer_upload` novo, só
+  muda o prefixo do path). Endpoint novo
+  `POST /api/admin/arenas/{arena_id}/logo` (`routers/arenas_admin.py`)
+  — mesma régua de autorização do `PATCH /{arena_id}` (admin da própria
+  arena ou super), mesma validação de upload do `event_public.py`
+  (magic bytes, 5MB, JPEG/PNG). Retorna só `{logo_url}` — o frontend
+  salva no registro da arena chamando o `PATCH` já existente, sem
+  endpoint novo pra isso. 7 testes novos (`test_storage.py`,
+  `test_arenas_admin.py`: ok, 404, 403 de arena alheia, 403 moderador,
+  >5MB, PDF disfarçado de jpg). Suíte completa: 675 passed (mesmo
+  baseline de 10 erros pré-existentes).
+- [x] Frontend: os **dois** pontos que setam `logo_url` ganharam upload
+  de arquivo (campo texto de URL continua existindo, upload só
+  preenche ele — sem duplicar o fluxo de salvar):
+  - Form "criar/editar arena" (`admin.html`, aba Event) — upload só
+    funciona em modo edição (precisa de `arena_id`, que não existe
+    ainda ao criar); criar continua exigindo URL colada ou salvar
+    primeiro e editar depois.
+  - Wizard de personalização pós-ativação (`ARENA_SPEC.md` Fase E) —
+    upload sempre disponível, arena já existe nesse ponto do fluxo.
+- [ ] Validação manual em navegador — pendente (upload de arquivo real
+  contra o Supabase Storage de produção, não simulável sem browser).
 
 ---
 
@@ -311,12 +340,12 @@ absorvida aqui, não implementada duas vezes.
    compartilhado (II.4) recria o mesmo problema que motivou a separação**
    — dois arquivos divergindo silenciosamente é pior que um arquivo com
    `if (super)`. A extração de `admin-common.js` não é opcional.
-2. **I.5 (travar `PATCH /api/admin/games/{id}` pra só super) precisa de
-   teste adversarial antes de qualquer coisa ser considerada pronta** —
-   mesma exigência que `PERMISSOES_SPEC.md` §5.1 já registrou pra
-   concessão de vínculo: checagem de escopo é a única linha de defesa,
-   então tem que ser testada com admin de arena tentando editar jogo de
-   outra arena, não só caminho feliz.
+2. ~~**I.5 (travar `PATCH /api/admin/games/{id}` pra só super) precisa
+   de teste adversarial**~~ **Já coberto** — confirmado ao revisitar o
+   doc pra Fase I (2026-09-01): `test_atualizar_game_admin_de_arena_retorna_403`
+   e `test_atualizar_game_moderador_retorna_403` (`tests/test_admin.py`)
+   já existem desde o commit `dce422c`/AA.2, cobrindo exatamente esse
+   caso adversarial.
 3. ~~**Migrar o toggle "ativo" pro `event_games` muda o comportamento
    observável de eventos que já usam o toggle antigo.**~~ **Checado em
    produção (2026-08-30) — risco não se confirma.** `event_public.py:116`

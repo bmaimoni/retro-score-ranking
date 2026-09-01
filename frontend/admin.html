@@ -951,7 +951,17 @@
               <option value="terminal">Terminal (Share Tech Mono)</option>
             </select>
           </div>
-          <input class="field-input" id="arena-logo" placeholder="Logo (ex: logo-canal3-2026.png ou URL completa)" maxlength="300">
+          <div style="display:flex;gap:var(--space-sm);align-items:center;flex-wrap:wrap">
+            <input class="field-input" id="arena-logo" placeholder="URL do logo, ou envie um arquivo →" maxlength="300" style="flex:1;min-width:200px">
+            <label class="btn-action btn-ocultar" style="cursor:pointer;padding:6px 12px;font-size:10px;white-space:nowrap">
+              Enviar arquivo
+              <input type="file" id="arena-logo-file" accept="image/jpeg,image/png" style="display:none">
+            </label>
+          </div>
+          <p style="font-size:var(--text-xs);color:var(--color-text-muted);margin:2px 0 0">
+            Envio de arquivo só funciona editando uma arena já criada (precisa de um ID) — pra criar, cole uma URL ou salve e edite em seguida.
+          </p>
+          <img id="arena-logo-preview" alt="" style="display:none;max-height:48px;border-radius:4px">
           <div class="field">
             <label class="field-label" for="arena-itens-por-pagina">Itens por página no ranking (padrão: 20)</label>
             <input class="field-input" type="number" id="arena-itens-por-pagina" placeholder="20" min="1" style="max-width:140px">
@@ -2280,8 +2290,15 @@ async function renderWizardConteudo() {
         </div>
       </div>
       <div class="field" style="margin-bottom:var(--space-md)">
-        <label class="field-label" for="wizard-logo-url">Logo (URL, opcional)</label>
-        <input class="field-input" type="text" id="wizard-logo-url" placeholder="https://...">
+        <label class="field-label" for="wizard-logo-url">Logo (opcional)</label>
+        <div style="display:flex;gap:var(--space-sm);align-items:center;flex-wrap:wrap">
+          <input class="field-input" type="text" id="wizard-logo-url" placeholder="https://..." style="flex:1;min-width:200px">
+          <label class="btn-action btn-ocultar" style="cursor:pointer;padding:6px 12px;font-size:10px;white-space:nowrap">
+            Enviar arquivo
+            <input type="file" id="wizard-logo-file" accept="image/jpeg,image/png" style="display:none">
+          </label>
+        </div>
+        <img id="wizard-logo-preview" alt="" style="display:none;max-height:48px;border-radius:4px;margin-top:6px">
       </div>
       <button class="btn-primary" id="wizard-branding-btn">SALVAR PERSONALIZAÇÃO</button>
     </div>
@@ -2292,6 +2309,16 @@ async function renderWizardConteudo() {
 
 function ligarEventosWizard() {
   document.getElementById('wizard-criar-event-btn').addEventListener('click', criarEventoWizard);
+
+  const inputLogoWizard = document.getElementById('wizard-logo-file');
+  if (inputLogoWizard) {
+    inputLogoWizard.addEventListener('change', () => enviarArquivoLogo(
+      arenaAtualWizard,
+      inputLogoWizard,
+      document.getElementById('wizard-logo-url'),
+      document.getElementById('wizard-logo-preview'),
+    ));
+  }
 
   const inputIgdb = document.getElementById('wizard-igdb-input');
   if (inputIgdb) {
@@ -2984,6 +3011,49 @@ document.getElementById('arena-cor-hex').addEventListener('input', (e) => {
   }
 });
 
+// Upload de logo real (docs/PAINEIS_ADMIN_SPEC.md III.1) — compartilhado
+// entre o form de identidade da arena e o wizard de personalização.
+// Preenche o mesmo campo de texto que já existia (URL), então o fluxo
+// de salvar (salvarMarca/salvarBrandingWizard) não muda nada.
+async function enviarArquivoLogo(arenaId, fileInputEl, textInputEl, previewImgEl) {
+  const file = fileInputEl.files[0];
+  if (!file) return;
+  if (!arenaId) {
+    showToast('Salve a arena primeiro pra poder enviar um arquivo de logo', 'error');
+    fileInputEl.value = '';
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('logo', file);
+  const headers = {};
+  if (authMode !== 'session') headers['Authorization'] = `Bearer ${adminSecret}`;
+
+  try {
+    const resp = await fetch(`${API_URL}/api/admin/arenas/${arenaId}/logo`, {
+      method: 'POST', headers, body: fd,
+      credentials: authMode === 'session' ? 'include' : 'omit',
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      showToast(err.detail || 'Erro no upload do logo', 'error');
+      return;
+    }
+    const { logo_url } = await resp.json();
+    textInputEl.value = logo_url;
+    if (previewImgEl) { previewImgEl.src = logo_url; previewImgEl.style.display = ''; }
+    showToast('Logo enviado — clique em Salvar pra confirmar', 'success');
+  } catch { showToast('Erro no upload do logo', 'error'); }
+  finally { fileInputEl.value = ''; }
+}
+
+document.getElementById('arena-logo-file').addEventListener('change', () => enviarArquivoLogo(
+  document.getElementById('arena-id-editando').value,
+  document.getElementById('arena-logo-file'),
+  document.getElementById('arena-logo'),
+  document.getElementById('arena-logo-preview'),
+));
+
 window.editarMarca = function(arena) {
   document.getElementById('arena-id-editando').value = arena.id;
   document.getElementById('arena-nome').value = arena.nome;
@@ -2999,6 +3069,9 @@ window.editarMarca = function(arena) {
   document.getElementById('arena-cancelar-btn').style.display = 'block';
   document.getElementById('arena-form-details').open = true;
   document.getElementById('arena-form-details').scrollIntoView({ behavior: 'smooth' });
+  const preview = document.getElementById('arena-logo-preview');
+  if (arena.logo_url) { preview.src = arena.logo_url; preview.style.display = ''; }
+  else { preview.style.display = 'none'; }
 };
 
 window.cancelarEdicaoMarca = function() {
@@ -3013,6 +3086,7 @@ window.cancelarEdicaoMarca = function() {
   document.getElementById('arena-itens-por-pagina').value = '';
   document.getElementById('arena-salvar-btn').textContent = '+ Criar arena';
   document.getElementById('arena-cancelar-btn').style.display = 'none';
+  document.getElementById('arena-logo-preview').style.display = 'none';
 };
 
 window.salvarMarca = async function() {

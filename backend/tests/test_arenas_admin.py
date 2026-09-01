@@ -4,6 +4,7 @@ Ver docs/MARCAS_SPEC.md §3 e docs/PERMISSOES_SPEC.md decisão #7
 (criar arena é exclusivo de super — achado #5 da mesma spec, corrigido
 aqui: o endpoint aceitava qualquer admin autenticado antes).
 """
+import io
 import uuid
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -394,6 +395,108 @@ async def test_moderador_nao_edita_arena(client):
     resp = await client.patch(f"/api/admin/arenas/{arena_id}", json={"cor_primaria": "#ff0000"})
 
     assert resp.status_code == 403
+
+
+# ── Upload de logo (docs/PAINEIS_ADMIN_SPEC.md III.1) ───────────────────────────
+
+def make_jpeg_bytes():
+    return (b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+            b"\xff\xd9")
+
+def make_pdf_bytes():
+    return b"%PDF-1.4 fake content that is definitely not an image"
+
+
+@pytest.mark.asyncio
+async def test_upload_logo_ok_retorna_url(client):
+    arena_id = make_uuid()
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.arena.buscar_por_id", AsyncMock(return_value=_arena(id=arena_id))), \
+         patch("services.storage.upload_logo", AsyncMock(return_value="https://cdn/logos/x/y.jpg")):
+        resp = await client.post(f"/api/admin/arenas/{arena_id}/logo",
+            files=[("logo", ("logo.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))],
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"logo_url": "https://cdn/logos/x/y.jpg"}
+
+
+@pytest.mark.asyncio
+async def test_upload_logo_arena_inexistente_retorna_404(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.arena.buscar_por_id", AsyncMock(return_value=None)):
+        resp = await client.post(f"/api/admin/arenas/{make_uuid()}/logo",
+            files=[("logo", ("logo.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))],
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_upload_logo_admin_de_outra_arena_retorna_403(client):
+    """Adversarial: admin de uma arena não sobrescreve o logo de outra,
+    mesmo sabendo o id — mesma régua do PATCH de identidade visual."""
+    arena_id = make_uuid()
+    admin_de_outra_arena = AdminContext(
+        identificador="admin@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_outra_arena
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.arena.buscar_por_id", AsyncMock(return_value=_arena(id=arena_id))):
+        resp = await client.post(f"/api/admin/arenas/{arena_id}/logo",
+            files=[("logo", ("logo.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_upload_logo_moderador_retorna_403(client):
+    arena_id = make_uuid()
+    moderador = AdminContext(
+        identificador="mod@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"arena_id": arena_id, "role": "moderador"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: moderador
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.arena.buscar_por_id", AsyncMock(return_value=_arena(id=arena_id))):
+        resp = await client.post(f"/api/admin/arenas/{arena_id}/logo",
+            files=[("logo", ("logo.jpg", io.BytesIO(make_jpeg_bytes()), "image/jpeg"))])
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_upload_logo_rejeita_acima_de_5mb(client):
+    arena_id = make_uuid()
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    grande = make_jpeg_bytes() + b"\x00" * (5 * 1024 * 1024)
+
+    with patch("repositories.arena.buscar_por_id", AsyncMock(return_value=_arena(id=arena_id))):
+        resp = await client.post(f"/api/admin/arenas/{arena_id}/logo",
+            files=[("logo", ("logo.jpg", io.BytesIO(grande), "image/jpeg"))],
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 413
+
+
+@pytest.mark.asyncio
+async def test_upload_logo_rejeita_pdf_com_extensao_jpg(client):
+    """Valida pelos magic bytes, não pela extensão declarada — mesmo
+    padrão do upload de evidência de score (routers/event_public.py)."""
+    arena_id = make_uuid()
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.arena.buscar_por_id", AsyncMock(return_value=_arena(id=arena_id))):
+        resp = await client.post(f"/api/admin/arenas/{arena_id}/logo",
+            files=[("logo", ("logo.jpg", io.BytesIO(make_pdf_bytes()), "image/jpeg"))],
+            headers=AUTH_HEADER)
+
+    assert resp.status_code == 422
 
 
 # ── Transferência de titularidade (decisão #11) ─────────────────────────────────

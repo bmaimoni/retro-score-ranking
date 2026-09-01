@@ -6,7 +6,8 @@ Ver docs/MARCAS_SPEC.md §3: arena é o nível acima de event — cor
 primária, tipografia e logo herdam pra event quando o event não
 define os seus (event → arena → default da plataforma).
 """
-from fastapi import APIRouter, Depends, HTTPException
+import filetype
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, EmailStr, field_validator
 import repositories.arena as arena_repo
 import repositories.membership as membership_repo
@@ -15,6 +16,7 @@ import auth.repository as auth_repo
 import auth.service as auth_svc
 import services.arena_admissao as admissao
 import services.convite_email as convite_email_svc
+import services.storage as storage
 from config import get_settings
 from utils.db import get_pool
 from middleware.auth import require_admin, require_super_or_authenticated_user, AdminContext
@@ -22,6 +24,12 @@ from middleware.auth import require_admin, require_super_or_authenticated_user, 
 router = APIRouter(prefix="/api/admin/arenas", tags=["admin-arenas"])
 
 TIPOGRAFIAS_VALIDAS = {"arcade", "futurista", "terminal"}
+
+# Upload de logo (III.1) — mesma régua de tamanho/formato do upload de
+# evidência de score (routers/event_public.py), validado por magic
+# bytes, não pela extensão declarada.
+LOGO_MAX_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+LOGO_ALLOWED_MIME = {"image/jpeg", "image/png"}
 
 
 def _validar_tipografia(v):
@@ -290,6 +298,39 @@ async def atualizar_arena(
     if not arena:
         raise HTTPException(status_code=404, detail="Marca não encontrada")
     return arena
+
+
+@router.post("/{arena_id}/logo")
+async def upload_logo_arena(
+    arena_id: str,
+    logo: UploadFile = File(...),
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """Upload de logo real (docs/PAINEIS_ADMIN_SPEC.md III.1) — antes só
+    dava pra colar uma URL já hospedada em outro lugar. Retorna a URL
+    pública; o frontend salva chamando PATCH /{arena_id} como sempre
+    (mesmo campo `logo_url`, sem endpoint novo pra isso). Mesma régua de
+    autorização do PATCH acima: admin da própria arena ou super."""
+    await _resolver_arena_ou_404(pool, arena_id)
+    if not admin.super and not admin.eh_admin_na_arena(arena_id):
+        raise HTTPException(status_code=403, detail="Sem permissão para editar esta arena")
+
+    conteudo = await logo.read()
+    if len(conteudo) > LOGO_MAX_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail="Logo excede o limite de 5MB")
+
+    tipo = filetype.guess(conteudo)
+    mime_detectado = tipo.mime if tipo else "application/octet-stream"
+    if mime_detectado not in LOGO_ALLOWED_MIME:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Formato inválido ({mime_detectado}). Apenas JPEG e PNG são aceitos",
+        )
+    await logo.seek(0)
+
+    logo_url = await storage.upload_logo(logo, arena_id)
+    return {"logo_url": logo_url}
 
 
 @router.patch("/{arena_id}/titularidade")

@@ -9,11 +9,23 @@ log = structlog.get_logger()
 
 async def upload_foto(foto: UploadFile) -> str:
     """
-    Faz upload da foto para o bucket do Supabase Storage.
-
-    Retorna a URL pública permanente.
+    Faz upload da foto de evidência de score para o bucket do Supabase
+    Storage. Retorna a URL pública permanente.
     Arquivos NUNCA são deletados — evidência de moderação preservada.
     """
+    return await _fazer_upload(foto)
+
+
+async def upload_logo(foto: UploadFile, arena_id: str) -> str:
+    """Upload de logo/branding de Arena (docs/PAINEIS_ADMIN_SPEC.md
+    III.1) — mesmo bucket da evidência de score (sem bucket novo pra
+    criar manualmente no Supabase), mas com prefixo próprio
+    (`logos/{arena_id}/`) pra não herdar a semântica de 'evidência de
+    moderação' — é asset de branding permanente, papel diferente."""
+    return await _fazer_upload(foto, prefixo=f"logos/{arena_id}/")
+
+
+async def _fazer_upload(foto: UploadFile, prefixo: str = "") -> str:
     settings = get_settings()
 
     # Determina content-type e extensão com fallback seguro
@@ -22,7 +34,7 @@ async def upload_foto(foto: UploadFile) -> str:
         content_type = "image/jpeg"
     ext = "jpg" if content_type == "image/jpeg" else "png"
 
-    filename = f"{uuid.uuid4()}.{ext}"
+    filename = f"{prefixo}{uuid.uuid4()}.{ext}"
     conteudo = await foto.read()
 
     url = f"{settings.supabase_url}/storage/v1/object/{settings.storage_bucket}/{filename}"
