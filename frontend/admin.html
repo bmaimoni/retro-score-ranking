@@ -857,7 +857,7 @@
 
 
 
-  <!-- ── ABA: GAMES ── -->
+  <!-- ── ABA: GAMES (games do event ativo, docs/PAINEIS_ADMIN_SPEC.md Fase I) ── -->
   <div class="tab-content" id="tab-games">
     <div id="games-pendentes-secao" style="display:none;margin-bottom:var(--space-lg)">
       <div class="section-header">
@@ -871,28 +871,48 @@
       <div id="games-pendentes-lista"></div>
     </div>
 
-    <div class="section-header">
-      <span class="section-title">Games cadastrados</span>
+    <!-- Super não tem event fixo (I.8) — precisa escolher qual event
+         gerenciar. Admin/moderador escopado herda o event-selector do
+         topbar (mesmo eventoAtual do Feed). -->
+    <div class="field" id="games-event-selector-wrap" style="display:none;max-width:320px;margin-bottom:var(--space-md)">
+      <label class="field-label" for="games-event-selector">Event</label>
+      <select class="field-input" id="games-event-selector"></select>
     </div>
-    <div class="games-grid" id="games-list"></div>
 
-    <div class="criar-game-form" id="criar-game-form">
-      <p class="form-title">+ Novo game</p>
-      <div class="form-row">
-        <div class="field">
-          <label class="field-label" for="game-nome">Nome</label>
-          <input class="field-input" type="text" id="game-nome" placeholder="Ex: Pac-Man">
+    <div id="games-sem-event" style="display:none;color:var(--color-text-muted);font-size:var(--text-sm)">
+      Nenhum event nesta Arena ainda — crie um na aba Event antes de gerenciar games.
+    </div>
+
+    <div id="games-conteudo">
+      <div class="section-header">
+        <span class="section-title">Games deste event</span>
+      </div>
+      <div class="games-grid" id="games-list"></div>
+
+      <div class="criar-game-form" id="adicionar-game-form">
+        <p class="form-title">+ Adicionar game já existente ao event</p>
+        <input class="field-input" type="search" id="games-busca-input" placeholder="Buscar por nome no catálogo…">
+        <div id="games-busca-resultados"></div>
+      </div>
+
+      <div class="criar-game-form" id="criar-game-form">
+        <p class="form-title">+ Novo game</p>
+        <div class="form-row">
+          <div class="field">
+            <label class="field-label" for="game-nome">Nome</label>
+            <input class="field-input" type="text" id="game-nome" placeholder="Ex: Pac-Man">
+          </div>
+          <div class="field">
+            <label class="field-label" for="game-slug">Slug (URL)</label>
+            <input class="field-input" type="text" id="game-slug" placeholder="Ex: pac-man">
+          </div>
         </div>
         <div class="field">
-          <label class="field-label" for="game-slug">Slug (URL)</label>
-          <input class="field-input" type="text" id="game-slug" placeholder="Ex: pac-man">
+          <label class="field-label" for="game-score-max">Score máximo (opcional)</label>
+          <input class="field-input" type="number" id="game-score-max" placeholder="Ex: 999990 — deixe vazio para sem limite">
         </div>
+        <button class="btn-primary" id="criar-game-btn">CRIAR GAME</button>
       </div>
-      <div class="field">
-        <label class="field-label" for="game-score-max">Score máximo (opcional)</label>
-        <input class="field-input" type="number" id="game-score-max" placeholder="Ex: 999990 — deixe vazio para sem limite">
-      </div>
-      <button class="btn-primary" id="criar-game-btn">CRIAR GAME</button>
     </div>
   </div>
 
@@ -1332,7 +1352,7 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
   }
   sessionStorage.removeItem('admin_secret');
   adminSecret = ''; authMode = null; meInfo = null; eventoAtual = null;
-  arenaAtual = null; arenasDisponiveis = [];
+  arenaAtual = null; arenasDisponiveis = []; catalogoGlobal = null;
   document.documentElement.style.removeProperty('--color-primary');
   document.documentElement.style.removeProperty('--font-display');
   document.getElementById('topbar-arena-atual').style.display = 'none';
@@ -1405,6 +1425,7 @@ function configurarIdentidadeEEscopo() {
     eventoAtual = elSelector.value;
     feedOffset = 0;  // troca de event sempre volta pra primeira página
     carregarTudo();
+    carregarJogos();  // Games é por event (Fase I) — não fica preso ao cache de carregarTudo
   };
 }
 
@@ -1456,6 +1477,7 @@ function selecionarArenaAtiva(arenaId) {
   aplicarBrandingArena(arenasDisponiveis.find(a => a.id === arenaId));
   filtrarEventSelectorPorArena();
   carregarInicio();
+  atualizarContextoGames();  // Games é por event (I.8) — troca de Arena muda o event em contexto
   if (document.getElementById('tab-config').classList.contains('active')) carregarEventos();
 }
 
@@ -1716,36 +1738,109 @@ function renderFeed() {
 // ── PENDENTES ─────────────────────────────────────────────────────────────────
 // carregarPendentes e renderPendentes consolidados no feed
 
-// ── GAMES ─────────────────────────────────────────────────────────────────────
-async function carregarJogos() {
-  jogosCarregados = true;
+// ── GAMES (por event, docs/PAINEIS_ADMIN_SPEC.md Fase I) ───────────────────────
+// A aba lista/edita o vínculo event_games do event em contexto — nunca
+// mais o catálogo global. Admin/moderador escopado herda eventoAtual do
+// event-selector do Feed; super não tem event fixo (I.8), então ganha
+// um seletor só nesta aba.
+
+let catalogoGlobal = null;  // cache do catálogo (games-todos) — feed-filtro-game + busca de I.3
+
+async function carregarCatalogoGlobal() {
+  if (catalogoGlobal) return catalogoGlobal;
   try {
     const resp = await apiFetch('/api/admin/games-todos');
-    if (!resp.ok) {
-      // Fallback: usa endpoint público se admin-específico não existir
-      const r2 = await fetch(`${API_URL}/api/games`);
-      const games = await r2.json();
-      renderJogos(games);
-      return;
-    }
-    const games = await resp.json();
-    renderJogos(games);
+    catalogoGlobal = resp.ok ? await resp.json() : [];
+  } catch { catalogoGlobal = []; }
+  popularFiltroFeedComCatalogo();
+  return catalogoGlobal;
+}
+
+function popularFiltroFeedComCatalogo() {
+  const selFeedJogo = document.getElementById('feed-filtro-game');
+  if (!selFeedJogo || !catalogoGlobal) return;
+  // Preserva a seleção atual — o catálogo carrega uma vez só, raramente muda.
+  const selecionado = selFeedJogo.value;
+  selFeedJogo.innerHTML = '<option value="">Todos os games</option>' +
+    catalogoGlobal.filter(j => !j.pendente_aprovacao)
+      .map(j => `<option value="${j.id}">${escapar(j.nome)}</option>`).join('');
+  selFeedJogo.value = selecionado;
+}
+
+async function popularSeletorEventoGames() {
+  const wrap = document.getElementById('games-event-selector-wrap');
+  const sel  = document.getElementById('games-event-selector');
+  if (!meInfo || !meInfo.super) { wrap.style.display = 'none'; return; }
+  if (!arenaAtual) { wrap.style.display = 'none'; return; }
+
+  try {
+    const resp = await apiFetch('/api/admin/events');
+    if (!resp.ok) return;
+    const events = (await resp.json()).filter(e => e.arena_id === arenaAtual);
+    if (events.length === 0) { wrap.style.display = 'none'; eventoAtual = null; return; }
+
+    wrap.style.display = 'block';
+    sel.innerHTML = events.map(e =>
+      `<option value="${e.id}">${escapar(e.nome)}${e.ativo === false ? ' (arquivado)' : ''}</option>`
+    ).join('');
+    if (!eventoAtual || !events.some(e => e.id === eventoAtual)) eventoAtual = events[0].id;
+    sel.value = eventoAtual;
+    sel.onchange = () => { eventoAtual = sel.value; carregarJogos(); };
+  } catch { /* silencioso */ }
+}
+
+// Chamado sempre que a Arena ativa muda (super) ou o event-selector do
+// Feed muda (admin/moderador escopado) — mantém a aba Games em sincronia
+// mesmo se ela não estiver visível no momento da troca.
+async function atualizarContextoGames() {
+  if (meInfo && meInfo.super) await popularSeletorEventoGames();
+  await carregarJogos();
+}
+
+async function carregarJogos() {
+  jogosCarregados = true;
+  const semEvento = document.getElementById('games-sem-event');
+  const conteudo  = document.getElementById('games-conteudo');
+
+  if (!eventoAtual) {
+    semEvento.style.display = 'block';
+    conteudo.style.display  = 'none';
+    return;
+  }
+  semEvento.style.display = 'none';
+  conteudo.style.display  = '';
+
+  await carregarCatalogoGlobal();
+
+  try {
+    const resp = await apiFetch(`/api/admin/events/${eventoAtual}/games`);
+    if (!resp.ok) { document.getElementById('games-list').innerHTML = emptyState('Erro ao carregar games deste event'); return; }
+    renderJogos(await resp.json());
   } catch { /* silencioso */ }
 }
 
 function renderJogos(games) {
   jogosCache = games;
   const container = document.getElementById('games-list');
+
+  // Leitura é liberada pra moderador (backend: events.py `listar_games_do_event`),
+  // mas edição (toggle/ordem/adicionar) exige admin na Arena ativa — esconder
+  // aqui, não só bloquear depois do clique (docs/PERMISSOES_SPEC.md §7 item 5).
+  const podeEditar = !!(meInfo && (meInfo.super || nivelDaMarca(arenaAtual) === 'admin'));
+  document.getElementById('adicionar-game-form').style.display = podeEditar ? '' : 'none';
+
   if (games.length === 0) {
-    container.innerHTML = emptyState('Nenhum game cadastrado');
+    container.innerHTML = emptyState('Nenhum game vinculado a este event ainda — adicione um abaixo');
     return;
   }
-  container.innerHTML = games.map(j => `
-    <div class="game-card ${j.ativo === false ? 'inativo' : ''}" data-id="${j.id}">
+  const ordenados = [...games].sort((a, b) => a.ordem - b.ordem);
+  container.innerHTML = ordenados.map((j, i) => `
+    <div class="game-card ${j.ativo ? '' : 'inativo'}" data-id="${j.id}">
       <div>
         <div class="game-nome">
           ${escapar(j.nome)}
           ${j.pendente_aprovacao ? '<span class="badge-pendente-game">Aguardando aprovação</span>' : ''}
+          ${j.jogo_ativo_global === false ? '<span class="badge-pendente-game" title="Desativado no catálogo global por super">Oculto globalmente</span>' : ''}
         </div>
         <div class="game-meta">
           slug: ${j.slug}
@@ -1754,26 +1849,25 @@ function renderJogos(games) {
       </div>
       <div class="game-actions">
         <div style="display:flex;align-items:center;gap:var(--space-sm)">
+          ${podeEditar ? `
+          <button class="btn-action btn-ocultar btn-reordenar" data-id="${j.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Mover pra cima" style="padding:2px 8px">↑</button>
+          <button class="btn-action btn-ocultar btn-reordenar" data-id="${j.id}" data-dir="1" ${i === ordenados.length - 1 ? 'disabled' : ''} title="Mover pra baixo" style="padding:2px 8px">↓</button>` : ''}
           ${meInfo && meInfo.super ? `
           <button class="btn-action btn-rejeitar btn-arquivar-game" data-id="${j.id}" data-nome="${j.nome}"
-                  title="Arquivar ranking deste game" style="padding:4px 10px;font-size:10px">
+                  title="Arquivar ranking deste game (todas as arenas)" style="padding:4px 10px;font-size:10px">
             ⬇ Arquivar
           </button>` : ''}
-          ${meInfo && meInfo.super ? `
-          <!-- Catálogo global — exclusivo de super desde
-               docs/ARENA_ADMIN_SPEC.md AA.2. Ativar/desativar por
-               event fica pra quando a aba usar event_games (Fase I
-               de docs/PAINEIS_ADMIN_SPEC.md). -->
-          <div class="toggle-ativo ${j.ativo !== false ? 'on' : ''}"
-               data-id="${j.id}" data-ativo="${j.ativo !== false}"
-               title="${j.ativo !== false ? 'Ativo — clique para desativar' : 'Inativo — clique para ativar'}">
+          ${podeEditar ? `
+          <div class="toggle-ativo ${j.ativo ? 'on' : ''}"
+               data-id="${j.id}" data-ativo="${j.ativo}"
+               title="${j.ativo ? 'Ativo neste event — clique para desativar' : 'Inativo neste event — clique para ativar'}">
           </div>` : ''}
         </div>
       </div>
     </div>
   `).join('');
 
-  // Botão arquivar ranking por game
+  // Botão arquivar ranking por game (global — todas as arenas, super-only)
   container.querySelectorAll('.btn-arquivar-game').forEach(btn => {
     btn.addEventListener('click', async () => {
       const nome = btn.dataset.nome;
@@ -1789,29 +1883,80 @@ function renderJogos(games) {
     });
   });
 
+  // I.2 — vínculo do event, nunca mais o catálogo global
   container.querySelectorAll('.toggle-ativo').forEach(toggle => {
     toggle.addEventListener('click', async () => {
       const id    = toggle.dataset.id;
       const ativo = toggle.dataset.ativo === 'true';
       try {
-        await apiFetch(`/api/admin/games/${id}`, 'PATCH', { ativo: !ativo });
-        showToast(!ativo ? 'Game ativado' : 'Game desativado', 'success');
+        await apiFetch(`/api/admin/events/${eventoAtual}/games/${id}`, 'PATCH', { ativo: !ativo });
+        showToast(!ativo ? 'Game ativado neste event' : 'Game desativado neste event', 'success');
         carregarJogos();
       } catch { showToast('Erro ao atualizar game', 'error'); }
     });
   });
 
-  // Popula filtro de game do feed (docs/BACKLOG_2026.md §4.1) —
-  // preserva a seleção atual, já que games podem recarregar sem o
-  // usuário ter mexido no filtro.
-  const selFeedJogo = document.getElementById('feed-filtro-game');
-  if (selFeedJogo) {
-    const selecionado = selFeedJogo.value;
-    selFeedJogo.innerHTML = '<option value="">Todos os games</option>' +
-      games.map(j => `<option value="${j.id}">${escapar(j.nome)}</option>`).join('');
-    selFeedJogo.value = selecionado;
-  }
+  // I.4 — reordenar com setas simples; renumera a lista inteira em
+  // sequência (0..N-1) a cada troca, então nunca fica preso em `ordem`
+  // duplicado (ex: todos nascem em 0 ao serem adicionados).
+  container.querySelectorAll('.btn-reordenar').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const idx     = ordenados.findIndex(j => j.id === btn.dataset.id);
+      const alvoIdx = idx + parseInt(btn.dataset.dir);
+      if (alvoIdx < 0 || alvoIdx >= ordenados.length) return;
+      const nova = [...ordenados];
+      [nova[idx], nova[alvoIdx]] = [nova[alvoIdx], nova[idx]];
+      try {
+        await Promise.all(nova.map((j, i) =>
+          apiFetch(`/api/admin/events/${eventoAtual}/games/${j.id}`, 'PATCH', { ordem: i })
+        ));
+        carregarJogos();
+      } catch { showToast('Erro ao reordenar', 'error'); }
+    });
+  });
 }
+
+// I.3 — adicionar game já existente do catálogo a este event
+document.getElementById('games-busca-input').addEventListener('input', async (e) => {
+  const termo = e.target.value.trim().toLowerCase();
+  const resultados = document.getElementById('games-busca-resultados');
+  if (termo.length < 2) { resultados.innerHTML = ''; return; }
+
+  const catalogo = await carregarCatalogoGlobal();
+  const idsNoEvento = new Set((jogosCache || []).map(j => j.id));
+  const achados = catalogo
+    .filter(g => !g.pendente_aprovacao && !idsNoEvento.has(g.id))
+    .filter(g => g.nome.toLowerCase().includes(termo))
+    .slice(0, 8);
+
+  resultados.innerHTML = achados.length === 0
+    ? `<p style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:var(--space-sm)">Nada encontrado</p>`
+    : achados.map(g => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:var(--border-width) solid var(--color-border)">
+          <span style="font-size:var(--text-sm)">${escapar(g.nome)}</span>
+          <button class="btn-action btn-reativar btn-adicionar-ao-event" data-id="${g.id}" style="padding:4px 10px;font-size:10px">+ Adicionar</button>
+        </div>
+      `).join('');
+
+  resultados.querySelectorAll('.btn-adicionar-ao-event').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!eventoAtual) return;
+      try {
+        const ordem = (jogosCache || []).length;
+        const resp = await apiFetch(`/api/admin/events/${eventoAtual}/games/${btn.dataset.id}?ordem=${ordem}`, 'POST');
+        if (!resp.ok) {
+          const err = await resp.json();
+          showToast(err.detail || 'Erro ao adicionar game', 'error');
+          return;
+        }
+        showToast('Game adicionado ao event', 'success');
+        document.getElementById('games-busca-input').value = '';
+        resultados.innerHTML = '';
+        carregarJogos();
+      } catch { showToast('Erro ao adicionar game', 'error'); }
+    });
+  });
+});
 
 // ── GAMES PENDENTES DE APROVAÇÃO (só super-admin — migration 018) ─────────────
 
@@ -1916,9 +2061,13 @@ document.getElementById('criar-game-btn').addEventListener('click', async () => 
   const scoreMax  = parseInt(document.getElementById('game-score-max').value) || null;
 
   if (!nome || !slug) { showToast('Nome e slug são obrigatórios', 'error'); return; }
+  if (!eventoAtual) { showToast('Selecione um event primeiro', 'error'); return; }
 
   try {
-    const resp = await apiFetch('/api/admin/games', 'POST', { nome, slug, score_max: scoreMax });
+    // event_id vincula direto ao event em contexto (achado 5.9 do
+    // CATALOGO_JOGOS_SPEC.md — sem isso o game nasce sem vínculo
+    // nenhum e não aparece na aba Games de lugar algum).
+    const resp = await apiFetch('/api/admin/games', 'POST', { nome, slug, score_max: scoreMax, event_id: eventoAtual });
     if (!resp.ok) {
       const err = await resp.json();
       showToast(err.detail || 'Erro ao criar game', 'error');
@@ -1928,7 +2077,7 @@ document.getElementById('criar-game-btn').addEventListener('click', async () => 
     document.getElementById('game-slug').value = '';
     document.getElementById('game-score-max').value = '';
     showToast(`Game "${nome}" criado!`, 'success');
-    jogosCarregados = false;
+    catalogoGlobal = null;  // invalida cache — o game novo precisa aparecer na busca/filtro
     carregarJogos();
   } catch { showToast('Erro ao criar game', 'error'); }
 });

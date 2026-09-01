@@ -447,10 +447,35 @@ async def test_listar_games_do_event_moderador_com_acesso_funciona(client):
     app.dependency_overrides[get_pool] = lambda: pool
 
     with patch("repositories.event.buscar_por_id", AsyncMock(return_value=event)), \
-         patch("repositories.event_game.listar_por_event", AsyncMock(return_value=[])):
+         patch("repositories.event_game.listar_por_event_admin", AsyncMock(return_value=[])):
         resp = await client.get(f"/api/admin/events/{event['id']}/games")
 
     assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_listar_games_do_event_inclui_vinculo_inativo(client):
+    """docs/PAINEIS_ADMIN_SPEC.md Fase I: a versão pública
+    (listar_por_event) filtra ativo=true de propósito, mas isso não
+    serve pro painel admin — o admin precisa ver o jogo desativado pra
+    poder reativar. Regressão de bug: a rota admin usava a versão
+    pública, o jogo sumia da tela assim que desativado."""
+    event = _event(arena_id=ARENA_A)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    jogo_inativo = {
+        "id": str(uuid.uuid4()), "nome": "Pac-Man", "slug": "pac-man",
+        "score_max": None, "jogo_ativo_global": True, "pendente_aprovacao": False,
+        "ativo": False, "ordem": 0,
+    }
+
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=event)), \
+         patch("repositories.event_game.listar_por_event_admin", AsyncMock(return_value=[jogo_inativo])):
+        resp = await client.get(f"/api/admin/events/{event['id']}/games")
+
+    assert resp.status_code == 200
+    assert resp.json() == [jogo_inativo]
 
 
 @pytest.mark.asyncio

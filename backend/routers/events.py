@@ -156,13 +156,14 @@ async def listar_games_do_event(
     pool=Depends(get_pool),
     admin: AdminContext = Depends(require_admin),
 ):
-    """Lista games vinculados ao event (ativos e inativos). Leitura:
+    """Lista games vinculados ao event (ativos e inativos no vínculo, e
+    mesmo desativados globalmente — ver listar_por_event_admin). Leitura:
     liberada pra quem tem qualquer acesso à arena (admin ou moderador),
     não só admin."""
     event = await _resolver_event_ou_404(pool, event_id)
     if not admin.super and not admin.tem_acesso_na_arena(event["arena_id"]):
         raise HTTPException(status_code=403, detail="Sem acesso a este event")
-    return await event_game_repo.listar_por_event(pool, event_id)
+    return await event_game_repo.listar_por_event_admin(pool, event_id)
 
 
 @router.post("/{event_id}/games/{game_id}", status_code=201)

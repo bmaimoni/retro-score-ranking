@@ -194,8 +194,77 @@ Decisões (fechadas com o Bruno):
 | I.8 | Escopo de event pra `super` na aba Games | "Quais games estão ativos no event X" não é agregável entre events como o Feed é — mesmo super precisa escolher um event específico pra usar a aba Games. **Seletor de event só dentro da aba Games**, não promovido pro topbar/outras abas — Feed continua sem seletor pra super (agregado, como já é desde F0.2) |
 
 **Sem migração de banco** — `event_games` já tem tudo que precisa
-(`ativo`, `ordem`, `UNIQUE(event_id, game_id)`). É mudança só de
-frontend — nenhum ajuste de backend necessário (I.5 já estava feito).
+(`ativo`, `ordem`, `UNIQUE(event_id, game_id)`). Precisou de **um**
+ajuste pequeno de backend, achado na implementação (não previsto nas
+decisões acima):
+
+> `event_game_repo.listar_por_event` (o "endpoint certo" do achado 2)
+> filtra `WHERE ej.ativo = true` de propósito — é a versão pública,
+> usada por ranking/telão, que nunca deve mostrar jogo desligado. Mas a
+> rota admin (`GET /api/admin/events/{id}/games`) reusava a mesma
+> função — então assim que um admin desativasse um game pela aba
+> Games, ele **sumiria da lista pra sempre**, sem jeito de reativar
+> pela própria tela. Corrigido com uma função nova só pro admin,
+> `listar_por_event_admin` (retorna ativo e inativo, mais
+> `jogo_ativo_global`/`pendente_aprovacao` do catálogo pra contexto) —
+> a versão pública não mudou.
+
+### Implementação (fechada — pendente só de validação manual)
+
+- [x] Backend: `event_game_repo.listar_por_event_admin` (nova, ver nota
+  acima) + `GET /api/admin/events/{id}/games` passa a usá-la. 2 testes
+  novos em `test_events.py` (patch do mock atualizado pro nome novo +
+  regressão explícita do "vínculo inativo não some da lista"). Suíte
+  completa: 668 passed (10 erros pré-existentes de conexão real com
+  Postgres, baseline confirmado igual antes/depois desta mudança via
+  `git stash`).
+- [x] Frontend `admin.html`, aba "Games" reescrita:
+  - I.1/I.2: lista e toggle via `event_games`, escopados por
+    `eventoAtual` (herdado do Feed pra admin/moderador; seletor
+    dedicado só nesta aba pra `super`, I.8).
+  - I.3: busca no catálogo (`games-todos`, cacheado em
+    `catalogoGlobal`) + botão adicionar ao event.
+  - I.4: reordenar com setas ↑/↓, renumera a lista inteira em sequência
+    a cada troca (evita ficar preso em `ordem` duplicado quando vários
+    games nascem com `ordem=0`).
+  - I.6: `criar-game-btn` agora envia `event_id: eventoAtual` — antes
+    criava o game sem vínculo nenhum (gap não documentado, achado
+    nesta implementação: a versão anterior nunca mandava `event_id`,
+    então nenhum game criado pelo painel aparecia em nenhum event).
+  - Visibilidade: toggle/reordenar/adicionar só aparecem pra quem é
+    `admin` (ou super) **na Arena ativa** — moderador continua lendo a
+    lista (backend já libera), mas não vê os controles de edição
+    (mesmo padrão de `docs/PERMISSOES_SPEC.md` §7 item 5, "esconder
+    por nível, não só bloquear depois do clique").
+  - `feed-filtro-game` (dropdown de filtro do Feed) desacoplado da
+    lista de games do event — antes vinha de `renderJogos` (que agora
+    é só o event ativo), teria regredido pra `super` (perderia a opção
+    de filtrar por qualquer game da plataforma). Agora vem de
+    `catalogoGlobal`, carregado uma vez, independente do event em
+    contexto.
+- [ ] Validação manual em navegador — pendente, ver risco novo abaixo.
+- [ ] Smoke test Playwright automatizado — **decisão consciente de não
+  escrever nesta rodada**: ao contrário da Fase 0 (só leitura/
+  navegação), validar I.2/I.3/I.4 de ponta a ponta significa mutar
+  dados reais em produção (ativar/desativar e adicionar game a um
+  event de verdade) — sem ambiente de teste isolado (ver
+  `docs/SPEC.md` §9, sem staging), automatizar isso contra produção é
+  risco desproporcional ao ganho. Validação fica manual, feita com
+  cuidado (evento de baixo risco, ex: Old School Pinball, que hoje tem
+  0 recordes) — ver checklist passado ao Bruno.
+
+### Riscos identificados
+
+1. **Sem teste de navegador** — mesma lacuna da Fase 0, mas agora com
+   ações que **mutam dado real** (toggle ativo, adicionar game,
+   reordenar), não só leitura. Peço validação manual cuidadosa antes
+   de fechar esta fase — ver checklist.
+2. **Reordenar renumera a lista inteira a cada clique** (N requests
+   PATCH em paralelo, N = quantidade de games do event) — decisão
+   deliberada pra nunca ficar preso em `ordem` duplicado, mas significa
+   mais chamadas de rede que um swap de 2 valores. Sem impacto real
+   hoje (poucos games por event), reavaliar se algum event crescer pra
+   dezenas de games.
 
 ---
 
