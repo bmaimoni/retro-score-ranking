@@ -397,6 +397,136 @@ async def test_moderador_nao_edita_arena(client):
     assert resp.status_code == 403
 
 
+# ── Moderação de Arena (docs/PAINEIS_ADMIN_SPEC.md II.2/III.2) ──────────────────
+# Endpoints existiam desde ARENA_SPEC.md B.4/C.1 sem teste nenhum — cobertos
+# aqui junto da UI nova do console, mais reativar_arena/listar_suspensas (novos).
+
+@pytest.mark.asyncio
+async def test_listar_arenas_pendentes_super(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    with patch("repositories.arena.listar_pendentes", AsyncMock(return_value=[_arena(status="draft")])):
+        resp = await client.get("/api/admin/arenas/pendentes", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_listar_arenas_pendentes_nao_super_retorna_403(client):
+    admin_de_arena = AdminContext(
+        identificador="admin@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_arena
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.get("/api/admin/arenas/pendentes")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_aprovar_arena_super(client):
+    arena_id = make_uuid()
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    with patch("repositories.arena.atualizar_status", AsyncMock(return_value=_arena(id=arena_id, status="published"))):
+        resp = await client.patch(f"/api/admin/arenas/{arena_id}/aprovar", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "published"
+
+
+@pytest.mark.asyncio
+async def test_aprovar_arena_nao_super_retorna_403(client):
+    admin_de_arena = AdminContext(
+        identificador="admin@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_arena
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.patch(f"/api/admin/arenas/{make_uuid()}/aprovar")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_aprovar_arena_inexistente_retorna_404(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    with patch("repositories.arena.atualizar_status", AsyncMock(return_value=None)):
+        resp = await client.patch(f"/api/admin/arenas/{make_uuid()}/aprovar", headers=AUTH_HEADER)
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_suspender_arena_super(client):
+    arena_id = make_uuid()
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    with patch("repositories.arena.atualizar_status", AsyncMock(return_value=_arena(id=arena_id, status="suspended"))):
+        resp = await client.patch(f"/api/admin/arenas/{arena_id}/suspender", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "suspended"
+
+
+@pytest.mark.asyncio
+async def test_suspender_arena_nao_super_retorna_403(client):
+    admin_de_arena = AdminContext(
+        identificador="admin@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_arena
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.patch(f"/api/admin/arenas/{make_uuid()}/suspender")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_listar_arenas_suspensas_super(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    with patch("repositories.arena.listar_suspensas", AsyncMock(return_value=[_arena(status="suspended")])):
+        resp = await client.get("/api/admin/arenas/suspensas", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_listar_arenas_suspensas_nao_super_retorna_403(client):
+    admin_de_arena = AdminContext(
+        identificador="admin@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_arena
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.get("/api/admin/arenas/suspensas")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reativar_arena_super(client):
+    arena_id = make_uuid()
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    with patch("repositories.arena.atualizar_status", AsyncMock(return_value=_arena(id=arena_id, status="published"))) as mock:
+        resp = await client.patch(f"/api/admin/arenas/{arena_id}/reativar", headers=AUTH_HEADER)
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "published"
+    # reativar sempre publica direto — nunca volta pra 'draft'
+    assert mock.call_args[0][1:] == (arena_id, "published")
+
+
+@pytest.mark.asyncio
+async def test_reativar_arena_nao_super_retorna_403(client):
+    admin_de_arena = AdminContext(
+        identificador="admin@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"arena_id": make_uuid(), "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_arena
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    resp = await client.patch(f"/api/admin/arenas/{make_uuid()}/reativar")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reativar_arena_inexistente_retorna_404(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+    with patch("repositories.arena.atualizar_status", AsyncMock(return_value=None)):
+        resp = await client.patch(f"/api/admin/arenas/{make_uuid()}/reativar", headers=AUTH_HEADER)
+    assert resp.status_code == 404
+
+
 # ── Upload de logo (docs/PAINEIS_ADMIN_SPEC.md III.1) ───────────────────────────
 
 def make_jpeg_bytes():

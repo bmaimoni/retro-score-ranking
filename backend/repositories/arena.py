@@ -99,6 +99,20 @@ async def listar_pendentes(pool: Pool) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+async def listar_suspensas(pool: Pool) -> list[dict]:
+    """Arenas suspensas (docs/PAINEIS_ADMIN_SPEC.md II.2/III.2) — sem
+    isso, suspender pela UI era ação só de ida: nenhum jeito de ver
+    quem está suspenso pra poder reativar depois."""
+    rows = await pool.fetch(
+        """
+        SELECT id, nome, slug, logo_url, owner_user_id, criado_em
+        FROM arenas WHERE status = 'suspended'
+        ORDER BY criado_em ASC
+        """
+    )
+    return [dict(r) for r in rows]
+
+
 async def atualizar_status(pool: Pool, arena_id: str, status: str) -> dict | None:
     """Aprovar ('published'), rejeitar/suspender ('suspended') uma
     arena — sempre ação de super."""

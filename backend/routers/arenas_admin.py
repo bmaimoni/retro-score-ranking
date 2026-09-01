@@ -281,6 +281,31 @@ async def suspender_arena(
     return arena
 
 
+@router.get("/suspensas")
+async def listar_arenas_suspensas(pool=Depends(get_pool), admin: AdminContext = Depends(require_admin)):
+    """docs/PAINEIS_ADMIN_SPEC.md II.2/III.2 — sem isso, suspender era
+    ação só de ida pela UI: nada listava quem estava suspenso."""
+    _exigir_super(admin)
+    return await arena_repo.listar_suspensas(pool)
+
+
+@router.patch("/{arena_id}/reativar")
+async def reativar_arena(
+    arena_id: str,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """Reverte uma suspensão — status='suspended' volta pra
+    'published'. Não distingue arena que estava em 'draft' antes de
+    suspender: reativar sempre publica direto, mesmo espírito de
+    `aprovar_arena` (fila de revisão não reaparece pra suspensas)."""
+    _exigir_super(admin)
+    arena = await arena_repo.atualizar_status(pool, arena_id, "published")
+    if not arena:
+        raise HTTPException(status_code=404, detail="Marca não encontrada")
+    return arena
+
+
 @router.patch("/{arena_id}")
 async def atualizar_arena(
     arena_id: str,

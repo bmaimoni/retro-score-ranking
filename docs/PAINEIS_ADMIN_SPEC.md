@@ -8,11 +8,11 @@
 > descoberta: I.5 já estava corrigida antes desta fase (`dce422c`/AA.2),
 > escopo real virou "religar frontend nos endpoints certos", não mais
 > bug de segurança. Bruno notou elementos de UI que vai querer ajustar
-> depois (não especificado ainda). Fase III.1 (upload de logo real)
-> implementada em 2026-09-01, pendente de validação manual; III.3 já
-> estava resolvida pela Fase 0 sem ter sido marcada. Resto de Fase
-> II-III segue **em especificação — decisões abertas, nenhuma fechada
-> ainda**.
+> depois (não especificado ainda). Fase III.1 (upload de logo real) e
+> III.2 (console: moderação de Arena) implementadas em 2026-09-01,
+> ambas pendentes de validação manual; III.3 já estava resolvida pela
+> Fase 0 sem ter sido marcada. Resto de Fase II (II.1/II.3-5) segue
+> **em especificação — decisões abertas, nenhuma fechada ainda**.
 > Complementa `PERMISSOES_SPEC.md` (regras de nível/escopo, que não mudam
 > aqui) e se sobrepõe parcialmente a `CATALOGO_JOGOS_SPEC.md` Fases 2-4
 > (painel "Jogos" revisitado pra escala self-serve) — ver §5. Escrito a
@@ -292,7 +292,7 @@ decisões acima):
 | # | Tópico | Decisão/Status |
 |---|---|---|
 | III.1 | Logo real (achado 3) | **Fechada e implementada em 2026-09-01.** Decisão do bucket: **mesmo bucket `fotos-ranking`, com prefixo `logos/{arena_id}/`** — não bucket novo. Motivo prático que resolveu o "a fechar": criar bucket novo no Supabase Storage é passo manual fora do código (dashboard ou Management API, que usa credencial diferente da já disponível), enquanto o prefixo resolve a mesma preocupação de semântica (branding permanente vs. evidência de moderação) sem dependência externa nem passo manual — ambos os arquivos já são "nunca deletados" de qualquer forma. Ver §implementação abaixo |
-| III.2 | Console: fila de revisão + suspensão de Arena (achado 4) | Ainda proposta, não implementada |
+| III.2 | Console: fila de revisão + suspensão de Arena (achado 4) | **Fechada e implementada em 2026-09-01.** Nova aba "Arenas" em `console.html`. Achado na implementação: os endpoints citados no achado 4 (`aprovar`/`suspender`) **nunca tinham teste nenhum** desde que existem (`ARENA_SPEC.md` B.4/C.1) — cobertos agora. Achado mais sério: **não existia jeito de reverter uma suspensão** — sem `GET` listando arenas suspensas nem `PATCH` de reativar, suspender pela UI seria ação só de ida (reverter exigiria mexer direto no banco). Fechado com o Bruno: adicionar `GET /suspensas` + `PATCH /{id}/reativar` (reusam `atualizar_status`, já existia) fazia parte do escopo, não ficou de fora |
 | III.3 | Aba Manutenção — visibilidade (achado 5) | ~~Ainda proposta~~ **Já resolvida pela Fase 0** (2026-08-30, não documentado na hora): a aba virou "Telão" (só o card que nunca foi super-only) e as ações de manutenção de verdade saíram pra `console.html` (F0.4/F0.5), que já é super-only por inteiro. Nada a fazer aqui |
 
 ### Implementação III.1 (fechada — pendente de validação manual)
@@ -320,6 +320,30 @@ decisões acima):
     upload sempre disponível, arena já existe nesse ponto do fluxo.
 - [ ] Validação manual em navegador — pendente (upload de arquivo real
   contra o Supabase Storage de produção, não simulável sem browser).
+
+### Implementação III.2 (fechada — pendente de validação manual)
+
+- [x] Backend: `arena_repo.listar_suspensas` nova (espelha
+  `listar_pendentes`, filtra `status='suspended'`).
+  `GET /api/admin/arenas/suspensas` e `PATCH /{arena_id}/reativar`
+  novos (reusam `atualizar_status`, `'suspended'`→`'published'`, mesmo
+  espírito de `aprovar_arena` — não distingue se a arena suspensa
+  tinha vindo de `draft` ou de `published`, sempre publica direto ao
+  reativar). 12 testes novos cobrindo os 5 endpoints do cluster
+  inteiro (`pendentes`/`aprovar`/`suspender`/`suspensas`/`reativar`) —
+  os 3 que já existiam (`pendentes`/`aprovar`/`suspender`) não tinham
+  teste nenhum antes. Suíte completa: 687 passed (mesmo baseline de 10
+  erros pré-existentes).
+- [x] Frontend: aba "Arenas" nova em `console.html` — lista de fila de
+  revisão (aprovar/rejeitar) e lista de arenas suspensas (reativar).
+  "Rejeitar" na fila chama o mesmo endpoint de `suspender` (mesmo
+  estado final `suspended`, não existe estado "rejeitada" à parte —
+  ver docstring de `suspender_arena` no backend).
+- [ ] Validação manual em navegador — pendente. Hoje em produção não
+  há nenhuma arena em `draft` nem `suspended` (só as 2 já publicadas),
+  então validar de ponta a ponta exige criar uma arena de teste que
+  caia em revisão (nome quase-igual a uma existente, ou 2ª+ criação
+  pela mesma conta em 24h — `ARENA_SPEC.md` B.4) — ver nota pro Bruno.
 
 ---
 

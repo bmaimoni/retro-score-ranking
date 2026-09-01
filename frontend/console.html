@@ -128,6 +128,7 @@
     <button class="admin-tab active" data-tab="config">Configurações gerais</button>
     <button class="admin-tab" data-tab="avatares">Avatares</button>
     <button class="admin-tab" data-tab="manutencao">Manutenção</button>
+    <button class="admin-tab" data-tab="arenas">Arenas</button>
   </div>
 
   <!-- ── ABA: CONFIGURAÇÕES GERAIS ── -->
@@ -212,6 +213,22 @@
       </div>
     </div>
   </div>
+
+  <!-- ── ABA: ARENAS (moderação, docs/PAINEIS_ADMIN_SPEC.md II.2/III.2) ── -->
+  <div class="tab-content" id="tab-arenas">
+    <div class="section-header"><span class="section-title">Fila de revisão</span></div>
+    <p class="manut-desc">
+      Arenas novas ficam em revisão quando o cadastro parece suspeito —
+      nome quase-igual a outra já existente, ou 2ª+ arena criada pela
+      mesma conta em 24h (docs/ARENA_SPEC.md B.4). Aprovar publica
+      direto; rejeitar suspende (mesmo estado de uma suspensão por
+      abuso confirmado depois — dá pra reativar se for engano).
+    </p>
+    <div id="arenas-pendentes-lista">Carregando...</div>
+
+    <div class="section-header" style="margin-top:var(--space-xl)"><span class="section-title">Arenas suspensas</span></div>
+    <div id="arenas-suspensas-lista">Carregando...</div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -288,6 +305,8 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
   carregarConfig();
   carregarAvatares();
   carregarGamesParaManutencao();
+  carregarArenasPendentes();
+  carregarArenasSuspensas();
 })();
 
 // ── CONFIGURAÇÕES GERAIS (docs/MODERADOR_SPEC.md M.2) ──────────────────────────
@@ -452,6 +471,80 @@ async function restaurarGeral() {
     const data = await resp.json();
     showToast(`${data.total_restauradas} entries restauradas`, 'success');
   } catch { showToast('Erro ao restaurar', 'error'); }
+}
+
+// ── ARENAS — moderação (docs/PAINEIS_ADMIN_SPEC.md II.2/III.2) ─────────────────
+function cardArenaModeracao(a, acoes) {
+  return `
+    <div class="manut-card" style="display:flex;align-items:center;gap:var(--space-md)">
+      ${a.logo_url ? `<img src="${escapar(a.logo_url)}" alt="" style="width:32px;height:32px;border-radius:6px;object-fit:cover;flex-shrink:0">` : ''}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:var(--text-sm);font-weight:600">${escapar(a.nome)}</div>
+        <div style="font-size:var(--text-xs);color:var(--color-text-muted)">/${escapar(a.slug)} · criada em ${new Date(a.criado_em).toLocaleDateString('pt-BR')}</div>
+      </div>
+      ${acoes}
+    </div>
+  `;
+}
+
+async function carregarArenasPendentes() {
+  const lista = document.getElementById('arenas-pendentes-lista');
+  try {
+    const resp = await apiFetch('/api/admin/arenas/pendentes');
+    if (!resp.ok) { lista.innerHTML = emptyState('Erro ao carregar'); return; }
+    const arenas = await resp.json();
+    if (arenas.length === 0) { lista.innerHTML = emptyState('Nada pendente de revisão'); return; }
+
+    lista.innerHTML = arenas.map(a => cardArenaModeracao(a, `
+      <button class="btn-action btn-reativar" data-id="${a.id}" data-acao="aprovar">✓ Aprovar</button>
+      <button class="btn-action btn-rejeitar" data-id="${a.id}" data-acao="rejeitar">✕ Rejeitar</button>
+    `)).join('');
+    ligarBotoesArenaModeracao(lista);
+  } catch { lista.innerHTML = emptyState('Erro ao carregar'); }
+}
+
+async function carregarArenasSuspensas() {
+  const lista = document.getElementById('arenas-suspensas-lista');
+  try {
+    const resp = await apiFetch('/api/admin/arenas/suspensas');
+    if (!resp.ok) { lista.innerHTML = emptyState('Erro ao carregar'); return; }
+    const arenas = await resp.json();
+    if (arenas.length === 0) { lista.innerHTML = emptyState('Nenhuma arena suspensa'); return; }
+
+    lista.innerHTML = arenas.map(a => cardArenaModeracao(a, `
+      <button class="btn-action btn-reativar" data-id="${a.id}" data-acao="reativar">↺ Reativar</button>
+    `)).join('');
+    ligarBotoesArenaModeracao(lista);
+  } catch { lista.innerHTML = emptyState('Erro ao carregar'); }
+}
+
+function ligarBotoesArenaModeracao(container) {
+  container.querySelectorAll('[data-acao]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id   = btn.dataset.id;
+      const acao = btn.dataset.acao;
+      // "rejeitar" na fila de revisão é o mesmo endpoint de suspender —
+      // mesmo estado final 'suspended' (ver docstring de suspender_arena
+      // no backend, routers/arenas_admin.py).
+      const rota = acao === 'rejeitar' ? 'suspender' : acao;
+      if (acao === 'rejeitar' && !confirm('Rejeitar esta arena? Ela fica suspensa (fora do ar) — dá pra reativar depois se for engano.')) return;
+
+      try {
+        const resp = await apiFetch(`/api/admin/arenas/${id}/${rota}`, 'PATCH');
+        if (!resp.ok) {
+          const d = await resp.json().catch(() => ({}));
+          showToast(d.detail || 'Erro na ação', 'error');
+          return;
+        }
+        showToast(
+          acao === 'aprovar' ? 'Arena aprovada' : acao === 'reativar' ? 'Arena reativada' : 'Arena rejeitada (suspensa)',
+          'success'
+        );
+        carregarArenasPendentes();
+        carregarArenasSuspensas();
+      } catch { showToast('Erro na ação', 'error'); }
+    });
+  });
 }
 </script>
 </body>
