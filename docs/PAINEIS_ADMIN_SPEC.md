@@ -1,8 +1,8 @@
 # Painéis Admin: separação Console (super) vs. Painel de Arena, e correção do escopo de jogos por evento
 
-> Status: **Fase 0 implementada, pendente de validação manual em
-> navegador e de checagem da query nova contra Postgres real** (contexto
-> de Arena + tela inicial + extração mínima de `console.html` — ver §0).
+> Status: **Fase 0 implementada, query nova já validada contra Postgres
+> real; pendente só a validação manual em navegador** (contexto de
+> Arena + tela inicial + extração mínima de `console.html` — ver §0).
 > Fases I-III seguem **em especificação — decisões abertas, nenhuma
 > fechada ainda**.
 > Complementa `PERMISSOES_SPEC.md` (regras de nível/escopo, que não mudam
@@ -72,12 +72,14 @@ Fase II é trabalho futuro, não incluído aqui.
    navegador de verdade nesta sessão. Extrair `admin-common.js` de
    verdade (login incluso) fica pra quando a Fase II for implementada
    com espaço pra testar o fluxo de login pós-refatoração.
-2. **Query de `resumo` (F0.3) não tem teste contra Postgres real** — só
-   testada com repositório mockado (ver `tests/test_arenas_resumo.py`).
-   `COUNT(...) FILTER (WHERE NOT e.arquivado)` com `LEFT JOIN` é simples,
-   mas o padrão do projeto (`CLAUDE.md`) pede validação contra banco
-   real antes de declarar "correto" — pendente até o Bruno rodar/revisar
-   em ambiente com Postgres.
+2. ~~**Query de `resumo` (F0.3) não tem teste contra Postgres real**~~
+   **Validada em 2026-08-31** contra o Postgres de produção (Supabase,
+   via `DATABASE_URL` de `backend/.env`, só leitura). `EXPLAIN ANALYZE`
+   nas 2 Arenas existentes mostra seq scan barato (dataset pequeno hoje,
+   sem índice faltando de forma preocupante) e os totais batem com uma
+   contagem manual cruzada (`JOIN` + filtro direto, sem `FILTER`/`GROUP
+   BY`): Canal3 → evento ativo com 128 recordes, evento arquivado com 0;
+   Old School Pinball → evento ativo com 0. Sem mismatch.
 3. **Sem teste de navegador pra `admin.html`/`console.html`** — mudança
    grande de frontend (novo seletor de Arena, aba Início, arquivo novo)
    validada só por checagem de sintaxe JS e leitura de código, não por
@@ -106,8 +108,8 @@ Fase II é trabalho futuro, não incluído aqui.
 - [ ] Validação manual em navegador (login, troca de Arena, aba
   Início, `console.html` como super e como não-super) — pendente, ver
   risco 3.
-- [ ] Validação da query `resumo` contra Postgres real — pendente, ver
-  risco 2.
+- [x] Validação da query `resumo` contra Postgres real — feita em
+  2026-08-31, ver risco 2.
 
 ---
 
