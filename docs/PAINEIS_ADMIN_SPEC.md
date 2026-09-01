@@ -1,8 +1,9 @@
 # Painéis Admin: separação Console (super) vs. Painel de Arena, e correção do escopo de jogos por evento
 
-> Status: **Fase 0 implementada, query nova já validada contra Postgres
-> real; pendente só a validação manual em navegador** (contexto de
-> Arena + tela inicial + extração mínima de `console.html` — ver §0).
+> Status: **Fase 0 fechada** — query nova validada contra Postgres real
+> e validação manual em navegador feita em produção pelo Bruno em
+> 2026-09-01 (contexto de Arena + tela inicial + extração mínima de
+> `console.html` — ver §0).
 > Fases I-III seguem **em especificação — decisões abertas, nenhuma
 > fechada ainda**.
 > Complementa `PERMISSOES_SPEC.md` (regras de nível/escopo, que não mudam
@@ -80,13 +81,23 @@ Fase II é trabalho futuro, não incluído aqui.
    contagem manual cruzada (`JOIN` + filtro direto, sem `FILTER`/`GROUP
    BY`): Canal3 → evento ativo com 128 recordes, evento arquivado com 0;
    Old School Pinball → evento ativo com 0. Sem mismatch.
-3. **Sem teste de navegador pra `admin.html`/`console.html`** — mudança
-   grande de frontend (novo seletor de Arena, aba Início, arquivo novo)
-   validada só por checagem de sintaxe JS e leitura de código, não por
-   uso real na tela. Precisa de smoke test manual antes de considerar
-   fechado — ver §6 desta seção.
+3. ~~**Sem teste de navegador pra `admin.html`/`console.html`**~~
+   **Validado em 2026-09-01** em produção pelo Bruno: login, identidade
+   SUPER no topbar, seletor de Arena trocando logo/nome/resumo, aba
+   "Início" com resumo de events, link e acesso a `console.html` como
+   super. Automação via Playwright (`tests/smoke/smoke_paineis_admin_fase0.py`,
+   escrita nesta sessão) **não rodou** — o sandbox não tem as
+   dependências de sistema do Chromium (`libnss3` e ~35 outros pacotes)
+   e não há sudo/Docker disponível pra instalá-las; validação ficou
+   manual. Nota de honestidade: o caso "`console.html` como não-super"
+   foi validado só via proxy (aba anônima, sem sessão nenhuma) — mesmo
+   branch de código (`!meInfo || !meInfo.super`) que cobre um admin
+   logado mas sem `super`, mas não é literalmente o mesmo teste; não
+   existe hoje conta de admin de Arena não-super pra testar o caso
+   exato. Risco residual baixo (é o mesmo `if` no código-fonte,
+   `frontend/console.html:282`), registrado aqui em vez de escondido.
 
-### Implementação (parcial — pendente de validação manual em navegador)
+### Implementação (fechada)
 
 - [x] Backend: `arena_repo.listar_resumo_events_da_arena` +
   `GET /api/admin/arenas/{arena_id}/resumo` (mesmo padrão de escopo do
@@ -104,10 +115,10 @@ Fase II é trabalho futuro, não incluído aqui.
 - [x] Testes: 4 novos (`tests/test_arenas_resumo.py` — resumo com
   contagem, 404, 403 de arena alheia, 200 de arena própria). Suíte
   completa: 677 passed (18 erros de smoke pré-existentes, baseline
-  inalterado).
-- [ ] Validação manual em navegador (login, troca de Arena, aba
-  Início, `console.html` como super e como não-super) — pendente, ver
-  risco 3.
+  inalterado). `tests/smoke/smoke_paineis_admin_fase0.py` (Playwright,
+  7 casos) escrito, mas nunca rodado — ver risco 3.
+- [x] Validação manual em navegador — feita em produção em 2026-09-01
+  pelo Bruno, ver risco 3.
 - [x] Validação da query `resumo` contra Postgres real — feita em
   2026-08-31, ver risco 2.
 
