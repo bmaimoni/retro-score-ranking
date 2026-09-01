@@ -691,7 +691,7 @@
 
 <div class="upload-page">
   <div class="page-header animate-slide-up">
-    <img src="logo-principal.png" alt="Canal3" class="page-logo">
+    <img src="logo.png" alt="Retro Score Ranking" class="page-logo">
     <h1 class="page-title" id="page-title">ESCOLHA O JOGO</h1>
     <p class="page-subtitle" id="page-subtitle">Selecione o jogo e envie seu placar</p>
   </div>
@@ -1611,7 +1611,7 @@ async function gerarImagemShare(dados) {
   // ── Logo Canal3 centralizado como marca d'água ──
   let logoImg = null;
   try {
-    logoImg = await carregarImagem('./logo-share.png');
+    logoImg = await carregarImagem('./logo.png');
     if (logoImg && logoImg.width > 0) {
       const logoH = H * 0.55;
       const logoW = logoImg.width * (logoH / logoImg.height);
