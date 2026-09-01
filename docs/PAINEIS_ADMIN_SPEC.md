@@ -4,11 +4,12 @@
 > e validação manual em navegador feita em produção pelo Bruno em
 > 2026-09-01 (contexto de Arena + tela inicial + extração mínima de
 > `console.html` — ver §0).
-> Fase I com decisões fechadas em 2026-09-01, implementação em
-> andamento (§3) — descoberta: I.5 já estava corrigida antes desta
-> fase (`dce422c`/AA.2), escopo real virou "religar frontend nos
-> endpoints certos", não mais bug de segurança. Fases II-III seguem
-> **em especificação — decisões abertas, nenhuma fechada ainda**.
+> Fase I fechada em 2026-09-01, validada em produção pelo Bruno —
+> descoberta: I.5 já estava corrigida antes desta fase (`dce422c`/AA.2),
+> escopo real virou "religar frontend nos endpoints certos", não mais
+> bug de segurança. Bruno notou elementos de UI que vai querer ajustar
+> depois (não especificado ainda). Fases II-III seguem **em
+> especificação — decisões abertas, nenhuma fechada ainda**.
 > Complementa `PERMISSOES_SPEC.md` (regras de nível/escopo, que não mudam
 > aqui) e se sobrepõe parcialmente a `CATALOGO_JOGOS_SPEC.md` Fases 2-4
 > (painel "Jogos" revisitado pra escala self-serve) — ver §5. Escrito a
@@ -242,7 +243,10 @@ decisões acima):
     de filtrar por qualquer game da plataforma). Agora vem de
     `catalogoGlobal`, carregado uma vez, independente do event em
     contexto.
-- [ ] Validação manual em navegador — pendente, ver risco novo abaixo.
+- [x] Validação manual em navegador — feita pelo Bruno em produção em
+  2026-09-01, "funcionando". Ele notou elementos de UI que vai querer
+  mudar (não bloqueante, não especificado ainda — registrar quando
+  ele fechar o que exatamente quer mudar).
 - [ ] Smoke test Playwright automatizado — **decisão consciente de não
   escrever nesta rodada**: ao contrário da Fase 0 (só leitura/
   navegação), validar I.2/I.3/I.4 de ponta a ponta significa mutar
