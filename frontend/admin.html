@@ -530,35 +530,6 @@
       margin-left: 8px;
       vertical-align: middle;
     }
-    .game-pendente-card {
-      padding: var(--space-md);
-      background: var(--color-bg-surface2);
-      border: 1px solid var(--color-warning, #e6a23c);
-      border-radius: var(--radius-md);
-      margin-bottom: var(--space-sm);
-    }
-    .game-pendente-meta {
-      font-size: var(--text-xs);
-      color: var(--color-text-muted);
-      margin: 4px 0 10px;
-    }
-    .game-pendente-acoes {
-      display: flex;
-      gap: var(--space-sm);
-      flex-wrap: wrap;
-      align-items: center;
-    }
-    .game-pendente-mesclar-select {
-      font-family: var(--font-body);
-      font-size: var(--text-xs);
-      background: var(--color-bg);
-      color: var(--color-text);
-      border: var(--border-width) solid var(--color-border);
-      border-radius: var(--radius-sm);
-      padding: 4px 8px;
-      flex: 1;
-      min-width: 140px;
-    }
     .game-meta { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; }
     .game-actions { display: flex; gap: var(--space-xs); align-items: center; }
 
@@ -859,18 +830,6 @@
 
   <!-- ── ABA: GAMES (games do event ativo, docs/PAINEIS_ADMIN_SPEC.md Fase I) ── -->
   <div class="tab-content" id="tab-games">
-    <div id="games-pendentes-secao" style="display:none;margin-bottom:var(--space-lg)">
-      <div class="section-header">
-        <span class="section-title">Games aguardando aprovação</span>
-      </div>
-      <p class="manut-desc" style="margin-bottom:var(--space-md)">
-        Criados por admins de event/arena — já utilizáveis nos events deles,
-        mas fora do catálogo/placar geral até você aprovar ou mesclar com um
-        game já existente (caso seja duplicata).
-      </p>
-      <div id="games-pendentes-lista"></div>
-    </div>
-
     <!-- Super não tem event fixo (I.8) — precisa escolher qual event
          gerenciar. Admin/moderador escopado herda o event-selector do
          topbar (mesmo eventoAtual do Feed). -->
@@ -1609,7 +1568,6 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     if (tab.dataset.tab === 'administradores') carregarVinculos();
     if (tab.dataset.tab === 'exclusoes') carregarExclusoesPendentes();
     if (tab.dataset.tab === 'config') { carregarMarcas(); carregarEventos(); }
-    if (tab.dataset.tab === 'games' && meInfo && meInfo.super) carregarJogosPendentes();
     if (tab.dataset.tab === 'wizard') carregarWizard();
   });
 });
@@ -1968,93 +1926,12 @@ document.getElementById('games-busca-input').addEventListener('input', async (e)
   });
 });
 
-// ── GAMES PENDENTES DE APROVAÇÃO (só super-admin — migration 018) ─────────────
-
-async function carregarJogosPendentes() {
-  const secao = document.getElementById('games-pendentes-secao');
-  const lista = document.getElementById('games-pendentes-lista');
-  try {
-    const resp = await apiFetch('/api/admin/games/pendentes');
-    if (!resp.ok) { secao.style.display = 'none'; return; }
-    const pendentes = await resp.json();
-
-    if (pendentes.length === 0) { secao.style.display = 'none'; return; }
-    secao.style.display = 'block';
-
-    // Opções pro select de "mesclar com" — games já aprovados (exclui os próprios pendentes)
-    const idsPendentes = new Set(pendentes.map(p => p.id));
-    const opcoesExistentes = (jogosCache || [])
-      .filter(j => !idsPendentes.has(j.id) && !j.pendente_aprovacao)
-      .map(j => `<option value="${j.id}">${escapar(j.nome)}</option>`)
-      .join('');
-
-    lista.innerHTML = pendentes.map(p => `
-      <div class="game-pendente-card">
-        <div class="game-nome">${escapar(p.nome)}</div>
-        <div class="game-pendente-meta">
-          slug: ${escapar(p.slug)}
-          · criado por ${escapar(p.criado_por || 'desconhecido')}
-          ${p.events_em_uso && p.events_em_uso.length
-            ? ` · já em uso em: ${p.events_em_uso.map(escapar).join(', ')}`
-            : ' · ainda não vinculado a nenhum event'}
-        </div>
-        <div class="game-pendente-acoes">
-          <button class="btn-action btn-reativar" style="padding:4px 10px;font-size:10px"
-                  onclick="aprovarJogoPendente('${p.id}')">
-            ✓ Aprovar como game novo
-          </button>
-          <select class="game-pendente-mesclar-select" id="mesclar-select-${p.id}">
-            <option value="">Mesclar com game existente...</option>
-            ${opcoesExistentes}
-          </select>
-          <button class="btn-action btn-rejeitar" style="padding:4px 10px;font-size:10px"
-                  onclick="mesclarJogoPendente('${p.id}')">
-            Mesclar
-          </button>
-        </div>
-      </div>
-    `).join('');
-  } catch {
-    secao.style.display = 'none';
-  }
-}
-
-window.aprovarJogoPendente = async function(jogoId) {
-  try {
-    const resp = await apiFetch(`/api/admin/games/${jogoId}/aprovar`, 'PATCH');
-    if (resp.ok) {
-      showToast('Game aprovado — já faz parte do catálogo geral', 'success');
-      await carregarJogos();
-      await carregarJogosPendentes();
-    } else {
-      const d = await resp.json();
-      showToast(d.detail || 'Erro ao aprovar game', 'error');
-    }
-  } catch { showToast('Erro ao aprovar game', 'error'); }
-};
-
-window.mesclarJogoPendente = async function(jogoOrigemId) {
-  const select = document.getElementById(`mesclar-select-${jogoOrigemId}`);
-  const destinoId = select.value;
-  if (!destinoId) { showToast('Escolha o game existente pra mesclar', 'error'); return; }
-
-  const nomeDestino = select.options[select.selectedIndex].textContent;
-  if (!confirm(`Mesclar este game em "${nomeDestino}"? Todas as pontuações e vínculos de event migram — o game duplicado fica arquivado.`)) return;
-
-  try {
-    const resp = await apiFetch(`/api/admin/games/${jogoOrigemId}/mesclar`, 'POST', {
-      game_destino_id: destinoId,
-    });
-    if (resp.ok) {
-      showToast('Games mesclados!', 'success');
-      await carregarJogos();
-      await carregarJogosPendentes();
-    } else {
-      const d = await resp.json();
-      showToast(d.detail || 'Erro ao mesclar games', 'error');
-    }
-  } catch { showToast('Erro ao mesclar games', 'error'); }
-};
+// Games pendentes de aprovação migraram pro console.html
+// (docs/PAINEIS_ADMIN_SPEC.md II.2) — já eram super-only no backend, e
+// dependiam de `jogosCache` pra montar o select de "mesclar com", que
+// desde a Fase I passou a ser só os games do event ativo (não mais o
+// catálogo inteiro) — a seção tinha ficado com escopo errado sem
+// ninguém perceber. Corrigido junto da mudança de lugar.
 
 // Slug automático ao digitar nome
 document.getElementById('game-nome').addEventListener('input', e => {

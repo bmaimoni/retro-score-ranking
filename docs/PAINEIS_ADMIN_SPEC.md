@@ -8,11 +8,15 @@
 > descoberta: I.5 já estava corrigida antes desta fase (`dce422c`/AA.2),
 > escopo real virou "religar frontend nos endpoints certos", não mais
 > bug de segurança. Bruno notou elementos de UI que vai querer ajustar
-> depois (não especificado ainda). Fase III.1 (upload de logo real) e
-> III.2 (console: moderação de Arena) implementadas em 2026-09-01,
-> ambas pendentes de validação manual; III.3 já estava resolvida pela
-> Fase 0 sem ter sido marcada. Resto de Fase II (II.1/II.3-5) segue
-> **em especificação — decisões abertas, nenhuma fechada ainda**.
+> depois (não especificado ainda). Fase III.1 (upload de logo real),
+> III.2 (console: moderação de Arena) e o essencial de Fase II
+> (jogos pendentes + catálogo global migrados pro console) implementados
+> em 2026-09-01 — todos pendentes de validação manual. III.3, II.1,
+> II.3 e II.5 já estavam resolvidos por trabalho de fases anteriores,
+> sem terem sido marcados. Só ficou de fora, de propósito: II.2/aba
+> Exclusões (baixo risco como está) e II.4/`admin-common.js` (adiada —
+> mexe no login-gate, sem como testar em navegador real neste
+> ambiente).
 > Complementa `PERMISSOES_SPEC.md` (regras de nível/escopo, que não mudam
 > aqui) e se sobrepõe parcialmente a `CATALOGO_JOGOS_SPEC.md` Fases 2-4
 > (painel "Jogos" revisitado pra escala self-serve) — ver §5. Escrito a
@@ -277,13 +281,38 @@ decisões acima):
 
 ## 4. Fase II — Separação de telas: Console (super) vs. Painel de Arena
 
-| # | Tópico | Proposta |
+| # | Tópico | Status |
 |---|---|---|
-| II.1 | Dois entry points | `admin.html` continua sendo o painel de quem administra uma Arena (admin/moderador de vínculo — feed, wizard, games do evento pós-fix, event config, administradores/convites). `console.html`, novo, é exclusivo de `super` — cross-arena por natureza |
-| II.2 | O que migra pro console | Fila de revisão/suspensão de Arena (achado 4), aprovação/mesclagem de jogos pendentes (já super-only no backend, hoje dentro de `tab-games`), catálogo global de jogos pra edição de metadado (consequência de I.5), aba "Exclusões" (já super-only), aba "Manutenção" (achado 5, já super-only) |
-| II.3 | O que fica no painel de Arena | Feed de moderação, wizard self-serve, games **do evento** (pós-fix da Fase I), config de identidade visual da própria Arena, aba "Administradores"/convites (já é por vínculo `admin`, não por `super` — `PERMISSOES_SPEC.md` §8.2) |
-| II.4 | Código compartilhado | Extrair `admin-common.js` (auth check, `apiFetch`, toast, formatação) reaproveitado pelos dois arquivos — evita duplicar e divergir, mesmo espírito do `temas.js` já compartilhado entre `index.html`/`ranking.html`/`telao.html` |
-| II.5 | Navegação entre os dois | `super` logado em `admin.html` de uma Arena específica ganha link pro console (e vice-versa) — decisão de UX a fechar na implementação: super provavelmente ainda precisa entrar no painel de uma Arena específica pra agir "como admin dela" (ex.: revisar feed), então os dois convivem, não se substituem |
+| II.1 | Dois entry points | ~~Proposta~~ **Já é a realidade** desde a Fase 0: `admin.html` é o painel de quem administra uma Arena, `console.html` (novo na Fase 0) é exclusivo de `super` |
+| II.2 | O que migra pro console | Fila de revisão/suspensão de Arena → **feito (III.2, 2026-09-01)**. Aprovação/mesclagem de jogos pendentes + catálogo global pra edição de metadado → **feito (2026-09-01, ver §implementação abaixo)**. Aba "Exclusões" → **ainda não migrada**, mas já é super-only dentro do `admin.html` (`tab-btn-exclusoes` escondido de quem não é super desde antes desta spec) — baixo risco ficar assim por ora, não fazia parte do escopo combinado com o Bruno nesta rodada. Aba "Manutenção" → já migrada desde a Fase 0 |
+| II.3 | O que fica no painel de Arena | ~~Proposta~~ **Já é a realidade**: Feed, wizard, games do event (Fase I), config de identidade visual, Administradores/convites — tudo já em `admin.html` |
+| II.4 | Código compartilhado | **Ainda não feita, adiada de propósito** — extrair `admin-common.js` mexe no login-gate (Google OAuth + Magic Link, ~200 linhas testadas em produção), e este ambiente de sandbox não tem como testar login em navegador de verdade (sem sudo/Docker pro Playwright — ver `[[project_sandbox_env_constraints]]`). Fica pra quando houver espaço de testar o fluxo pós-refatoração |
+| II.5 | Navegação entre os dois | ~~Proposta~~ **Já existe nos dois sentidos**: `console.html` tem "← Painel de Arena" no topbar, `admin.html` tem "⚙ Ir para o Console" na aba Event (pra quem é super) |
+
+### Implementação II.2 — jogos pendentes + catálogo global (2026-09-01)
+
+- [x] `admin.html`: removida a seção "Games aguardando aprovação"
+  (HTML + JS + CSS não mais usado) e o hook de carregar no clique da
+  aba Games. **Achado na remoção**: o select de "mesclar com" dessa
+  seção montava as opções a partir de `jogosCache` — que desde a Fase
+  I passou a ser só os games do event ativo (não mais o catálogo
+  inteiro). A seção já estava com escopo errado havia dias sem
+  ninguém notar (super só via pra mesclar os games do event que
+  estivesse olhando por último). Corrigido na migração: a versão nova
+  em `console.html` monta essas opções a partir do catálogo completo
+  (`games-todos`), sempre.
+- [x] `console.html`, aba "Catálogo" nova: seção de pendentes migrada
+  (mesmos 3 endpoints já `super`-only —
+  `GET /games/pendentes`, `PATCH /{id}/aprovar`, `POST /{id}/mesclar`
+  — nenhum endpoint novo) + seção nova de edição de metadado do
+  catálogo global (nome/slug não editáveis por design do backend,
+  plataforma/ano/score_max/capa/gameplay/ativo sim — via
+  `PATCH /api/admin/games/{id}`, já travado pra só `super` desde AA.2).
+  Sem endpoint novo nesta parte — só UI que nunca tinha existido.
+- Sem testes de backend novos (nenhuma rota nova, nenhuma mudança de
+  autorização) — só frontend. Suíte completa: 687 passed, mesmo
+  baseline.
+- [ ] Validação manual em navegador — pendente.
 
 ---
 

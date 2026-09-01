@@ -96,6 +96,27 @@
     .field { display: flex; flex-direction: column; gap: 4px; }
     .field-label { font-size: var(--text-xs); color: var(--color-text-muted); }
 
+    .badge-pendente-game {
+      display: inline-block; font-size: 10px; font-weight: var(--weight-bold);
+      text-transform: uppercase; letter-spacing: 0.04em;
+      background: var(--color-warning, #e6a23c); color: #1a1a1a;
+      padding: 2px 8px; border-radius: var(--radius-full, 999px);
+      margin-left: 8px; vertical-align: middle;
+    }
+    .game-pendente-card {
+      padding: var(--space-md); background: var(--color-bg-surface2);
+      border: 1px solid var(--color-warning, #e6a23c);
+      border-radius: var(--radius-md); margin-bottom: var(--space-sm);
+    }
+    .game-pendente-meta { font-size: var(--text-xs); color: var(--color-text-muted); margin: 4px 0 10px; }
+    .game-pendente-acoes { display: flex; gap: var(--space-sm); flex-wrap: wrap; align-items: center; }
+    .game-pendente-mesclar-select {
+      font-family: var(--font-body); font-size: var(--text-xs);
+      background: var(--color-bg); color: var(--color-text);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-sm); padding: 4px 8px; flex: 1; min-width: 140px;
+    }
+
     .acesso-negado {
       min-height: 100dvh; display: flex; flex-direction: column; align-items: center;
       justify-content: center; gap: var(--space-md); padding: var(--space-lg); text-align: center;
@@ -129,6 +150,7 @@
     <button class="admin-tab" data-tab="avatares">Avatares</button>
     <button class="admin-tab" data-tab="manutencao">Manutenção</button>
     <button class="admin-tab" data-tab="arenas">Arenas</button>
+    <button class="admin-tab" data-tab="catalogo">Catálogo</button>
   </div>
 
   <!-- ── ABA: CONFIGURAÇÕES GERAIS ── -->
@@ -229,6 +251,28 @@
     <div class="section-header" style="margin-top:var(--space-xl)"><span class="section-title">Arenas suspensas</span></div>
     <div id="arenas-suspensas-lista">Carregando...</div>
   </div>
+
+  <!-- ── ABA: CATÁLOGO (docs/PAINEIS_ADMIN_SPEC.md II.2) ── -->
+  <div class="tab-content" id="tab-catalogo">
+    <div id="games-pendentes-secao" style="display:none;margin-bottom:var(--space-lg)">
+      <div class="section-header"><span class="section-title">Games aguardando aprovação</span></div>
+      <p class="manut-desc">
+        Criados por admins de event/arena — já utilizáveis nos events deles,
+        mas fora do catálogo/placar geral até você aprovar ou mesclar com um
+        game já existente (caso seja duplicata).
+      </p>
+      <div id="games-pendentes-lista"></div>
+    </div>
+
+    <div class="section-header"><span class="section-title">Catálogo global</span></div>
+    <p class="manut-desc">
+      Metadado compartilhado entre todas as Arenas — editar aqui afeta
+      quem quer que use o game (docs/ARENA_ADMIN_SPEC.md AA.2). Ativar/
+      desativar num event específico é no painel de Arena de cada um
+      (aba Games).
+    </p>
+    <div id="catalogo-lista">Carregando...</div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -243,6 +287,7 @@ const API_URL = 'https://retro-score-ranking-production.up.railway.app';
 let adminSecret = sessionStorage.getItem('admin_secret') || '';
 let authMode    = adminSecret ? 'token' : 'session';
 let meInfo      = null;
+let catalogoCache = [];  // catálogo global (games-todos) — usado pelo select de "mesclar com" e pela aba Catálogo
 
 async function apiFetch(path, method = 'GET', body = null) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
@@ -307,6 +352,9 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
   carregarGamesParaManutencao();
   carregarArenasPendentes();
   carregarArenasSuspensas();
+  // pendentes depende do catálogo carregado (select de "mesclar com") — sequencial, não paralelo
+  await carregarCatalogo();
+  await carregarJogosPendentes();
 })();
 
 // ── CONFIGURAÇÕES GERAIS (docs/MODERADOR_SPEC.md M.2) ──────────────────────────
@@ -543,6 +591,198 @@ function ligarBotoesArenaModeracao(container) {
         carregarArenasPendentes();
         carregarArenasSuspensas();
       } catch { showToast('Erro na ação', 'error'); }
+    });
+  });
+}
+
+// ── CATÁLOGO — games pendentes de aprovação + edição de metadado global ────────
+// (docs/PAINEIS_ADMIN_SPEC.md II.2) — migrado de admin.html; a lista de
+// "mesclar com" agora vem do catálogo inteiro (carregarCatalogo), não
+// mais do que sobrava em jogosCache de admin.html (que virou só o event
+// ativo desde a Fase I — escopo errado que ninguém tinha notado ainda).
+
+async function carregarJogosPendentes() {
+  const secao = document.getElementById('games-pendentes-secao');
+  const lista = document.getElementById('games-pendentes-lista');
+  try {
+    const resp = await apiFetch('/api/admin/games/pendentes');
+    if (!resp.ok) { secao.style.display = 'none'; return; }
+    const pendentes = await resp.json();
+
+    if (pendentes.length === 0) { secao.style.display = 'none'; return; }
+    secao.style.display = 'block';
+
+    const idsPendentes = new Set(pendentes.map(p => p.id));
+    const opcoesExistentes = catalogoCache
+      .filter(j => !idsPendentes.has(j.id) && !j.pendente_aprovacao)
+      .map(j => `<option value="${j.id}">${escapar(j.nome)}</option>`)
+      .join('');
+
+    lista.innerHTML = pendentes.map(p => `
+      <div class="game-pendente-card">
+        <div style="font-size:var(--text-md);font-weight:var(--weight-bold)">${escapar(p.nome)}</div>
+        <div class="game-pendente-meta">
+          slug: ${escapar(p.slug)}
+          · criado por ${escapar(p.criado_por || 'desconhecido')}
+          ${p.events_em_uso && p.events_em_uso.length
+            ? ` · já em uso em: ${p.events_em_uso.map(escapar).join(', ')}`
+            : ' · ainda não vinculado a nenhum event'}
+        </div>
+        <div class="game-pendente-acoes">
+          <button class="btn-action btn-reativar" style="padding:4px 10px;font-size:10px"
+                  onclick="aprovarJogoPendente('${p.id}')">
+            ✓ Aprovar como game novo
+          </button>
+          <select class="game-pendente-mesclar-select" id="mesclar-select-${p.id}">
+            <option value="">Mesclar com game existente...</option>
+            ${opcoesExistentes}
+          </select>
+          <button class="btn-action btn-rejeitar" style="padding:4px 10px;font-size:10px"
+                  onclick="mesclarJogoPendente('${p.id}')">
+            Mesclar
+          </button>
+        </div>
+      </div>
+    `).join('');
+  } catch {
+    secao.style.display = 'none';
+  }
+}
+
+window.aprovarJogoPendente = async function(jogoId) {
+  try {
+    const resp = await apiFetch(`/api/admin/games/${jogoId}/aprovar`, 'PATCH');
+    if (resp.ok) {
+      showToast('Game aprovado — já faz parte do catálogo geral', 'success');
+      await carregarCatalogo();
+      await carregarJogosPendentes();
+    } else {
+      const d = await resp.json();
+      showToast(d.detail || 'Erro ao aprovar game', 'error');
+    }
+  } catch { showToast('Erro ao aprovar game', 'error'); }
+};
+
+window.mesclarJogoPendente = async function(jogoOrigemId) {
+  const select = document.getElementById(`mesclar-select-${jogoOrigemId}`);
+  const destinoId = select.value;
+  if (!destinoId) { showToast('Escolha o game existente pra mesclar', 'error'); return; }
+
+  const nomeDestino = select.options[select.selectedIndex].textContent;
+  if (!confirm(`Mesclar este game em "${nomeDestino}"? Todas as pontuações e vínculos de event migram — o game duplicado fica arquivado.`)) return;
+
+  try {
+    const resp = await apiFetch(`/api/admin/games/${jogoOrigemId}/mesclar`, 'POST', {
+      game_destino_id: destinoId,
+    });
+    if (resp.ok) {
+      showToast('Games mesclados!', 'success');
+      await carregarCatalogo();
+      await carregarJogosPendentes();
+    } else {
+      const d = await resp.json();
+      showToast(d.detail || 'Erro ao mesclar games', 'error');
+    }
+  } catch { showToast('Erro ao mesclar games', 'error'); }
+};
+
+// ── CATÁLOGO — edição de metadado global (I.5: só super edita) ─────────────────
+async function carregarCatalogo() {
+  const lista = document.getElementById('catalogo-lista');
+  try {
+    const resp = await apiFetch('/api/admin/games-todos');
+    if (!resp.ok) { lista.innerHTML = emptyState('Erro ao carregar catálogo'); return; }
+    catalogoCache = await resp.json();
+    const aprovados = catalogoCache.filter(g => !g.pendente_aprovacao);
+
+    if (aprovados.length === 0) { lista.innerHTML = emptyState('Nenhum game no catálogo'); return; }
+    lista.innerHTML = aprovados.map(cardCatalogo).join('');
+    ligarBotoesCatalogo();
+  } catch { lista.innerHTML = emptyState('Erro ao carregar catálogo'); }
+}
+
+function cardCatalogo(g) {
+  return `
+    <div class="manut-card" data-id="${g.id}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-md);flex-wrap:wrap">
+        <div>
+          <div style="font-size:var(--text-sm);font-weight:600">
+            ${escapar(g.nome)} ${g.ativo === false ? '<span style="color:var(--color-text-muted)">(inativo)</span>' : ''}
+          </div>
+          <div style="font-size:var(--text-xs);color:var(--color-text-muted)">slug: ${escapar(g.slug)}</div>
+        </div>
+        <button class="btn-action btn-ocultar btn-editar-catalogo" data-id="${g.id}" style="padding:4px 10px;font-size:10px">Editar</button>
+      </div>
+      <div id="catalogo-form-${g.id}" style="display:none;margin-top:var(--space-md);flex-direction:column;gap:var(--space-sm)">
+        <div class="field">
+          <label class="field-label">Plataforma</label>
+          <input class="field-input" id="catalogo-plataforma-${g.id}" value="${escapar(g.plataforma || '')}">
+        </div>
+        <div class="field">
+          <label class="field-label">Ano de lançamento</label>
+          <input class="field-input" type="number" id="catalogo-ano-${g.id}" value="${g.ano_lancamento || ''}">
+        </div>
+        <div class="field">
+          <label class="field-label">Score máximo (vazio = sem limite)</label>
+          <input class="field-input" type="number" id="catalogo-score-${g.id}" value="${g.score_max || ''}">
+        </div>
+        <div class="field">
+          <label class="field-label">URL da capa</label>
+          <input class="field-input" id="catalogo-capa-${g.id}" value="${escapar(g.capa_url || '')}">
+        </div>
+        <div class="field">
+          <label class="field-label">URL de gameplay</label>
+          <input class="field-input" id="catalogo-gameplay-${g.id}" value="${escapar(g.gameplay_url || '')}">
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:var(--text-sm);cursor:pointer">
+          <input type="checkbox" id="catalogo-ativo-${g.id}" ${g.ativo !== false ? 'checked' : ''}> Ativo no catálogo global
+        </label>
+        <button class="btn-action btn-reativar btn-salvar-catalogo" data-id="${g.id}" style="align-self:flex-start">Salvar</button>
+      </div>
+    </div>
+  `;
+}
+
+function ligarBotoesCatalogo() {
+  document.querySelectorAll('.btn-editar-catalogo').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const form = document.getElementById(`catalogo-form-${btn.dataset.id}`);
+      form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+    });
+  });
+
+  document.querySelectorAll('.btn-salvar-catalogo').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const dados = {};
+
+      const plataforma = document.getElementById(`catalogo-plataforma-${id}`).value.trim();
+      if (plataforma) dados.plataforma = plataforma;
+
+      const ano = parseInt(document.getElementById(`catalogo-ano-${id}`).value);
+      if (!isNaN(ano)) dados.ano_lancamento = ano;
+
+      const score = parseInt(document.getElementById(`catalogo-score-${id}`).value);
+      if (!isNaN(score)) dados.score_max = score;
+
+      const capa = document.getElementById(`catalogo-capa-${id}`).value.trim();
+      if (capa) dados.capa_url = capa;
+
+      const gameplay = document.getElementById(`catalogo-gameplay-${id}`).value.trim();
+      if (gameplay) dados.gameplay_url = gameplay;
+
+      dados.ativo = document.getElementById(`catalogo-ativo-${id}`).checked;
+
+      try {
+        const resp = await apiFetch(`/api/admin/games/${id}`, 'PATCH', dados);
+        if (!resp.ok) {
+          const d = await resp.json().catch(() => ({}));
+          showToast(d.detail || 'Erro ao salvar game', 'error');
+          return;
+        }
+        showToast('Game atualizado', 'success');
+        carregarCatalogo();
+      } catch { showToast('Erro ao salvar game', 'error'); }
     });
   });
 }
