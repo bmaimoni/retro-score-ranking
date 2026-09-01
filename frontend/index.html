@@ -743,6 +743,7 @@ inserirNav('index');
 
 let usuarioAtual = null;
 let providersCache = null;
+let nickAtualCache = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
   await carregarSessao();
@@ -754,6 +755,7 @@ async function carregarSessao() {
     const resp = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
     if (resp.ok) {
       usuarioAtual = await resp.json();
+      await carregarNickAtual();
       renderContaLogado(usuarioAtual);
     } else {
       usuarioAtual = null;
@@ -765,9 +767,22 @@ async function carregarSessao() {
   }
 }
 
+// Apelido usado nas pontuações (docs/NICKNAME_SPEC.md) — prioridade
+// sobre o nome da conta Google/e-mail na saudação. Mesmo padrão já
+// usado em play.html: falha silenciosa, é só conveniência de exibição.
+async function carregarNickAtual() {
+  try {
+    const resp = await fetch(`${API_URL}/api/perfil`, { credentials: 'include' });
+    if (resp.ok) {
+      const perfil = await resp.json();
+      nickAtualCache = perfil.nick_atual || null;
+    }
+  } catch { /* silencioso */ }
+}
+
 function renderContaLogado(usuario) {
   const el = document.getElementById('conta-status');
-  const nomeExibicao = usuario.nome || usuario.email || 'sua conta';
+  const nomeExibicao = nickAtualCache || usuario.nome || usuario.email || 'sua conta';
   const linkPainel = usuario.tem_arena
     ? `<a href="admin.html" class="conta-sair" style="text-decoration:underline">Meu painel</a>`
     : '';

@@ -356,7 +356,7 @@ async function carregarAvatares() {
 }
 
 async function renderPerfil() {
-  const nomeExibicao = perfilAtual.nome || perfilAtual.email || 'sua conta';
+  const nomeExibicao = perfilAtual.nick_atual || perfilAtual.nome || perfilAtual.email || 'sua conta';
 
   document.getElementById('conteudo').innerHTML = `
     <div class="perfil-topo animate-slide-up">
