@@ -4,8 +4,11 @@
 > e validação manual em navegador feita em produção pelo Bruno em
 > 2026-09-01 (contexto de Arena + tela inicial + extração mínima de
 > `console.html` — ver §0).
-> Fases I-III seguem **em especificação — decisões abertas, nenhuma
-> fechada ainda**.
+> Fase I com decisões fechadas em 2026-09-01, implementação em
+> andamento (§3) — descoberta: I.5 já estava corrigida antes desta
+> fase (`dce422c`/AA.2), escopo real virou "religar frontend nos
+> endpoints certos", não mais bug de segurança. Fases II-III seguem
+> **em especificação — decisões abertas, nenhuma fechada ainda**.
 > Complementa `PERMISSOES_SPEC.md` (regras de nível/escopo, que não mudam
 > aqui) e se sobrepõe parcialmente a `CATALOGO_JOGOS_SPEC.md` Fases 2-4
 > (painel "Jogos" revisitado pra escala self-serve) — ver §5. Escrito a
@@ -162,23 +165,37 @@ errada pro público errado (§3).
 
 ---
 
-## 3. Fase I — Fechar o escopo de jogos por evento (prioridade — bug de escrita cross-arena)
+## 3. Fase I — Fechar o escopo de jogos por evento (2026-09-01)
 
-Decisões propostas (nenhuma fechada ainda — pra validar com o Bruno):
+> **I.5 já estava fechada antes desta fase começar** — descoberto
+> investigando o código antes de implementar, não decidido agora.
+> `PATCH /api/admin/games/{id}` já é `super`-only no backend desde o
+> commit `dce422c` (`_exigir_super_editar_game`,
+> `backend/routers/admin.py:439`, ref. `ARENA_ADMIN_SPEC.md` AA.2), e o
+> frontend já esconde o toggle de quem não é super
+> (`admin.html:1765`). **Consequência não intencional dessa correção**:
+> hoje **nenhum admin de Arena (nem super) consegue ativar/desativar
+> game no próprio event pela aba Games** — o achado 1 (bug de
+> segurança) já não existe, sobrou o achado 2 (funcionalidade quebrada/
+> ausente, endpoint certo nunca religado). Fase I fecha isso, não o bug
+> de escrita cross-arena (que já não existe).
 
-| # | Tópico | Proposta |
+Decisões (fechadas com o Bruno):
+
+| # | Tópico | Decisão |
 |---|---|---|
 | I.1 | Fonte de dados do painel de Arena | Aba "Games" do painel de Arena passa a listar via `GET /api/admin/events/{event_id}/games` (jogos vinculados ao evento em contexto, com `ativo`/`ordem` **por vínculo**), não mais `GET /api/admin/games-todos` |
-| I.2 | Toggle ativo/inativo | Passa a chamar `PATCH /api/admin/events/{event_id}/games/{game_id}` (já existe, já escopado) em vez de `PATCH /api/admin/games/{game_id}` |
-| I.3 | Adicionar jogo já existente ao evento | Tela nova (busca no catálogo global, escopo de leitura — ver I.5), chama `POST /api/admin/events/{event_id}/games/{game_id}` |
-| I.4 | Reordenar | Exposto no mesmo endpoint (`ordem`) — drag-and-drop ou setas simples, decisão de UI a fechar na implementação, não afeta modelo |
-| I.5 | `PATCH /api/admin/games/{id}` (catálogo global) — quem pode chamar? | Fechar como **só `super`**. Edição de metadado global (nome, `score_max` de catálogo, `plataforma`, `capa_url`, `gameplay_url`) é responsabilidade de quem cuida do catálogo compartilhado — admin de Arena só deveria poder ativar/desativar o jogo **no próprio evento**, nunca editar o registro global. Precisa de teste adversarial explícito (mesmo padrão exigido em `PERMISSOES_SPEC.md` §5.1) confirmando que admin não-super recebe 403 |
+| I.2 | Toggle ativo/inativo | Passa a chamar `PATCH /api/admin/events/{event_id}/games/{game_id}` (já existe, já escopado) em vez de `PATCH /api/admin/games/{game_id}` — volta a ficar visível pra admin comum, não só super (é o vínculo do próprio event, nunca mais o catálogo global) |
+| I.3 | Adicionar jogo já existente ao evento | Tela nova (busca no catálogo global, escopo de leitura), chama `POST /api/admin/events/{event_id}/games/{game_id}` |
+| I.4 | Reordenar | Exposto no mesmo endpoint (`ordem`) — **setas simples (↑/↓) na v1**, não drag-and-drop (já era o fallback padrão do §8 desta rodada; não é decisão de produto que precise de novo martelo) |
+| I.5 | `PATCH /api/admin/games/{id}` (catálogo global) — quem pode chamar? | **Já fechado como só `super`** antes desta fase (ver nota acima) — nada a fazer aqui |
 | I.6 | Criação de novo jogo (`POST /api/admin/games`) | Já exige `event_id` explícito desde o achado 5.9 do `CATALOGO_JOGOS_SPEC.md` — sem mudança aqui, só confirmar que continua funcionando depois do resto mudar |
-| I.7 | Aba "Manutenção" — game selector | Mesmo problema do achado 1 em miniatura: `manut-game-select` (usado por `arquivarJogo()`/`restaurarJogo()`) também lista *todos* os games globais. Como a ação em si já é super-only no backend (achado 5), a correção aqui é só de visibilidade (§4), não de escopo de dados — não around confundir com I.1-I.4 |
+| I.7 | Aba "Manutenção" — game selector | Mesmo problema do achado 1 em miniatura, mas **fora de escopo desta fase** — a ação em si já é super-only no backend (achado 5), a correção é só de visibilidade, fica pra Fase III.3 junto do resto da limpeza de abas mal escondidas |
+| I.8 | Escopo de event pra `super` na aba Games | "Quais games estão ativos no event X" não é agregável entre events como o Feed é — mesmo super precisa escolher um event específico pra usar a aba Games. **Seletor de event só dentro da aba Games**, não promovido pro topbar/outras abas — Feed continua sem seletor pra super (agregado, como já é desde F0.2) |
 
 **Sem migração de banco** — `event_games` já tem tudo que precisa
-(`ativo`, `ordem`, `UNIQUE(event_id, game_id)`). É mudança de frontend +
-um ajuste de autorização no backend (I.5).
+(`ativo`, `ordem`, `UNIQUE(event_id, game_id)`). É mudança só de
+frontend — nenhum ajuste de backend necessário (I.5 já estava feito).
 
 ---
 
