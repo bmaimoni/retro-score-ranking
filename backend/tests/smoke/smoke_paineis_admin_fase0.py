@@ -28,11 +28,20 @@ def test_aba_inicio_e_a_padrao_e_mostra_resumo(page: Page, base_url: str, admin_
     expect(page.locator("[data-tab='inicio']")).to_be_visible()
     expect(page.locator("[data-tab='inicio']")).to_have_class("admin-tab active")
     expect(page.locator("#tab-inicio")).to_be_visible()
-    # Super sempre tem >=1 Arena em produção hoje (Canal3, Old School Pinball)
+    # Super sempre tem >=1 Arena em produção hoje. 3 estados válidos:
+    # sem Arena nenhuma (#inicio-sem-arena), Arena ativa sem events ainda
+    # (.empty-admin dentro de #inicio-lista-events) ou Arena com events
+    # (.inicio-event-card). Descoberto rodando contra produção real: a
+    # Arena "Rumbles" existe e está zerada — só afirmar cards>0 sem essa
+    # 3ª opção falha nesse estado legítimo, não é bug do admin.html.
     sem_arena = page.locator("#inicio-sem-arena")
     lista = page.locator("#inicio-lista-events")
     page.wait_for_timeout(1500)
-    assert sem_arena.is_visible() or lista.locator(".inicio-event-card").count() > 0
+    assert (
+        sem_arena.is_visible()
+        or lista.locator(".inicio-event-card").count() > 0
+        or lista.locator(".empty-admin").is_visible()
+    )
 
 
 def test_identidade_super_aparece_no_topbar(page: Page, base_url: str, admin_secret: str):

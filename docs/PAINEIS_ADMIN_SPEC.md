@@ -97,11 +97,20 @@ Fase II é trabalho futuro, não incluído aqui.
    SUPER no topbar, seletor de Arena trocando logo/nome/resumo, aba
    "Início" com resumo de events, link e acesso a `console.html` como
    super. Automação via Playwright (`tests/smoke/smoke_paineis_admin_fase0.py`,
-   escrita nesta sessão) **não rodou** — o sandbox não tem as
-   dependências de sistema do Chromium (`libnss3` e ~35 outros pacotes)
-   e não há sudo/Docker disponível pra instalá-las; validação ficou
-   manual. Nota de honestidade: o caso "`console.html` como não-super"
-   foi validado só via proxy (aba anônima, sem sessão nenhuma) — mesmo
+   escrita nesta sessão) **rodou pela primeira vez em 2026-09-02**,
+   depois que sudo ficou disponível no sandbox pra instalar as
+   dependências de sistema do Chromium (`libnss3` e ~35 outros pacotes
+   via `playwright install-deps chromium`) — ver `[[project_sandbox_env_constraints]]`
+   pro que mudou. 7/7 casos passando contra produção real. Achado no
+   processo: `test_aba_inicio_e_a_padrao_e_mostra_resumo` falhou na
+   primeira rodada porque assumia só 2 estados pra aba Início (sem
+   Arena nenhuma, ou Arena com events) — em produção hoje existe uma
+   3ª Arena ("Rumbles") já criada mas ainda sem nenhum event, estado
+   legítimo que o `admin.html` já tratava certo (`empty-admin` "Nenhum
+   event nesta Arena ainda") mas o teste não cobria. Não era bug do
+   admin.html, era o teste desatualizado — corrigido pra aceitar os 3
+   estados. Nota de honestidade: o caso "`console.html` como não-super"
+   segue validado só via proxy (aba anônima, sem sessão nenhuma) — mesmo
    branch de código (`!meInfo || !meInfo.super`) que cobre um admin
    logado mas sem `super`, mas não é literalmente o mesmo teste; não
    existe hoje conta de admin de Arena não-super pra testar o caso
@@ -127,7 +136,8 @@ Fase II é trabalho futuro, não incluído aqui.
   contagem, 404, 403 de arena alheia, 200 de arena própria). Suíte
   completa: 677 passed (18 erros de smoke pré-existentes, baseline
   inalterado). `tests/smoke/smoke_paineis_admin_fase0.py` (Playwright,
-  7 casos) escrito, mas nunca rodado — ver risco 3.
+  7 casos) escrito e, desde 2026-09-02, rodando 7/7 contra produção —
+  ver risco 3.
 - [x] Validação manual em navegador — feita em produção em 2026-09-01
   pelo Bruno, ver risco 3.
 - [x] Validação da query `resumo` contra Postgres real — feita em
