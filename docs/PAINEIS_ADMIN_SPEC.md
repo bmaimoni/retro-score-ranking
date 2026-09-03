@@ -30,6 +30,10 @@
 > Administradores passa a viver dentro do canto Arena. Só doc — nenhum
 > código mudou ainda; fundação técnica compartilhada e ordem de migração
 > ficam pra fase seguinte (§9.4).
+> **Fase V fechada em 2026-09-03 (§10)** — fundação técnica
+> (`admin-common.js`) e primeiro canto migrado (`admin-jogos.html`),
+> em paralelo à aba antiga (rollout sem big-bang, sem staging). Pendente
+> de validação manual em navegador.
 
 ---
 
@@ -498,3 +502,33 @@ produziu esta fase (moderador / admin comum / admin dono / super).
   HTML próprio ou se existe algum agrupamento técnico diferente disso.
 - Layout/navegação visual entre os cantos (menu lateral? topbar? — só a
   função de cada canto foi decidida aqui, não a apresentação).
+
+---
+
+## 10. Fase V — Fundação técnica compartilhada + primeiro canto migrado (2026-09-03)
+
+Fecha o primeiro item do §9.4. Pedido do Bruno pra seguir direto pras
+alterações técnicas depois de validar os cantos da Fase IV.
+
+### 10.1 Decisões
+
+| # | Tópico | Decisão |
+|---|---|---|
+| V.1 | Mecanismo de compartilhamento | Um módulo ES simples, `frontend/admin-common.js`, importado via `<script type="module">` — mesmo molde já usado por `nav.js`/`temas.js` (sem build step, o projeto inteiro já funciona assim) |
+| V.2 | Modelo de login muda | Hoje **toda** página tenta logar sozinha (mostra a tela de senha/Google/Magic Link se não estiver logada) — são ~150 linhas por página. Passa a ser: **só `admin.html`** mantém a tela de login de verdade; toda página de canto nova chama `exigirAdmin()` (tenta restaurar sessão via token salvo ou cookie; se falhar, redireciona pra `admin.html?next=<página>`) |
+| V.3 | O que entra em `admin-common.js` | `apiFetch`/`escapar`/`showToast`/`emptyState` (helpers já duplicados entre `admin.html`/`console.html`), `tentarRestaurarSessao`/`exigirAdmin` (sessão), contexto de Arena ativa (`inicializarArenaAtiva`/`getArenaAtual`/`onArenaChange`, com seleção agora persistida em `sessionStorage` — antes não precisava, a Arena ativa sobrevivia só trocando de aba dentro da mesma página; agora precisa atravessar navegação entre páginas), `ehAdminEmAlgumaArena`/`nivelNaArena` (checagem de nível, também duplicada) |
+| V.4 | O que **não** entra no módulo compartilhado | UI de login em si (formulário de senha, botão Google, Magic Link) — fica só em `admin.html`, que é a única página que ainda precisa dela |
+| V.5 | Estratégia de rollout — sem staging (`SPEC.md` §9) | Cada canto migrado nasce como página **nova**, em paralelo à aba antiga em `admin.html` (que continua funcionando sem mudança nenhuma). Só depois de validação manual em produção a aba antiga é removida. Evita big-bang num painel de produção sem ambiente de teste isolado |
+| V.6 | Primeiro canto | **Jogos** (`frontend/admin-jogos.html`) — escolha do Bruno. Reaproveita os mesmos endpoints já corretos da Fase I (`GET/POST/PATCH /api/admin/events/{id}/games`, `GET /api/admin/games-todos`, `POST /api/admin/games`), nenhuma rota nova, nenhuma mudança de backend |
+| V.7 | Redefinição real, não cópia | A aba "Games" de `admin.html` nunca teve busca IGDB (só o Wizard tinha) — cadastro de jogo novo fora do wizard era só manual. `admin-jogos.html` porta a busca IGDB (com crédito obrigatório, 5.7) pra dentro do canto permanente, cumprindo o que a Fase IV já tinha decidido pra este canto ("cadastrar novo — manual/IGDB") |
+
+### 10.2 Implementação
+
+- [x] `frontend/admin-common.js` novo.
+- [x] `frontend/admin-jogos.html` novo — lista de jogos do event (toggle/reordenar), adicionar jogo existente do catálogo, cadastrar novo (IGDB + manual). Seletor de Arena ativa e de Event próprios da página, escopados igual à Fase I (I.8: super escolhe o event, admin/moderador herda de `meInfo.events` filtrado pela Arena ativa).
+- [ ] `admin.html` **não foi tocado nesta rodada** (V.5) — a aba "Games" antiga continua ativa e funcionando em paralelo. Link entre as duas fica pra depois da validação.
+- [ ] Validação manual em navegador — pendente. Sem Playwright neste sandbox
+  (`[[project_sandbox_env_constraints]]`); sintaxe checada com
+  `node --check`, mas o fluxo de sessão/redirect e as chamadas de rede
+  não foram exercitadas num navegador real.
+- [ ] Sem testes de backend novos — nenhuma rota nova, nenhuma mudança de autorização.

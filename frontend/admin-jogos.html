@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Jogos — Retro Score Ranking</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* docs/PAINEIS_ADMIN_SPEC.md §9 (Fase IV/V) — canto "Jogos": catálogo
+       do event em contexto (vincular existente, cadastrar novo manual/
+       IGDB, ativar/reordenar). Primeiro canto migrado de admin.html pra
+       página própria — CSS copiado do bloco que já existia lá (mesmo
+       visual, sem redesenho), trimmed pro que esta página usa de fato. */
+    .admin-page {
+      min-height: 100dvh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    .admin-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-md) var(--space-lg);
+      padding-right: calc(var(--space-lg) + 44px + var(--space-md));
+      background: var(--color-bg-surface);
+      border-bottom: var(--border-width) solid var(--color-border);
+      gap: var(--space-md);
+      flex-wrap: wrap;
+    }
+    .topbar-brand { display: flex; align-items: center; gap: var(--space-sm); }
+    .topbar-logo { height: 28px; width: auto; object-fit: contain; }
+    .topbar-title { font-family: var(--font-display); font-size: var(--text-xs); color: var(--color-primary); letter-spacing: 0.08em; }
+    .topbar-right { display: flex; align-items: center; gap: var(--space-md); }
+    .event-selector {
+      font-family: var(--font-body);
+      font-size: var(--text-xs);
+      background: var(--color-bg);
+      color: var(--color-text);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: 4px 8px;
+    }
+
+    .conteudo { padding: var(--space-lg); max-width: 900px; margin: 0 auto; width: 100%; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-lg); gap: var(--space-md); flex-wrap: wrap; }
+    .section-title { font-size: var(--text-lg); font-weight: var(--weight-bold); color: var(--color-text); }
+
+    .games-grid { display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-xl); }
+    .game-card {
+      background: var(--color-bg-surface);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: var(--space-md);
+      align-items: center;
+    }
+    .game-card.inativo { opacity: 0.5; }
+    .game-nome { font-size: var(--text-md); font-weight: var(--weight-bold); }
+    .badge-pendente-game {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: var(--weight-bold);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: var(--color-warning, #e6a23c);
+      color: #1a1a1a;
+      padding: 2px 8px;
+      border-radius: var(--radius-full, 999px);
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .game-meta { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; }
+    .game-actions { display: flex; gap: var(--space-xs); align-items: center; }
+
+    .toggle-ativo {
+      width: 44px; height: 24px;
+      border-radius: var(--radius-full);
+      background: var(--color-bg-surface2);
+      border: var(--border-width) solid var(--color-border);
+      cursor: pointer;
+      position: relative;
+      transition: background var(--transition);
+      flex-shrink: 0;
+    }
+    .toggle-ativo.on { background: var(--color-secondary); border-color: var(--color-secondary); }
+    .toggle-ativo::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform var(--transition);
+    }
+    .toggle-ativo.on::after { transform: translateX(20px); }
+
+    .btn-action {
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      font-size: var(--text-xs);
+      font-weight: var(--weight-bold);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      font-family: var(--font-body);
+      transition: all var(--transition);
+      border: var(--border-width) solid transparent;
+      white-space: nowrap;
+    }
+    .btn-ocultar  { background: rgba(240,64,96,0.12); color: var(--color-error); border-color: rgba(240,64,96,0.3); }
+    .btn-ocultar:hover  { background: rgba(240,64,96,0.25); }
+    .btn-reativar { background: rgba(95,187,80,0.12); color: var(--color-success); border-color: rgba(95,187,80,0.3); }
+    .btn-reativar:hover { background: rgba(95,187,80,0.25); }
+
+    .caixa-form {
+      background: var(--color-bg-surface);
+      border: var(--border-width) solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-lg);
+    }
+    .form-title { font-size: var(--text-md); font-weight: var(--weight-bold); margin-bottom: var(--space-md); color: var(--color-secondary); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
+    @media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+
+    .empty-admin { text-align: center; padding: var(--space-2xl) var(--space-lg); color: var(--color-text-muted); }
+    .empty-admin-icon { font-size: 48px; margin-bottom: var(--space-md); }
+    .empty-admin-text { font-size: var(--text-md); font-weight: var(--weight-bold); color: var(--color-text-dim); }
+
+    #jogos-loading { text-align: center; padding: var(--space-2xl); color: var(--color-text-muted); }
+  </style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<div id="jogos-loading">Carregando…</div>
+
+<div class="admin-page" id="pagina" style="display:none">
+  <div class="admin-topbar">
+    <span class="topbar-brand">
+      <img src="logo.png" alt="" class="topbar-logo">
+      <span class="topbar-title">JOGOS</span>
+    </span>
+    <div class="topbar-right">
+      <select class="event-selector" id="arena-selector" style="display:none"></select>
+      <select class="event-selector" id="event-selector" style="display:none"></select>
+    </div>
+  </div>
+
+  <div class="conteudo">
+    <div id="jogos-sem-arena" style="display:none;color:var(--color-text-muted);font-size:var(--text-sm)">
+      Você ainda não administra nenhuma Arena.
+      <a href="admin.html" style="color:var(--color-primary)">Voltar ao painel</a>
+    </div>
+
+    <div id="jogos-sem-event" style="display:none;color:var(--color-text-muted);font-size:var(--text-sm)">
+      Nenhum event nesta Arena ainda — crie um antes de gerenciar jogos.
+      <a href="admin.html" style="color:var(--color-primary)">Voltar ao painel</a>
+    </div>
+
+    <div id="jogos-conteudo" style="display:none">
+      <div class="section-header">
+        <span class="section-title">Jogos deste event</span>
+      </div>
+      <div class="games-grid" id="games-list"></div>
+
+      <div class="caixa-form" id="adicionar-existente-form">
+        <p class="form-title">+ Adicionar jogo já existente</p>
+        <input class="field-input" type="search" id="games-busca-input" placeholder="Buscar por nome no catálogo…">
+        <div id="games-busca-resultados"></div>
+      </div>
+
+      <div class="caixa-form" id="cadastrar-novo-form">
+        <p class="form-title">+ Cadastrar novo jogo</p>
+        <p class="game-meta" id="jogo-igdb-hint" style="margin-bottom:var(--space-sm)">
+          Busque na IGDB (preenche plataforma/ano/capa automaticamente) ou cadastre manualmente.
+        </p>
+        <div id="igdb-busca">
+          <input class="field-input" type="search" id="igdb-input"
+                 placeholder="Buscar jogo (ex: Street Fighter II)…" style="margin-bottom:var(--space-sm)">
+          <div id="igdb-resultados"></div>
+          <p class="game-meta" style="font-size:var(--text-xs);opacity:0.7;margin-top:var(--space-xs)">
+            Dados de jogos fornecidos por IGDB.com
+          </p>
+        </div>
+        <button class="btn-action btn-ocultar" id="manual-toggle-btn" style="margin-top:var(--space-sm)">Não encontrei — cadastro manual</button>
+        <div id="manual-form" style="display:none;margin-top:var(--space-md)">
+          <div class="form-row">
+            <div class="field">
+              <label class="field-label" for="manual-nome">Nome</label>
+              <input class="field-input" type="text" id="manual-nome" placeholder="Ex: Pac-Man">
+            </div>
+            <div class="field">
+              <label class="field-label" for="manual-slug">Slug (URL)</label>
+              <input class="field-input" type="text" id="manual-slug" placeholder="Ex: pac-man">
+            </div>
+          </div>
+          <div class="field" style="margin-top:var(--space-sm)">
+            <label class="field-label" for="manual-plataforma">Plataforma (opcional)</label>
+            <input class="field-input" type="text" id="manual-plataforma" placeholder="Ex: Arcade">
+          </div>
+          <div class="field" style="margin-top:var(--space-sm)">
+            <label class="field-label" for="manual-score-max">Score máximo (opcional)</label>
+            <input class="field-input" type="number" id="manual-score-max" placeholder="Deixe vazio para sem limite">
+          </div>
+          <button class="btn-primary" id="manual-criar-btn" style="margin-top:var(--space-md)">CADASTRAR JOGO</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import {
+  exigirAdmin, apiFetch, escapar, showToast, emptyState,
+  inicializarArenaAtiva, getArenaAtual, onArenaChange, eventosDaArenaAtiva,
+  nivelNaArena, getMeInfo,
+} from './admin-common.js';
+import { inserirNav } from './nav.js';
+
+inserirNav('jogos');
+
+let eventoAtual  = null;
+let jogosCache    = [];
+let catalogoCache = null;
+let igdbIndisponivel = false;
+let igdbDebounceTimer = null;
+
+(async () => {
+  const meInfo = await exigirAdmin();
+  if (!meInfo) return; // exigirAdmin já redirecionou pra admin.html
+
+  document.getElementById('jogos-loading').style.display = 'none';
+  document.getElementById('pagina').style.display = 'grid';
+
+  // Moderador só lê — leitura de games do event já é liberada pro
+  // moderador no backend (docs/PERMISSOES_SPEC.md §7 item 5). A página
+  // inteira fica visível; só os formulários de escrita são escondidos
+  // por nível dentro de renderJogos() (podeEditar()).
+  await inicializarArenaAtiva(document.getElementById('arena-selector'));
+
+  if (!getArenaAtual()) {
+    document.getElementById('jogos-sem-arena').style.display = 'block';
+    return;
+  }
+
+  onArenaChange(() => { popularSeletorEvento(); });
+  await popularSeletorEvento();
+})();
+
+async function popularSeletorEvento() {
+  const sel  = document.getElementById('event-selector');
+  const meInfo = getMeInfo();
+  let eventos;
+
+  if (meInfo.super) {
+    try {
+      const resp = await apiFetch('/api/admin/events');
+      eventos = resp.ok ? (await resp.json()).filter(e => e.arena_id === getArenaAtual()) : [];
+    } catch { eventos = []; }
+  } else {
+    eventos = eventosDaArenaAtiva() || [];
+  }
+
+  if (eventos.length === 0) {
+    sel.style.display = 'none';
+    document.getElementById('jogos-sem-event').style.display = 'block';
+    document.getElementById('jogos-conteudo').style.display = 'none';
+    eventoAtual = null;
+    return;
+  }
+
+  document.getElementById('jogos-sem-event').style.display = 'none';
+  document.getElementById('jogos-conteudo').style.display = 'block';
+
+  sel.style.display = eventos.length === 1 ? 'none' : 'inline-block';
+  sel.innerHTML = eventos.map(e =>
+    `<option value="${e.id}">${escapar(e.nome)}${e.ativo === false ? ' (arquivado)' : ''}</option>`
+  ).join('');
+  if (!eventoAtual || !eventos.some(e => e.id === eventoAtual)) eventoAtual = eventos[0].id;
+  sel.value = eventoAtual;
+  sel.onchange = () => { eventoAtual = sel.value; carregarJogos(); };
+
+  await carregarJogos();
+}
+
+// ── LISTA DE JOGOS DO EVENT (mesma fonte de admin.html, Fase I) ────────────
+async function carregarJogos() {
+  if (!eventoAtual) return;
+  try {
+    const resp = await apiFetch(`/api/admin/events/${eventoAtual}/games`);
+    if (!resp.ok) { document.getElementById('games-list').innerHTML = emptyState('Erro ao carregar jogos deste event'); return; }
+    renderJogos(await resp.json());
+  } catch { /* silencioso */ }
+}
+
+function podeEditar() {
+  const meInfo = getMeInfo();
+  if (!meInfo) return false;
+  return meInfo.super || nivelNaArena(getArenaAtual()) === 'admin';
+}
+
+function renderJogos(games) {
+  jogosCache = games;
+  const container = document.getElementById('games-list');
+  const editavel = podeEditar();
+
+  document.getElementById('adicionar-existente-form').style.display = editavel ? '' : 'none';
+  document.getElementById('cadastrar-novo-form').style.display = editavel ? '' : 'none';
+
+  if (games.length === 0) {
+    container.innerHTML = emptyState('Nenhum jogo vinculado a este event ainda — adicione um abaixo');
+    return;
+  }
+
+  const ordenados = [...games].sort((a, b) => a.ordem - b.ordem);
+  container.innerHTML = ordenados.map((j, i) => `
+    <div class="game-card ${j.ativo ? '' : 'inativo'}" data-id="${j.id}">
+      <div>
+        <div class="game-nome">
+          ${escapar(j.nome)}
+          ${j.pendente_aprovacao ? '<span class="badge-pendente-game">Aguardando aprovação</span>' : ''}
+          ${j.jogo_ativo_global === false ? '<span class="badge-pendente-game" title="Desativado no catálogo global por super">Oculto globalmente</span>' : ''}
+        </div>
+        <div class="game-meta">
+          slug: ${j.slug}
+          ${j.score_max ? ` · máx: ${j.score_max.toLocaleString('pt-BR')}` : ' · sem limite de score'}
+        </div>
+      </div>
+      <div class="game-actions">
+        ${editavel ? `
+        <button class="btn-action btn-ocultar btn-reordenar" data-id="${j.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Mover pra cima" style="padding:2px 8px">↑</button>
+        <button class="btn-action btn-ocultar btn-reordenar" data-id="${j.id}" data-dir="1" ${i === ordenados.length - 1 ? 'disabled' : ''} title="Mover pra baixo" style="padding:2px 8px">↓</button>
+        <div class="toggle-ativo ${j.ativo ? 'on' : ''}" data-id="${j.id}" data-ativo="${j.ativo}"
+             title="${j.ativo ? 'Ativo neste event — clique para desativar' : 'Inativo neste event — clique para ativar'}"></div>
+        ` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.toggle-ativo').forEach(toggle => {
+    toggle.addEventListener('click', async () => {
+      const id = toggle.dataset.id, ativo = toggle.dataset.ativo === 'true';
+      try {
+        await apiFetch(`/api/admin/events/${eventoAtual}/games/${id}`, 'PATCH', { ativo: !ativo });
+        showToast(!ativo ? 'Jogo ativado neste event' : 'Jogo desativado neste event', 'success');
+        carregarJogos();
+      } catch { showToast('Erro ao atualizar jogo', 'error'); }
+    });
+  });
+
+  container.querySelectorAll('.btn-reordenar').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const idx = ordenados.findIndex(j => j.id === btn.dataset.id);
+      const alvoIdx = idx + parseInt(btn.dataset.dir);
+      if (alvoIdx < 0 || alvoIdx >= ordenados.length) return;
+      const nova = [...ordenados];
+      [nova[idx], nova[alvoIdx]] = [nova[alvoIdx], nova[idx]];
+      try {
+        await Promise.all(nova.map((j, i) =>
+          apiFetch(`/api/admin/events/${eventoAtual}/games/${j.id}`, 'PATCH', { ordem: i })
+        ));
+        carregarJogos();
+      } catch { showToast('Erro ao reordenar', 'error'); }
+    });
+  });
+}
+
+// ── ADICIONAR JOGO EXISTENTE ─────────────────────────────────────────────────
+async function carregarCatalogo() {
+  if (catalogoCache) return catalogoCache;
+  try {
+    const resp = await apiFetch('/api/admin/games-todos');
+    catalogoCache = resp.ok ? await resp.json() : [];
+  } catch { catalogoCache = []; }
+  return catalogoCache;
+}
+
+document.getElementById('games-busca-input').addEventListener('input', async (e) => {
+  const termo = e.target.value.trim().toLowerCase();
+  const resultados = document.getElementById('games-busca-resultados');
+  if (termo.length < 2) { resultados.innerHTML = ''; return; }
+
+  const catalogo = await carregarCatalogo();
+  const idsNoEvento = new Set((jogosCache || []).map(j => j.id));
+  const achados = catalogo
+    .filter(g => !g.pendente_aprovacao && !idsNoEvento.has(g.id))
+    .filter(g => g.nome.toLowerCase().includes(termo))
+    .slice(0, 8);
+
+  resultados.innerHTML = achados.length === 0
+    ? `<p style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:var(--space-sm)">Nada encontrado</p>`
+    : achados.map(g => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:var(--border-width) solid var(--color-border)">
+          <span style="font-size:var(--text-sm)">${escapar(g.nome)}</span>
+          <button class="btn-action btn-reativar btn-adicionar" data-id="${g.id}" style="padding:4px 10px;font-size:10px">+ Adicionar</button>
+        </div>
+      `).join('');
+
+  resultados.querySelectorAll('.btn-adicionar').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      try {
+        const ordem = (jogosCache || []).length;
+        const resp = await apiFetch(`/api/admin/events/${eventoAtual}/games/${btn.dataset.id}?ordem=${ordem}`, 'POST');
+        if (!resp.ok) {
+          const err = await resp.json();
+          showToast(err.detail || 'Erro ao adicionar jogo', 'error');
+          return;
+        }
+        showToast('Jogo adicionado ao event', 'success');
+        document.getElementById('games-busca-input').value = '';
+        resultados.innerHTML = '';
+        catalogoCache = null; // pode ter mudado (jogo criado noutro lugar entretanto)
+        carregarJogos();
+      } catch { showToast('Erro ao adicionar jogo', 'error'); }
+    });
+  });
+});
+
+// ── CADASTRAR NOVO (IGDB + manual) — docs/CATALOGO_JOGOS_SPEC.md Fase 5/1 ──
+document.getElementById('igdb-input').addEventListener('input', (e) => {
+  clearTimeout(igdbDebounceTimer);
+  const termo = e.target.value.trim();
+  if (termo.length < 2) { document.getElementById('igdb-resultados').innerHTML = ''; return; }
+  igdbDebounceTimer = setTimeout(() => buscarIgdb(termo), 400);
+});
+
+async function buscarIgdb(termo) {
+  const el = document.getElementById('igdb-resultados');
+  if (igdbIndisponivel) return;
+  try {
+    const resp = await apiFetch(`/api/admin/games/buscar-igdb?q=${encodeURIComponent(termo)}`);
+    if (resp.status === 503) {
+      igdbIndisponivel = true;
+      document.getElementById('igdb-busca').style.display = 'none';
+      showToast('Busca por jogo indisponível — use o cadastro manual', 'info');
+      return;
+    }
+    if (!resp.ok) { el.innerHTML = ''; return; }
+    const resultados = await resp.json();
+    el.innerHTML = resultados.map((r, i) => `
+      <div class="game-card" style="cursor:pointer;display:flex;gap:10px;align-items:center;margin-bottom:6px" data-idx="${i}">
+        ${r.capa_url ? `<img src="${escapar(r.capa_url)}" alt="" style="width:36px;height:48px;object-fit:cover;border-radius:4px">` : ''}
+        <div>
+          <div class="game-nome">${escapar(r.nome)}</div>
+          <div class="game-meta">${escapar(r.plataforma || '')} ${r.ano_lancamento || ''}</div>
+        </div>
+      </div>
+    `).join('') || '<p class="game-meta">Nenhum resultado.</p>';
+
+    el.querySelectorAll('[data-idx]').forEach(card => {
+      card.addEventListener('click', () => selecionarJogoIgdb(resultados[parseInt(card.dataset.idx)]));
+    });
+  } catch { el.innerHTML = ''; }
+}
+
+async function selecionarJogoIgdb(resultado) {
+  const slug = resultado.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  const resp = await apiFetch('/api/admin/games', 'POST', {
+    nome: resultado.nome, slug,
+    plataforma: resultado.plataforma, ano_lancamento: resultado.ano_lancamento,
+    capa_url: resultado.capa_url, igdb_id: resultado.igdb_id,
+    event_id: eventoAtual,
+  });
+
+  if (resp.ok) {
+    showToast(`"${resultado.nome}" cadastrado e vinculado!`, 'success');
+    document.getElementById('igdb-input').value = '';
+    document.getElementById('igdb-resultados').innerHTML = '';
+    catalogoCache = null;
+    carregarJogos();
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao cadastrar jogo', 'error');
+  }
+}
+
+document.getElementById('manual-toggle-btn').addEventListener('click', () => {
+  const form = document.getElementById('manual-form');
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('manual-criar-btn').addEventListener('click', async () => {
+  const nome        = document.getElementById('manual-nome').value.trim();
+  const slugInput   = document.getElementById('manual-slug').value.trim();
+  const plataforma  = document.getElementById('manual-plataforma').value.trim() || null;
+  const scoreMaxRaw = document.getElementById('manual-score-max').value.trim();
+  const scoreMax    = scoreMaxRaw ? parseInt(scoreMaxRaw, 10) : null;
+
+  if (!nome) { showToast('Nome é obrigatório', 'error'); return; }
+  const slug = slugInput || nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  const resp = await apiFetch('/api/admin/games', 'POST', {
+    nome, slug, plataforma, score_max: scoreMax, event_id: eventoAtual,
+  });
+
+  if (resp.ok) {
+    showToast(`"${nome}" cadastrado e vinculado!`, 'success');
+    document.getElementById('manual-nome').value = '';
+    document.getElementById('manual-slug').value = '';
+    document.getElementById('manual-plataforma').value = '';
+    document.getElementById('manual-score-max').value = '';
+    catalogoCache = null;
+    carregarJogos();
+  } else {
+    const d = await resp.json();
+    showToast(d.detail || 'Erro ao cadastrar jogo', 'error');
+  }
+});
+</script>
+</body>
+</html>
