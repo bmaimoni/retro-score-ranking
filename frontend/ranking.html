@@ -563,6 +563,7 @@
           <span class="meta-label">Jogo atual</span>
           <span class="meta-value" id="game-nome">—</span>
           <span class="game-metadado" id="game-metadado"></span>
+          <span class="game-metadado" id="game-credito-igdb" style="display:none;opacity:0.6;font-size:0.85em">Dados de jogos fornecidos por IGDB.com</span>
         </div>
       </div>
 
@@ -761,6 +762,7 @@ async function carregarJogos() {
     const resp = await fetch(buildJogosUrl());
     if (!resp.ok) throw new Error();
     const games = await resp.json();
+    if (games.length === 0) { renderSemJogo(); return; }
     renderTabs(games);
     // Se vier com ?game=slug na URL, abre esse game direto
     const params  = new URLSearchParams(window.location.search);
@@ -839,9 +841,10 @@ async function carregarRanking(game) {
 // Metadado opcional do game (docs/BACKLOG_2026.md §3.1) — plataforma,
 // ano de lançamento e link de gameplay, quando o admin preencheu.
 function renderJogoMetadado(game) {
-  const el   = document.getElementById('game-metadado');
-  const capa = document.getElementById('game-capa');
-  if (!game) { el.innerHTML = ''; capa.style.display = 'none'; return; }
+  const el      = document.getElementById('game-metadado');
+  const capa    = document.getElementById('game-capa');
+  const credito = document.getElementById('game-credito-igdb');
+  if (!game) { el.innerHTML = ''; capa.style.display = 'none'; credito.style.display = 'none'; return; }
 
   if (game.capa_url) {
     capa.src = game.capa_url;
@@ -850,6 +853,12 @@ function renderJogoMetadado(game) {
   } else {
     capa.style.display = 'none';
   }
+
+  // docs/CATALOGO_JOGOS_SPEC.md 5.7 — atribuição obrigatória da IGDB,
+  // não negociável mesmo sob uso não-comercial. Só aparece pra jogo
+  // com igdb_id (veio de lá de verdade) — cadastro manual não credita
+  // fonte nenhuma, mesmo que o admin tenha preenchido capa_url à mão.
+  credito.style.display = game.igdb_id ? 'block' : 'none';
 
   const partes = [];
   if (game.plataforma) partes.push(escapar(game.plataforma));
@@ -1134,6 +1143,20 @@ function renderErro() {
       <div class="empty-icon">⚠️</div>
       <p class="empty-title" style="color:var(--color-error)">ERRO DE CONEXÃO</p>
       <p class="meta-label">Verifique a conexão com o servidor</p>
+    </div>
+  `;
+}
+
+// docs/CATALOGO_JOGOS_SPEC.md Fase 4.1 — evento sem nenhum jogo aprovado
+// ainda: sem isso, game-tabs fica vazio e ranking-grid trava no
+// esqueleto "CARREGANDO..." pra sempre, porque nada chama selecionarJogo.
+function renderSemJogo() {
+  document.getElementById('game-tabs').innerHTML = '';
+  document.getElementById('ranking-grid').innerHTML = `
+    <div class="empty-state">
+      <div class="empty-icon">🎮</div>
+      <p class="empty-title">NENHUM JOGO<br>CADASTRADO AINDA</p>
+      <p class="meta-label">Assim que um jogo for aprovado, o ranking aparece aqui</p>
     </div>
   `;
 }

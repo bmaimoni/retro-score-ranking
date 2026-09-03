@@ -411,6 +411,15 @@
       placarSlug = config.placar_slug;
       document.title = `${config.nome} — Canal3 Telão`;
 
+      // docs/CATALOGO_JOGOS_SPEC.md Fase 4.1 — sem isso, tv-tabs fica
+      // vazio e tv-ranking trava no "CARREGANDO..." pra sempre, porque
+      // mudarJogo() só é chamado dentro do forEach sobre games.
+      if (config.games.length === 0) {
+        document.getElementById('tv-ranking').innerHTML =
+          '<div style="color:rgba(255,255,255,0.3);font-size:0.7rem;text-align:center;margin-top:40px">NENHUM JOGO CADASTRADO AINDA</div>';
+        return;
+      }
+
       montarTabs(config.games);
     } catch (err) {
       document.getElementById('tv-tabs').innerHTML =

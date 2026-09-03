@@ -443,6 +443,7 @@ async def test_atualizar_game_com_metadado(client):
     atualizar_mock.assert_called_once_with(
         pool, game_id, None, None,
         plataforma="Mega Drive", ano_lancamento=1991, capa_url=None, gameplay_url=None,
+        nome=None, slug=None,
     )
 
 
@@ -465,6 +466,74 @@ async def test_atualizar_game_inexistente_retorna_404(client):
                                   json={"ativo": False}, headers=AUTH_HEADER)
 
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_atualizar_game_com_nome_e_slug(client):
+    """docs/CATALOGO_JOGOS_SPEC.md Fase 6 — corrigir typo sem precisar
+    recriar+mesclar. Sem colisão (catálogo vazio), passa direto."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    game_id = make_uuid()
+
+    with patch("repositories.game.listar_nome_ativos", AsyncMock(return_value=[])), \
+         patch("repositories.game.atualizar", AsyncMock(return_value=make_game())) as atualizar_mock:
+        resp = await client.patch(f"/api/admin/games/{game_id}",
+            json={"nome": "Pac-Man", "slug": "pac-man"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    atualizar_mock.assert_called_once_with(
+        pool, game_id, None, None,
+        plataforma=None, ano_lancamento=None, capa_url=None, gameplay_url=None,
+        nome="Pac-Man", slug="pac-man",
+    )
+
+
+@pytest.mark.asyncio
+async def test_atualizar_game_nome_colide_retorna_409(client):
+    """6.2 — mesma colisão por substring de 5.6, agora na edição."""
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.game.listar_nome_ativos",
+               AsyncMock(return_value=[{"id": make_uuid(), "nome": "Street Fighter II"}])), \
+         patch("repositories.game.atualizar", AsyncMock()) as atualizar_mock:
+        resp = await client.patch(f"/api/admin/games/{make_uuid()}",
+            json={"nome": "Street Fighter II Turbo"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 409
+    atualizar_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_atualizar_game_nome_exclui_o_proprio_game_da_colisao(client):
+    """6.2 — sem excluir o próprio game da lista de 'existentes', editar
+    o nome de um game (mesmo sem mudar nada de fato) colidiria consigo
+    mesmo o tempo todo."""
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    game_id = make_uuid()
+
+    with patch("repositories.game.listar_nome_ativos",
+               AsyncMock(return_value=[{"id": game_id, "nome": "Pac-Man"}])), \
+         patch("repositories.game.atualizar", AsyncMock(return_value=make_game())):
+        resp = await client.patch(f"/api/admin/games/{game_id}",
+            json={"nome": "Pac-Man"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_atualizar_game_slug_duplicado_retorna_409(client):
+    """6.3 — sem checagem de aplicação pro slug, depende da UNIQUE do
+    banco; violação vira 409 (mesmo padrão de criar_game)."""
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.game.atualizar",
+               AsyncMock(side_effect=Exception('duplicate key value violates unique constraint "games_slug_key"'))):
+        resp = await client.patch(f"/api/admin/games/{make_uuid()}",
+            json={"slug": "pac-man"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 409
 
 
 # ── Config ────────────────────────────────────────────────────────────────────

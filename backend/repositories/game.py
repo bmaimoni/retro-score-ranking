@@ -21,10 +21,13 @@ async def listar_ativos(pool: Pool) -> list[dict]:
 
 
 async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
+    """`igdb_id` incluído desde docs/CATALOGO_JOGOS_SPEC.md 5.7 — o
+    /api/ranking/{slug} (routers/ranking.py) devolve isso pro
+    ranking.html decidir se mostra o crédito obrigatório da IGDB."""
     row = await pool.fetchrow(
         """
         SELECT id, nome, slug, ativo, score_max,
-               plataforma, ano_lancamento, capa_url, gameplay_url
+               plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id
         FROM games WHERE slug = $1
         """,
         slug,
@@ -89,9 +92,11 @@ async def contar_manuais_por_criador_ultimas_24h(pool: Pool, criado_por: str) ->
 
 
 async def listar_nome_ativos(pool: Pool) -> list[dict]:
-    """Nomes de todo game ativo — usado na checagem de colisão do
-    cadastro manual (docs/CATALOGO_JOGOS_SPEC.md 5.6, services/game_admissao.py)."""
-    rows = await pool.fetch("SELECT nome FROM games WHERE ativo = true")
+    """Nomes (com id) de todo game ativo — usado na checagem de colisão
+    do cadastro manual (docs/CATALOGO_JOGOS_SPEC.md 5.6) e da edição de
+    nome no catálogo global (6.2, que precisa excluir o próprio game da
+    lista antes de comparar)."""
+    rows = await pool.fetch("SELECT id, nome FROM games WHERE ativo = true")
     return [dict(r) for r in rows]
 
 
@@ -104,6 +109,8 @@ async def atualizar(
     ano_lancamento: int | None = None,
     capa_url: str | None = None,
     gameplay_url: str | None = None,
+    nome: str | None = None,
+    slug: str | None = None,
 ) -> dict | None:
     # Constrói SET dinâmico com apenas os campos fornecidos
     campos, valores = [], []
@@ -125,6 +132,10 @@ async def atualizar(
         _adicionar("capa_url", capa_url)
     if gameplay_url is not None:
         _adicionar("gameplay_url", gameplay_url)
+    if nome is not None:
+        _adicionar("nome", nome)
+    if slug is not None:
+        _adicionar("slug", slug)
 
     if not campos:
         return None

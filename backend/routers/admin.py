@@ -62,6 +62,12 @@ class AtualizarJogo(BaseModel):
     ano_lancamento: int | None = None
     capa_url: str | None = None
     gameplay_url: str | None = None
+    # docs/CATALOGO_JOGOS_SPEC.md Fase 6 — antes só dava pra corrigir um
+    # typo de nome recriando o game certo e mesclando o errado nele
+    # (perde o slug original). Reaproveita a colisão de 5.6 no router,
+    # excluindo o próprio game (6.2); slug depende só da UNIQUE do banco (6.3).
+    nome: str | None = None
+    slug: str | None = None
 
     @field_validator("ano_lancamento")
     @classmethod
@@ -461,15 +467,32 @@ async def atualizar_game(
     pool=Depends(get_pool),
     admin: AdminContext = Depends(require_admin),
 ):
-    """Ativa/desativa um game ou atualiza seu score_max/metadado no
-    catálogo global — exclusivo de super (docs/ARENA_ADMIN_SPEC.md AA.2)."""
+    """Ativa/desativa um game ou atualiza seu score_max/metadado (inclusive
+    nome/slug, Fase 6) no catálogo global — exclusivo de super
+    (docs/ARENA_ADMIN_SPEC.md AA.2)."""
     _exigir_super_editar_game(admin)
 
-    game = await game_repo.atualizar(
-        pool, str(game_id), body.ativo, body.score_max,
-        plataforma=body.plataforma, ano_lancamento=body.ano_lancamento,
-        capa_url=body.capa_url, gameplay_url=body.gameplay_url,
-    )
+    if body.nome is not None:
+        existentes = [
+            e for e in await game_repo.listar_nome_ativos(pool)
+            if str(e["id"]) != str(game_id)
+        ]
+        resultado = game_admissao.avaliar_colisao(body.nome, existentes)
+        if resultado.bloqueado:
+            raise HTTPException(status_code=409, detail=resultado.motivo)
+
+    try:
+        game = await game_repo.atualizar(
+            pool, str(game_id), body.ativo, body.score_max,
+            plataforma=body.plataforma, ano_lancamento=body.ano_lancamento,
+            capa_url=body.capa_url, gameplay_url=body.gameplay_url,
+            nome=body.nome, slug=body.slug,
+        )
+    except Exception as exc:
+        if "unique" in str(exc).lower():
+            raise HTTPException(status_code=409, detail=f"Slug '{body.slug}' já existe")
+        raise HTTPException(status_code=500, detail="Erro ao atualizar game")
+
     if not game:
         raise HTTPException(status_code=404, detail="Jogo não encontrado ou nada para atualizar")
     return game

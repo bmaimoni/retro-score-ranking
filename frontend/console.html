@@ -709,6 +709,14 @@ function cardCatalogo(g) {
       </div>
       <div id="catalogo-form-${g.id}" style="display:none;margin-top:var(--space-md);flex-direction:column;gap:var(--space-sm)">
         <div class="field">
+          <label class="field-label">Nome</label>
+          <input class="field-input" id="catalogo-nome-${g.id}" value="${escapar(g.nome)}">
+        </div>
+        <div class="field">
+          <label class="field-label">Slug</label>
+          <input class="field-input" id="catalogo-slug-${g.id}" value="${escapar(g.slug)}">
+        </div>
+        <div class="field">
           <label class="field-label">Plataforma</label>
           <input class="field-input" id="catalogo-plataforma-${g.id}" value="${escapar(g.plataforma || '')}">
         </div>
@@ -749,6 +757,14 @@ function ligarBotoesCatalogo() {
     btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
       const dados = {};
+
+      const nome = document.getElementById(`catalogo-nome-${id}`).value.trim();
+      if (!nome) { showToast('Nome não pode ficar vazio', 'error'); return; }
+      dados.nome = nome;
+
+      const slug = document.getElementById(`catalogo-slug-${id}`).value.trim();
+      if (!slug) { showToast('Slug não pode ficar vazio', 'error'); return; }
+      dados.slug = slug;
 
       const plataforma = document.getElementById(`catalogo-plataforma-${id}`).value.trim();
       if (plataforma) dados.plataforma = plataforma;

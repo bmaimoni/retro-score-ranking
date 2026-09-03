@@ -1,11 +1,20 @@
 # Catálogo de jogos: admissão, integração IGDB e jornada de cadastro/seleção
 
-> Status: **Fases 1 e 5 fechadas — Fases 2-4 ainda não iniciadas**. Revisa o
-> item 3.1 do `docs/BACKLOG_2026.md` (decisão anterior: "sem integração
-> externa... processo à parte, fora do projeto") — reaberta aqui por
-> pedido explícito, não por esquecimento. Nenhuma decisão anterior é
-> tratada como imutável, mesma postura já registrada em `ARENA_SPEC.md`
-> A.4.
+> Status: **Todas as fases fechadas** (1, 2, 3, 4, 5 e 6). Revisa o
+> item 3.1 do `docs/BACKLOG_2026.md`
+> (decisão anterior: "sem integração externa... processo à parte, fora
+> do projeto") — reaberta aqui por pedido explícito, não por
+> esquecimento. Nenhuma decisão anterior é tratada como imutável, mesma
+> postura já registrada em `ARENA_SPEC.md` A.4.
+>
+> **Correção de roteiro (2026-09-03)**: as Fases 2 e 3 (§2 abaixo) foram
+> fechadas sem que este documento fosse atualizado — o trabalho saiu sob
+> o nome "Fase I" e "II.2" de `docs/PAINEIS_ADMIN_SPEC.md` (fechadas em
+> 2026-09-01), não sob os nomes de fase daqui. Achado numa análise
+> pedida pelo Bruno: os dois roadmaps descreviam a mesma tela (vínculo
+> jogo↔evento, fila de aprovação/mesclagem) com nomes de fase
+> diferentes, e só um deles foi marcado como concluído. Ver §4/§5 pra
+> onde cada decisão de fato vive agora.
 
 ---
 
@@ -69,7 +78,7 @@ ignorada.
 | 5.4 | Aprovação automática pro caminho IGDB | Jogo com `igdb_id` preenchido pula `pendente_aprovacao` inteiramente — nasce aprovado, direto no catálogo geral, mesmo vindo de admin não-super. A fila de revisão de `super` (migração 018) passa a existir **só** pro caminho manual — desafoga um gargalo que viraria insustentável em volume self-serve, e é consequência direta de ter fonte externa confiável validando a entrada |
 | 5.5 | Rate limit no caminho manual | 5 cadastros manuais/usuário/dia (mais generoso que o 3/dia de Arena — jogo é criado com frequência legítima maior — mas existe, porque é exatamente o caminho sem proteção estrutural). Caminho via IGDB fica **sem** rate limit — abusar dele só adiciona jogos reais já aprovados ao catálogo, sem superfície de dano |
 | 5.6 | Colisão no caminho manual | Normalização simples (`lower(trim(nome))`) comparada contra `games.nome` existente — bloqueia duplicata óbvia com sugestão "já existe, quis dizer esse?", mesmo padrão de UX da colisão de nome de Arena (B.2 da `ARENA_SPEC.md`) |
-| 5.7 | Atribuição obrigatória | Crédito fixo e visível "Dados de jogos fornecidos por IGDB.com" — rodapé do painel admin (aba Jogos) e qualquer tela pública que exiba capa/metadado vindo de lá (`ranking.html`). Não é negociável, vale mesmo sob uso não-comercial |
+| 5.7 | Atribuição obrigatória | Crédito fixo e visível "Dados de jogos fornecidos por IGDB.com" — rodapé do painel admin (aba Jogos) e qualquer tela pública que exiba capa/metadado vindo de lá (`ranking.html`). Não é negociável, vale mesmo sob uso não-comercial. **Correção (2026-09-03)**: a implementação original só cobria o wizard admin (`admin.html`) — `ranking.html`, a única tela pública que de fato exibe `capa_url` vinda da IGDB, nunca teve o crédito. Achado na revisão de dados IGDB pedida pelo Bruno, corrigido no mesmo dia: `GET /api/ranking/{slug}` passa a devolver `igdb_id` (`repositories/game.py:buscar_por_slug`), e `ranking.html` mostra o crédito só quando o jogo em exibição tem `igdb_id` preenchido (cadastro manual, mesmo com capa preenchida à mão, não credita fonte nenhuma — não veio de lá) |
 | 5.8 | Credenciais | Client ID/Secret da Twitch só no backend (`services/igdb.py` novo), nunca expostos ao frontend; token OAuth2 cacheado com renovação antes dos ~60 dias de validade. Variáveis novas em `.env.example` |
 | 5.9 | Achado à parte (não é sobre IGDB) — auto-vínculo do jogo novo a todos os eventos do criador | Comportamento atual (`admin.py`, criação de game) vincula um jogo recém-criado a **todos** os eventos que o admin tem acesso, não só ao que estava editando. Fazia sentido com poucos admins/poucos eventos; em escala self-serve (uma pessoa dona de várias Arenas/eventos) polui eventos sem relação com o jogo criado. Passa a vincular só ao evento em contexto — precisa de parâmetro `event_id` explícito no endpoint de criação |
 
@@ -84,10 +93,65 @@ com crédito obrigatório (5.7), cadastro manual como escape hatch (5.3),
 `event_id` explícito evita poluir outros eventos do mesmo admin (achado
 5.9, corrigido nesta rodada).
 
-## Fases 2-4 — pendentes
+## Fase 2 — Painel admin, aba "Jogos" (fila de aprovação/mesclagem) ✅ fechada
 
-Ainda não iniciadas. Ordem prevista (ver §2): painel "Jogos" (revisão da
-fila de aprovação/mesclagem pra escala self-serve) → painel "Eventos"
-(vínculo de jogo já existente) → lado público (`play.html`/`ranking.html`/
-`telao.html` com jogo pendente/mesclado). Cada uma assume o modelo de
-admissão fechado na Fase 5 e o wizard da Fase 1 como já resolvidos.
+Fechada em 2026-09-01 sob o nome **II.2** de `docs/PAINEIS_ADMIN_SPEC.md`,
+não sob este nome de fase — ver a nota de correção de roteiro no topo
+deste documento. Migrou pra `console.html` (super-only, não mais
+`admin.html`): fila de `games.pendente_aprovacao=true` com "aprovar como
+novo" ou "mesclar com existente" (`POST /api/admin/games/{id}/mesclar`,
+transacional, nunca deleta — soft-archive via `ativo=false` +
+`mesclado_em_game_id`), e edição de metadado do catálogo global
+(plataforma/ano/capa/gameplay/score_max/ativo — nome/slug **não** eram
+editáveis nesta fase; ver §Fase 6 abaixo).
+Implementação: `backend/repositories/game.py` (`listar_pendentes_aprovacao`,
+`aprovar`, `mesclar`), `backend/routers/admin.py:500-557`,
+`frontend/console.html` (aba Catálogo).
+
+## Fase 3 — Painel admin, vínculo jogo↔evento ✅ fechada
+
+Fechada em 2026-09-01 sob o nome **Fase I** de
+`docs/PAINEIS_ADMIN_SPEC.md` (I.1-I.4), não sob este nome de fase — ver a
+nota de correção de roteiro no topo deste documento. Aba "Jogos" de
+`admin.html`, escopada corretamente por arena
+(`_exigir_admin_na_arena`, corrigindo o achado 1 daquela spec: o toggle
+antigo mexia no catálogo global em vez do vínculo do evento). Cobre
+busca no catálogo existente pra adicionar ao evento, ativar/desativar o
+vínculo (não o jogo global), e reordenar com setas ↑/↓. Implementação:
+`backend/repositories/event_game.py`, `backend/routers/events.py:153-205`,
+`frontend/admin.html` (`carregarJogos`/`renderJogos`).
+
+## Fase 6 — Edição de nome/slug no catálogo global ✅ fechada (2026-09-03)
+
+Achado numa análise pedida pelo Bruno: `PATCH /api/admin/games/{id}`
+nunca aceitou `nome`/`slug` — a única forma de corrigir um typo era
+recriar o jogo certo e mesclar o errado nele (`POST
+/api/admin/games/{id}/mesclar`), o que funciona mas é desproporcional
+pra um erro de digitação e **perde o slug original** (a mesclagem
+mantém o slug do destino, não do jogo com o nome corrigido). Decisão:
+
+| # | Tópico | Decisão |
+|---|---|---|
+| 6.1 | Quem edita | Mesmo gate de sempre — só super (`_exigir_super_editar_game`, AA.2). Sem gate novo |
+| 6.2 | Colisão de nome na edição | Reaproveita `services/game_admissao.avaliar_colisao` (5.6), mas excluindo o próprio game da lista de "existentes" — senão qualquer edição de nome colidiria consigo mesmo |
+| 6.3 | Colisão de slug | Sem checagem de aplicação — a coluna já tem `UNIQUE NOT NULL` desde `001_initial.sql`; violação vira 409, mesmo padrão de erro já usado em `criar_game` |
+| 6.4 | Limitação conhecida, não corrigida aqui | O critério de colisão de 5.6 é substring (`cand in exist or exist in cand`), o que bloqueia renomear pra um nome que é prefixo de outro já existente (ex.: corrigir pra "Sonic" com "Sonic Advance" já cadastrado). Pré-existente ao cadastro (já valia pra criação manual), só herdado aqui — corrigir a heurística é decisão maior que afeta Arena (B.2) também, fora do escopo deste item |
+
+Implementação: `backend/repositories/game.py` (`atualizar`, `listar_nome_ativos`
+ganha `id`), `backend/routers/admin.py` (`AtualizarJogo`, `atualizar_game`),
+`frontend/console.html` (aba Catálogo).
+
+## Fase 4 — Lado público ✅ fechada (2026-09-03)
+
+Investigação (análise pedida pelo Bruno) achou dois cenários distintos
+do que a Fase 5 do roadmap original (§2) chamava de "jogo pendente/
+mesclado, evento sem jogo nenhum" — só um dos dois exigia mudança:
+
+| # | Cenário | Situação encontrada | Decisão |
+|---|---|---|---|
+| 4.1 | Evento/telão sem nenhum jogo aprovado ainda | **Bug real, silencioso.** `play.html` já tratava isso (`renderJogos([])` → "Nenhum jogo disponível", `frontend/play.html:1140-1141`). `ranking.html` e `telao.html` **não**: `game-tabs`/`tv-tabs` renderizam vazio (`games.map(...)` sobre array vazio) e `ranking-grid`/`tv-ranking` nunca saem do esqueleto "CARREGANDO..." inicial, porque `selecionarJogo`/`mudarJogo` só é chamado se houver ao menos 1 game — página trava numa tela de loading eterno, sem explicar o que houve | Adiciona estado vazio explícito nas duas telas, reaproveitando o padrão `.empty-state` que `ranking.html` já usa pra outros vazios (sem score, sem resultado de busca, erro de conexão) — não é padrão novo, só um caso a mais do que já existe |
+| 4.2 | Jogo mesclado enquanto alguém está com `play.html` aberto (`game_id` antigo em memória) | **Falso alarme — já coberto.** `services/score.py:validar_score` já faz `WHERE id = $1 AND ativo = true` — `mesclar()` desativa a origem (`ativo=false`), então o envio com `game_id` obsoleto recebe 404 "Jogo não encontrado ou inativo" do backend, sem gravar nada incorreto. O frontend (`play.html:1406-1411`) já propaga `data.detail` pro toast de erro. Não é elegante (não sugere "recarregue a página"), mas não é um bug de integridade — não justificava trabalho novo isolado | Nenhuma mudança — documentado aqui pra fechar o item do roadmap, não deixar como pendência não investigada |
+
+Implementação de 4.1: `frontend/ranking.html` (`carregarJogos`, novo
+`renderSemJogo`), `frontend/telao.html` (`carregarConfigTelao`, mesmo
+padrão adaptado ao tema do telão).
