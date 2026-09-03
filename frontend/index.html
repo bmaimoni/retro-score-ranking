@@ -16,13 +16,29 @@
 
     /* ── Hero ── */
     .hero {
+      position: relative;
       width: 100%;
       min-height: 100dvh;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       text-align: center;
       padding: var(--space-2xl) var(--space-md);
+      overflow: hidden;
     }
-    .hero-logo { height: 96px; width: auto; object-fit: contain; margin-bottom: var(--space-lg); }
+    /* Placeholder de fundo (arcade anos 80) — ver nota no commit: precisa
+       de substituto com licença antes de ir pra produção de verdade. */
+    .hero-bg {
+      position: absolute; inset: 0;
+      background: url('hero-bg-placeholder.jpg') center 30% / cover no-repeat;
+      opacity: 0.16;
+      z-index: 0;
+    }
+    .hero-bg-fade {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at center, transparent 0%, var(--color-bg) 85%);
+      z-index: 0;
+    }
+    .hero > * { position: relative; z-index: 1; }
+    .hero-logo { height: 260px; width: auto; object-fit: contain; margin-bottom: var(--space-lg); }
     .hero-title {
       font-family: var(--font-display);
       font-size: var(--text-xl);
@@ -141,6 +157,7 @@
 
     @media (max-width: 720px) {
       .steps { grid-template-columns: 1fr; }
+      .hero-logo { height: 160px; }
     }
   </style>
 </head>
@@ -149,11 +166,13 @@
 <div class="landing">
 
   <section class="hero animate-slide-up">
+    <div class="hero-bg"></div>
+    <div class="hero-bg-fade"></div>
     <img src="logo.png" alt="Retro Score Ranking" class="hero-logo">
     <h1 class="hero-title">TODO CAMPEONATO MERECE UM PLACAR DE VERDADE</h1>
-    <p class="hero-subtitle">Crie sua Arena grátis, convide seus amigos e dispute o ranking em tempo real — do campeonato caseiro com a galera ao evento presencial com telão.</p>
+    <p class="hero-subtitle">Crie sua Arena grátis, convide seus amigos, e dispute o ranking em tempo real.</p>
     <div class="hero-ctas">
-      <a href="login.html" class="btn-primary" id="cta-primaria">🏟️ Criar minha Arena grátis</a>
+      <a href="login.html" class="btn-primary" id="cta-primaria">Criar minha Arena grátis</a>
       <a href="#eventos" class="btn-ghost">Ver eventos abertos agora</a>
     </div>
     <p class="hero-conta" id="hero-conta"></p>
@@ -161,23 +180,22 @@
   </section>
 
   <section class="section">
-    <div class="section-eyebrow">COMO FUNCIONA</div>
-    <h2 class="section-title">Do zero ao primeiro placar em menos de um minuto</h2>
+    <h2 class="section-title">Como funciona</h2>
     <div class="steps">
       <div class="step animate-slide-up">
-        <div class="step-num">1</div>
+        <div class="step-num">01</div>
         <div class="step-title">Crie sua Arena</div>
-        <div class="step-text">Só o nome — sem burocracia, sem esperar aprovação de ninguém. Grátis.</div>
+        <div class="step-text">Só o nome e pronto. Grátis, sem aprovação de ninguém, em menos de 1 minuto.</div>
       </div>
       <div class="step animate-slide-up">
-        <div class="step-num">2</div>
-        <div class="step-title">Convide seus amigos</div>
-        <div class="step-text">Manda o link, eles entram e já podem jogar ou coadministrar com você.</div>
+        <div class="step-num">02</div>
+        <div class="step-title">Chame a galera</div>
+        <div class="step-text">Manda o link no grupo. Quem for enviar pontuação não precisa criar conta.</div>
       </div>
       <div class="step animate-slide-up">
-        <div class="step-num">3</div>
+        <div class="step-num">03</div>
         <div class="step-title">Registre e dispute</div>
-        <div class="step-text">Cada pontuação enviada atualiza o ranking na hora, pro grupo inteiro ver.</div>
+        <div class="step-text">Cada score entra no ranking na hora. O placar atualiza sozinho pra todo mundo.</div>
       </div>
     </div>
   </section>
