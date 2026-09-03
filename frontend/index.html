@@ -36,7 +36,7 @@
         url('hero-bg-placeholder.jpg') center 30% / cover no-repeat;
       z-index: 0;
     }
-    .hero > * { position: relative; z-index: 1; }
+    .hero > *:not(.hero-bg) { position: relative; z-index: 1; }
     .hero-logo { height: 260px; width: auto; object-fit: contain; margin-bottom: var(--space-lg); }
     .hero-title {
       font-family: var(--font-display);
