@@ -12,17 +12,15 @@
     .admin-topbar {
       display: flex; align-items: center; justify-content: space-between;
       padding: var(--space-md) var(--space-lg);
+      /* Reserva o canto superior direito pro botão fixo do menu
+         hamburguer (nav.js, 44px + var(--space-md) de offset) — mesmo
+         ajuste de admin.html. */
+      padding-right: calc(var(--space-lg) + 44px + var(--space-md));
       background: var(--color-bg-surface);
       border-bottom: var(--border-width) solid var(--color-border);
       gap: var(--space-md); flex-wrap: wrap;
     }
     .topbar-title { font-family: var(--font-display); font-size: var(--text-xs); color: var(--color-primary); letter-spacing: 0.08em; }
-    .btn-logout {
-      font-size: var(--text-xs); color: var(--color-text-muted); cursor: pointer;
-      letter-spacing: 0.06em; text-transform: uppercase; padding: var(--space-xs) var(--space-sm);
-      border-radius: var(--radius-sm); background: none; border: none; font-family: var(--font-body);
-    }
-    .btn-logout:hover { color: var(--color-error); }
 
     .admin-tabs {
       display: flex; gap: 0; border-bottom: var(--border-width) solid var(--color-border);
@@ -133,10 +131,6 @@
     primeiro — se você for super, volte aqui depois.
   </p>
   <a href="admin.html" class="btn-action btn-reativar" style="text-decoration:none">← Voltar ao admin.html</a>
-  <div style="display:flex;gap:var(--space-lg)">
-    <a href="index.html" style="font-size:var(--text-xs);color:var(--color-text-muted);text-decoration:none">Início</a>
-    <a href="ranking.html" style="font-size:var(--text-xs);color:var(--color-text-muted);text-decoration:none">Ranking geral</a>
-  </div>
 </div>
 
 <!-- ── CONSOLE (super) ── -->
@@ -145,9 +139,6 @@
     <span class="topbar-title">CONSOLE — SUPER</span>
     <div style="display:flex;align-items:center;gap:var(--space-md)">
       <a href="admin.html" class="btn-action btn-reativar" style="text-decoration:none">← Painel de Arena</a>
-      <a href="index.html" class="btn-logout" style="text-decoration:none">Início</a>
-      <a href="ranking.html" class="btn-logout" style="text-decoration:none">Ranking geral</a>
-      <button class="btn-logout" id="logout-btn">Sair</button>
     </div>
   </div>
 
@@ -324,13 +315,10 @@ function emptyState(msg) {
   </div>`;
 }
 
-document.getElementById('logout-btn').addEventListener('click', async () => {
-  if (authMode === 'session') {
-    try { await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' }); } catch {}
-  }
-  sessionStorage.removeItem('admin_secret');
-  window.location.href = 'admin.html';
-});
+// "Sair" saiu do topbar e virou o botão genérico do menu hamburguer
+// (nav.js) — ele já faz fetch(/api/auth/logout) + limpa o admin_secret
+// legado + recarrega a página; o bootstrap logo abaixo cai no
+// acesso-negado sozinho, sem precisar redirecionar pra admin.html.
 
 document.querySelectorAll('.admin-tab').forEach(tab => {
   tab.addEventListener('click', () => {
@@ -792,6 +780,13 @@ function ligarBotoesCatalogo() {
     });
   });
 }
+</script>
+<script type="module">
+// Início/Ranking/Sair saíram do topbar (mesmo achado de admin.html:
+// redundante com a navegação de volta pro painel) e viraram parte do
+// menu hamburguer site-wide.
+import { inserirNav } from './nav.js';
+inserirNav('console');
 </script>
 </body>
 </html>

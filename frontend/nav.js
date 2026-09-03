@@ -4,11 +4,12 @@
 // docs/BACKLOG_2026.md §3.4: link "Participar" perdido no rodapé →
 // navegação real entre as telas. Escopo deliberado: index.html,
 // ranking.html e perfil.html chamam inserirNav() com destaque real (têm
-// entrada em LINKS abaixo); login.html e play.html também chamam, mas
-// sem entrada correspondente — são telas de ação, não destinos de menu
-// (ARENA_SPEC.md D.8) — admin.html/console.html ficam com abas próprias
-// (modelo autenticado, condicional por nível) e telao.html fica de fora
-// (uso passivo, exibição num telão físico, sem navegação por toque).
+// entrada em LINKS abaixo); login.html, play.html, admin.html e
+// console.html também chamam, mas sem entrada correspondente — são
+// telas de ação/painéis com abas próprias (modelo autenticado,
+// condicional por nível), não destinos de menu (ARENA_SPEC.md D.8) —
+// telao.html fica de fora (uso passivo, exibição num telão físico, sem
+// navegação por toque).
 
 const LINKS = [
   { id: 'index',   href: 'index.html',   label: 'Início',      icone: '🏠' },
