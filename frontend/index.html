@@ -25,16 +25,15 @@
       overflow: hidden;
     }
     /* Placeholder de fundo (arcade anos 80) — ver nota no commit: precisa
-       de substituto com licença antes de ir pra produção de verdade. */
+       de substituto com licença antes de ir pra produção de verdade.
+       Gradiente escurecedor já embutido na mesma camada (em vez de um
+       ::before separado cobrindo quase tudo) pra imagem ficar visível
+       de verdade, só sutil, sem sumir. */
     .hero-bg {
       position: absolute; inset: 0;
-      background: url('hero-bg-placeholder.jpg') center 30% / cover no-repeat;
-      opacity: 0.16;
-      z-index: 0;
-    }
-    .hero-bg-fade {
-      position: absolute; inset: 0;
-      background: radial-gradient(ellipse at center, transparent 0%, var(--color-bg) 85%);
+      background:
+        linear-gradient(180deg, rgba(11,19,49,0.45) 0%, rgba(11,19,49,0.55) 55%, var(--color-bg) 100%),
+        url('hero-bg-placeholder.jpg') center 30% / cover no-repeat;
       z-index: 0;
     }
     .hero > * { position: relative; z-index: 1; }
@@ -167,7 +166,6 @@
 
   <section class="hero animate-slide-up">
     <div class="hero-bg"></div>
-    <div class="hero-bg-fade"></div>
     <img src="logo.png" alt="Retro Score Ranking" class="hero-logo">
     <h1 class="hero-title">TODO CAMPEONATO MERECE UM PLACAR DE VERDADE</h1>
     <p class="hero-subtitle">Crie sua Arena grátis, convide seus amigos, e dispute o ranking em tempo real.</p>
@@ -201,28 +199,47 @@
   </section>
 
   <section class="section">
-    <div class="section-eyebrow">O QUE VOCÊ GANHA</div>
-    <h2 class="section-title">Feito pra quem organiza e pra quem joga</h2>
+    <h2 class="section-title">O que já está no ar</h2>
     <div class="features">
       <div class="feature animate-slide-up">
         <div class="feature-icon">🏟️</div>
-        <div class="feature-title">Arena própria e grátis</div>
-        <div class="feature-text">Auto-serviço: você cria e administra a sua, sem depender de ninguém pra liberar.</div>
+        <div class="feature-title">Arena em 1 minuto</div>
+        <div class="feature-text">Self-serve e grátis: escolhe o nome e sua competição já está de pé.</div>
       </div>
       <div class="feature animate-slide-up">
-        <div class="feature-icon">🏆</div>
+        <div class="feature-icon">📡</div>
         <div class="feature-title">Ranking em tempo real</div>
-        <div class="feature-text">Toda pontuação nova atualiza o placar na hora — ótimo até pra acompanhar num telão.</div>
-      </div>
-      <div class="feature animate-slide-up">
-        <div class="feature-icon">👥</div>
-        <div class="feature-title">Perfil e rivalidade</div>
-        <div class="feature-text">Siga outros jogadores e saiba na hora quando alguém supera sua pontuação.</div>
+        <div class="feature-text">As posições mudam ao vivo, sem ninguém precisar apertar F5.</div>
       </div>
       <div class="feature animate-slide-up">
         <div class="feature-icon">🎮</div>
-        <div class="feature-title">Sem conta pra jogar</div>
-        <div class="feature-text">Entrar num evento e enviar pontuação nunca exige cadastro — login só pra quem organiza.</div>
+        <div class="feature-title">Pontuação sem conta</div>
+        <div class="feature-text">Login só pra quem organiza, protege o nick ou usa o seguir.</div>
+      </div>
+      <div class="feature animate-slide-up">
+        <div class="feature-icon">👥</div>
+        <div class="feature-title">Seguir jogadores</div>
+        <div class="feature-text">Você é avisado quando alguém que segue passa o seu score no mesmo jogo.</div>
+      </div>
+      <div class="feature animate-slide-up">
+        <div class="feature-icon">🤝</div>
+        <div class="feature-title">Coadministração</div>
+        <div class="feature-text">Convide amigos por convite assíncrono pra tocar a Arena junto com você.</div>
+      </div>
+      <div class="feature animate-slide-up">
+        <div class="feature-icon">📺</div>
+        <div class="feature-title">Modo telão</div>
+        <div class="feature-text">Tela dedicada com carrossel entre os jogos, feita pra evento presencial.</div>
+      </div>
+      <div class="feature animate-slide-up">
+        <div class="feature-icon">📱</div>
+        <div class="feature-title">QR code de acesso</div>
+        <div class="feature-text">A galera aponta o celular e já envia a pontuação na hora.</div>
+      </div>
+      <div class="feature animate-slide-up">
+        <div class="feature-icon">🎨</div>
+        <div class="feature-title">Identidade própria</div>
+        <div class="feature-text">Logo e cor da sua Arena num wizard rapidinho depois da criação.</div>
       </div>
     </div>
   </section>
