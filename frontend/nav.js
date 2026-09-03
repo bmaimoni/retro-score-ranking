@@ -75,7 +75,6 @@ export function inserirNav(paginaAtual, overrides = {}) {
       padding: 4px;
     }
     .site-nav-conta {
-      display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm);
       padding: 10px 14px;
       margin-bottom: var(--space-sm);
       border-bottom: 1px solid rgba(255,255,255,0.1);
@@ -83,7 +82,16 @@ export function inserirNav(paginaAtual, overrides = {}) {
       color: rgba(255,255,255,0.75);
       min-height: 1.2em;
     }
+    .site-nav-conta-linha { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
     .site-nav-conta-usuario { display: flex; align-items: center; gap: var(--space-sm); overflow: hidden; }
+    .site-nav-conta-cargo {
+      display: block;
+      margin-top: 4px;
+      font-family: var(--font-display, monospace);
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      color: var(--color-primary, #5e2b82);
+    }
     .site-nav-conta-avatar {
       width: 24px; height: 24px; border-radius: 50%;
       object-fit: cover; flex-shrink: 0;
@@ -152,18 +160,44 @@ async function carregarContaNoMenu(container) {
       const avatar = usuario.foto_url
         ? `<img class="site-nav-conta-avatar" src="${escaparHtml(usuario.foto_url)}" alt="">`
         : '';
+      const cargo = await descobrirCargo(API_URL);
       container.innerHTML = `
-        <span class="site-nav-conta-usuario">${avatar}<span class="site-nav-conta-nome">${escaparHtml(nome)}</span></span>
-        <button type="button" class="site-nav-conta-sair" id="site-nav-sair">Sair</button>
+        <div class="site-nav-conta-linha">
+          <span class="site-nav-conta-usuario">${avatar}<span class="site-nav-conta-nome">${escaparHtml(nome)}</span></span>
+          <button type="button" class="site-nav-conta-sair" id="site-nav-sair">Sair</button>
+        </div>
+        ${cargo ? `<span class="site-nav-conta-cargo">${cargo}</span>` : ''}
       `;
       container.querySelector('#site-nav-sair').addEventListener('click', async () => {
         try { await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' }); } catch {}
+        sessionStorage.removeItem('admin_secret'); // token legado de admin.html (bootstrap por senha)
         location.reload();
       });
       return;
     }
   } catch { /* silencioso — cai no estado deslogado abaixo */ }
   container.innerHTML = `<a href="login.html" class="site-nav-conta-entrar">Entrar</a>`;
+}
+
+// Reaproveita GET /api/admin/me (mesmo endpoint de admin.html) só pra
+// saber o nível — 401 (sem nenhum vínculo) é o caso normal de um
+// usuário comum e não deve aparecer como erro, por isso falha
+// silenciosa. Um mesmo usuário pode ter role diferente em Arenas
+// diferentes (admin numa, moderador noutra) — super > admin > moderador
+// como prioridade de exibição, já que super sempre implica acesso total.
+async function descobrirCargo(API_URL) {
+  try {
+    const resp = await fetch(`${API_URL}/api/admin/me`, { credentials: 'include' });
+    if (!resp.ok) return null;
+    const dados = await resp.json();
+    if (dados.super) return 'SUPER';
+    const vinculos = dados.vinculos || [];
+    if (vinculos.some(v => v.role === 'admin')) return 'ADMIN';
+    if (vinculos.some(v => v.role === 'moderador')) return 'MODERADOR';
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 function escaparHtml(texto) {
