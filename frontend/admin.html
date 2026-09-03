@@ -726,7 +726,7 @@
 <body>
 
 <!-- ── LOGIN GATE ── -->
-<div class="login-gate" id="login-gate">
+<div class="login-gate" id="login-gate" style="display:none">
   <div class="login-card">
     <h1 class="login-title">ADMIN<br>PANEL</h1>
     <p class="login-error" id="login-error">Senha incorreta</p>
@@ -1351,7 +1351,12 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
 });
 
 // Restaura sessão — token salvo tem prioridade; senão, tenta cookie de
-// sessão (caso volte de um login Google/Magic Link, ou visita recorrente)
+// sessão (caso volte de um login Google/Magic Link, ou visita recorrente).
+// login-gate começa escondido (display:none no HTML) e só aparece se as
+// duas tentativas falharem — sem isso, quem já está logado via cookie via
+// um flash do formulário de login enquanto o fetch de /api/admin/me
+// ainda não voltou (achado do Bruno ao clicar "Ir pro meu painel" na
+// landing, index.html).
 (async () => {
   const savedSecret = sessionStorage.getItem('admin_secret');
   if (savedSecret) {
@@ -1366,7 +1371,11 @@ document.getElementById('logout-btn').addEventListener('click', async () => {
     sessionStorage.removeItem('admin_secret');
     adminSecret = ''; authMode = null;
   }
-  if (await tentarLoginPorSessao()) mostrarPainel();
+  if (await tentarLoginPorSessao()) {
+    mostrarPainel();
+  } else {
+    document.getElementById('login-gate').style.display = 'flex';
+  }
 })();
 
 // ── PAINEL ────────────────────────────────────────────────────────────────────
