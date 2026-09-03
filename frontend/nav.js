@@ -83,13 +83,20 @@ export function inserirNav(paginaAtual, overrides = {}) {
       color: rgba(255,255,255,0.75);
       min-height: 1.2em;
     }
-    .site-nav-conta strong { color: var(--color-primary, #5e2b82); }
+    .site-nav-conta-usuario { display: flex; align-items: center; gap: var(--space-sm); overflow: hidden; }
+    .site-nav-conta-avatar {
+      width: 24px; height: 24px; border-radius: 50%;
+      object-fit: cover; flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    .site-nav-conta-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .site-nav-conta-sair, .site-nav-conta-entrar {
       background: none; border: none;
       color: var(--color-accent, #72cddd);
       font-size: var(--text-xs);
       cursor: pointer; padding: 0;
       text-decoration: none;
+      flex-shrink: 0;
     }
     .site-nav-conta-sair { text-decoration: underline; }
   `;
@@ -142,8 +149,11 @@ async function carregarContaNoMenu(container) {
     if (resp.ok) {
       const usuario = await resp.json();
       const nome = usuario.nome || usuario.email || 'sua conta';
+      const avatar = usuario.foto_url
+        ? `<img class="site-nav-conta-avatar" src="${escaparHtml(usuario.foto_url)}" alt="">`
+        : '';
       container.innerHTML = `
-        <span>Logado como <strong>${escaparHtml(nome)}</strong></span>
+        <span class="site-nav-conta-usuario">${avatar}<span class="site-nav-conta-nome">${escaparHtml(nome)}</span></span>
         <button type="button" class="site-nav-conta-sair" id="site-nav-sair">Sair</button>
       `;
       container.querySelector('#site-nav-sair').addEventListener('click', async () => {
