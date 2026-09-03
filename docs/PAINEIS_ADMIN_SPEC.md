@@ -22,6 +22,14 @@
 > (painel "Jogos" revisitado pra escala self-serve) — ver §5. Escrito a
 > partir de uma queixa concreta do Bruno sobre a experiência de admin
 > hoje, não de uma ideia abstrata de reorganizar telas.
+>
+> **Fase IV fechada em 2026-09-03 (§9)** — redefinição de função por
+> tela, de abas pra páginas: princípio de organização por objeto/
+> operação (não frequência), cantos do Painel de Arena e do Console
+> decididos, Wizard deixa de ser aba fixa (vira checklist/flow),
+> Administradores passa a viver dentro do canto Arena. Só doc — nenhum
+> código mudou ainda; fundação técnica compartilhada e ordem de migração
+> ficam pra fase seguinte (§9.4).
 
 ---
 
@@ -433,3 +441,60 @@ versão, se decidido); mecanismo de aprovação de logo por super (logo é
 liberado direto, sem fila — mesmo risco/tratamento de outros campos de
 identidade visual hoje); qualquer redesenho visual/CSS além do necessário
 pra separar as duas telas.
+
+---
+
+## 9. Fase IV — Redefinição de função por tela, de abas pra páginas (2026-09-03)
+
+> Motivada por queixa nova do Bruno: `admin.html` (~3200 linhas, 8 abas)
+> "está enorme, com navegação confusa e lenta". Pedido explícito: antes
+> de simplesmente transformar cada aba existente numa página própria,
+> redefinir a função de cada tela — não herdar cegamente o agrupamento
+> que só existe por acidente histórico (uma aba por feature que foi
+> sendo empilhada ao longo do tempo, não por um desenho de navegação
+> intencional).
+
+### 9.1 Diagnóstico — por que está lenta/confusa hoje (achados concretos)
+
+| # | Achado | Evidência |
+|---|---|---|
+| 1 | Polling incondicional recarrega o Feed a cada 5min, **independente da aba ativa** — enquanto isso, abas sem polling (Administradores, Exclusões) só atualizam no clique, podendo ficar com dado velho | `carregarTudo()` chamado por `setInterval(POLL_INTERVAL)` (`admin.html:1496-1503`), sempre inclui `carregarFeed()` |
+| 2 | Aba "Event" ainda mistura escopo de Arena (identidade, lista de arenas) com escopo de Evento (lista de events), cross-arena, apesar do seletor "Arena ativa" (F0.2) já existir — `carregarEventos()` busca events de **todas** as Arenas do admin de uma vez | `admin.html:2972` (`carregarEventos`), tab `tab-config` (`admin.html:849-966`) |
+| 3 | Aba "Wizard" (onboarding único) fica visível pra **todo** admin/dono pra sempre — `wizard-status` "nunca esconde nem tranca nada, só sinaliza" | `admin.html:1157-1158` (`ehAdminEmAlgumaMarca() ? 'block' : 'none'`, sem checar se o wizard já foi completado), comentário em `admin.html:1923` |
+| 4 | Moderador vê ~5 abas (Início/Feed/Games/Event/Telão) mas só pode agir em 1 (Feed) — as outras aparecem em modo leitura, sem ação nenhuma disponível pro nível dele | `aplicarVisibilidadePorNivel()` (`admin.html:1127-1166`) só esconde Wizard/Administradores/Exclusões pra moderador, não Games/Event/Telão |
+| 5 | `console.html` abre por padrão em "Configurações gerais" (baixa frequência de uso) em vez das tarefas mais urgentes/recorrentes de super (fila de Arena, jogos pendentes) — sem contador/sinalização em nenhuma aba | `console.html:146` (`data-tab="config"` como `.active` inicial) |
+
+### 9.2 Atores e funções — confirmado, não redesenhado do zero
+
+Antes de propor telas novas, revisitados os três specs de papel
+(`MODERADOR_SPEC.md`, `ARENA_ADMIN_SPEC.md`, `SUPER_SPEC.md` §1 de cada)
+— o mesmo trabalho de "mapear o que cada papel deveria poder fazer antes
+de desenhar tela" que já tinha sido pedido antes da Fase 0. **Confirmado
+com o Bruno que as funções continuam corretas**, sem mudança de fundo
+desde então — só o *mecanismo* de criação de Arena e convite mudou
+(self-serve, `ARENA_SPEC.md` D.2/Fase F), não o que cada papel pode
+fazer uma vez vinculado. Ver a tabela consolidada por ator na sessão que
+produziu esta fase (moderador / admin comum / admin dono / super).
+
+### 9.3 Decisões
+
+| # | Tópico | Decisão |
+|---|---|---|
+| IV.1 | Princípio de organização das telas | **Por objeto/operação** ("num canto ele cria e edita Arena, noutro ele edita e organiza Jogos"), não por feature histórica nem por frequência de uso. Rejeitada explicitamente a alternativa de agrupar por frequência/urgência (diário vs. raro) — decisão do Bruno |
+| IV.2 | Cantos do Painel de Arena (admin comum + dono) | **Arena** (identidade visual, colaboradores/vínculos, titularidade — ver IV.6), **Eventos** (CRUD de event, janela de envio, modo de ranking), **Jogos** (catálogo do evento — vincular/cadastrar/ativar/reordenar), **Telão** (config de exibição), **Moderação** (Feed) |
+| IV.3 | Cantos do Console (super) | **Arenas** (fila de revisão, suspender/reativar — governança de qualquer Arena), **Catálogo** (jogos pendentes/mesclar/metadado global — governança do catálogo), **Plataforma** (Avatares + Configurações gerais + Manutenção + Exclusões de conta, unificados — hoje são 4 abas separadas só por acidente histórico, nenhuma tem Arena "dona") |
+| IV.4 | Separação Console/Painel (II.1) | **Mantida como está** — não é o que estava sendo questionado nesta rodada, continua 2 shells distintos, cada um organizado por objeto internamente |
+| IV.5 | Wizard deixa de ser aba fixa | Não é um objeto — é um fluxo que atravessa Arena+Eventos+Jogos+Telão de uma vez, só na primeira configuração. Vira checklist/flow que se abre por cima (modal ou passo a passo), não compete por espaço permanente de navegação com os cantos de verdade. Decisão do Bruno ("1 sim, ok") |
+| IV.6 | Administradores (colaboradores/vínculos) | Deixa de ser aba própria, passa a viver dentro do canto **Arena** — é uma operação sobre a Arena (quem administra ela), não um objeto à parte. Decisão do Bruno ("pertence à arena") |
+
+### 9.4 Ainda em aberto (não decidido nesta rodada)
+
+- Fundação técnica compartilhada entre os dois shells (login-gate,
+  `apiFetch`/`escapar`/`showToast`, contexto de Arena/event ativos) —
+  dívida já registrada em II.4, agora mais urgente (ir pra páginas de
+  verdade sem isso multiplicaria a duplicação). Fica pra uma fase
+  técnica própria, depois de fechar a redefinição de função (esta fase).
+- Ordem de migração página por página, e se cada canto vira 1 arquivo
+  HTML próprio ou se existe algum agrupamento técnico diferente disso.
+- Layout/navegação visual entre os cantos (menu lateral? topbar? — só a
+  função de cada canto foi decidida aqui, não a apresentação).
