@@ -138,21 +138,29 @@ function aplicarBrandingArena(arena) {
   }
 }
 
-function selecionarArenaAtiva(arenaId, selectorEl) {
+function selecionarArenaAtiva(arenaId) {
   arenaAtual = arenaId;
   sessionStorage.setItem('arena_ativa', arenaId);
-  if (selectorEl && selectorEl.value !== arenaId) selectorEl.value = arenaId;
   const arenaObj = arenasDisponiveis.find(a => a.id === arenaId);
   aplicarBrandingArena(arenaObj);
   listenersArena.forEach(fn => fn(arenaId, arenaObj));
 }
 
-// selectorEl: <select> opcional — se passado, é populado/escondido
-// (1 Arena só = escondido, como já era em admin.html) e ganha o
-// onchange. Sem selectorEl, só resolve a Arena ativa e dispara os
-// listeners (uso: páginas que herdam a Arena escolhida noutro canto,
-// sem oferecer troca própria — nenhuma hoje, mas deixa a porta aberta).
-export async function inicializarArenaAtiva(selectorEl = null) {
+function pillArena(arena) {
+  const marcador = arena.logo_url
+    ? `<img src="${escapar(arena.logo_url)}" alt="" class="pill-switcher-logo">`
+    : `<span class="pill-switcher-dot" style="background:${arena.cor_primaria || 'var(--color-text-muted)'}"></span>`;
+  return `${marcador}<span>${escapar(arena.nome)}</span>`;
+}
+
+// containerEl: <div> opcional — se passado, ganha o switcher visual
+// (pill com logo/cor + nome, painel com todas as Arenas ao clicar).
+// Achado numa sessão de validação com o Bruno (2026-09-03): o <select>
+// genérico anterior, sem rótulo e sem identidade visual, não dava
+// nenhuma sensação de "onde eu estou" — mesmo com só 1 Arena, o pill
+// continua visível agora (antes o <select> sumia inteiro nesse caso,
+// apagando a única pista de contexto que existia).
+export async function inicializarArenaAtiva(containerEl = null) {
   try {
     const resp = await apiFetch('/api/admin/arenas');
     if (!resp.ok) return null;
@@ -160,26 +168,83 @@ export async function inicializarArenaAtiva(selectorEl = null) {
   } catch { return null; }
 
   if (arenasDisponiveis.length === 0) {
-    if (selectorEl) selectorEl.style.display = 'none';
+    if (containerEl) containerEl.innerHTML = '';
     return null;
-  }
-
-  if (selectorEl) {
-    if (arenasDisponiveis.length === 1) {
-      selectorEl.style.display = 'none';
-    } else {
-      selectorEl.style.display = 'inline-block';
-      selectorEl.innerHTML = arenasDisponiveis.map(a =>
-        `<option value="${a.id}">${escapar(a.nome)}</option>`
-      ).join('');
-      selectorEl.onchange = () => selecionarArenaAtiva(selectorEl.value, selectorEl);
-    }
   }
 
   const salva   = sessionStorage.getItem('arena_ativa');
   const inicial = arenasDisponiveis.some(a => a.id === salva) ? salva : arenasDisponiveis[0].id;
-  selecionarArenaAtiva(inicial, selectorEl);
+
+  if (containerEl) {
+    montarDropdownPill(containerEl, {
+      itens: arenasDisponiveis,
+      valorAtual: inicial,
+      onChange: selecionarArenaAtiva,
+      renderPill: pillArena,
+      renderItem: pillArena,
+    });
+  }
+
+  selecionarArenaAtiva(inicial);
   return arenaAtual;
+}
+
+// ── SWITCHER GENÉRICO (pill + painel) ────────────────────────────────────────
+// Componente compartilhado — não sabe nada sobre Arena/Event/qualquer
+// outro objeto, só recebe itens+callbacks. Usado pelo switcher de Arena
+// acima e pelo de Event em cada página de canto (ex: admin-jogos.html).
+// CSS em admin-common.css (.pill-switcher*).
+export function montarDropdownPill(containerEl, { itens, valorAtual, onChange, renderPill, renderItem }) {
+  if (!itens || itens.length === 0) {
+    containerEl.innerHTML = '';
+    return;
+  }
+
+  let aberto = false;
+  let atualId = valorAtual;
+
+  function itemAtual() {
+    return itens.find(i => i.id === atualId) || itens[0];
+  }
+
+  function render() {
+    containerEl.innerHTML = `
+      <div class="pill-switcher">
+        <button type="button" class="pill-switcher-btn">
+          ${renderPill(itemAtual())}
+          <span class="pill-switcher-caret">▾</span>
+        </button>
+        <div class="pill-switcher-panel" style="display:${aberto ? 'block' : 'none'}">
+          ${itens.map(item => `
+            <button type="button" class="pill-switcher-item ${item.id === atualId ? 'selecionado' : ''}" data-id="${item.id}">
+              ${renderItem(item)}
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    containerEl.querySelector('.pill-switcher-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      aberto = !aberto;
+      render();
+    });
+    containerEl.querySelectorAll('.pill-switcher-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        aberto = false;
+        atualId = btn.dataset.id;
+        render();
+        onChange(atualId);
+      });
+    });
+  }
+
+  render();
+
+  // 1 listener por chamada de montarDropdownPill — nas páginas de hoje
+  // isso é montado uma vez só por switcher, sem risco de acumular.
+  document.addEventListener('click', (e) => {
+    if (aberto && !containerEl.contains(e.target)) { aberto = false; render(); }
+  });
 }
 
 // Events de uma Arena que o admin/moderador atual pode ver — super não

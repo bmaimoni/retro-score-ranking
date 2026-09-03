@@ -527,8 +527,28 @@ alterações técnicas depois de validar os cantos da Fase IV.
 - [x] `frontend/admin-common.js` novo.
 - [x] `frontend/admin-jogos.html` novo — lista de jogos do event (toggle/reordenar), adicionar jogo existente do catálogo, cadastrar novo (IGDB + manual). Seletor de Arena ativa e de Event próprios da página, escopados igual à Fase I (I.8: super escolhe o event, admin/moderador herda de `meInfo.events` filtrado pela Arena ativa).
 - [ ] `admin.html` **não foi tocado nesta rodada** (V.5) — a aba "Games" antiga continua ativa e funcionando em paralelo. Link entre as duas fica pra depois da validação.
-- [ ] Validação manual em navegador — pendente. Sem Playwright neste sandbox
-  (`[[project_sandbox_env_constraints]]`); sintaxe checada com
-  `node --check`, mas o fluxo de sessão/redirect e as chamadas de rede
-  não foram exercitadas num navegador real.
 - [ ] Sem testes de backend novos — nenhuma rota nova, nenhuma mudança de autorização.
+
+### 10.3 Correção pós-validação — switcher de contexto (2026-09-03)
+
+Bruno validou o fluxo funcional em produção (login/redirect, listar/
+adicionar/cadastrar/reordenar jogo) e reportou: "não sinto fluidez na
+usabilidade... o modelo de escolha da arena, no alto da tela não está
+ajudando". Achado concreto: os seletores de Arena e Event eram dois
+`<select>` nativos, com o **mesmo estilo visual** e **sem rótulo
+nenhum** — nada indicava qual era qual, nem dava nenhuma identidade de
+"onde eu estou" além do texto pequeno da opção selecionada.
+
+| # | Tópico | Decisão |
+|---|---|---|
+| V.8 | Componente novo | `montarDropdownPill()` em `admin-common.js` — widget genérico de "pill + painel" (botão mostrando o item atual, clique abre lista). Não sabe nada sobre Arena/Event, só recebe itens e callbacks — reusado pelos dois switchers, e qualquer canto futuro herda de graça |
+| V.9 | Identidade visual do switcher de Arena | Pill mostra o logo da Arena (`logo_url`) quando existe, senão um marcador colorido com `cor_primaria` — mesmo padrão de troca de workspace (Slack/GitHub), escolhido pelo Bruno entre 3 alternativas (rótulos simples, barra de contexto, switcher com identidade) |
+| V.10 | Switcher sempre visível, mesmo com 1 opção só | Antes, `<select>` com 1 Arena só ficava `display:none` — apagava a única pista de contexto que existia. Agora o pill continua visível (só não há "pra onde trocar" dentro do painel) |
+| V.11 | CSS compartilhado novo | `frontend/admin-common.css` (pareado com `admin-common.js`) — `.pill-switcher*`. Primeira peça de CSS que sai do padrão "cada página copia seu próprio bloco" (aceito como dívida pontual na Fase V original) porque este componente é usado por **toda** página de canto, não só uma |
+
+Implementação: `admin-common.js` (`montarDropdownPill`, `inicializarArenaAtiva` reescrito), `admin-common.css` novo, `admin-jogos.html` (switcher de Event também migrado pro componente novo, `<select>` removido).
+
+- [ ] Validação manual em navegador — pendente (mesma ressalva geral desta
+  fase, `[[project_sandbox_env_constraints]]`): sintaxe checada com
+  `node --check`, mas o comportamento visual do painel (posicionamento,
+  fechar ao clicar fora) não foi exercitado num navegador real.
