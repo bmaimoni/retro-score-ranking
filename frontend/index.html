@@ -55,15 +55,6 @@
     }
     .hero-ctas { display: flex; flex-wrap: wrap; gap: var(--space-md); justify-content: center; margin-bottom: var(--space-md); }
     .hero-ctas .btn-primary, .hero-ctas .btn-ghost { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
-    .hero-conta { font-size: var(--text-xs); color: var(--color-text-muted); min-height: 1.2em; }
-    .hero-conta a { color: var(--color-accent); }
-    .hero-scroll {
-      margin-top: var(--space-2xl);
-      color: var(--color-text-muted);
-      font-size: var(--text-xs);
-      letter-spacing: 0.1em;
-      animation: pulse 2s ease infinite;
-    }
 
     /* ── Seções genéricas ── */
     .section {
@@ -109,9 +100,33 @@
     /* ── Features ── */
     .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-lg); }
     .feature { padding: var(--space-md); }
-    .feature-icon { font-size: 32px; margin-bottom: var(--space-sm); }
+    .feature-icon {
+      display: flex; align-items: center; justify-content: center;
+      width: 40px; height: 40px;
+      margin-bottom: var(--space-sm);
+      color: var(--color-secondary);
+    }
     .feature-title { font-weight: var(--weight-bold); margin-bottom: var(--space-xs); color: var(--color-text); }
     .feature-text { font-size: var(--text-sm); color: var(--color-text-muted); line-height: 1.5; }
+
+    /* ── "Ao vivo" (mesmo padrão de telao.html) ── */
+    .ao-vivo { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: var(--space-sm); }
+    .ao-vivo-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #4caf50;
+      animation: piscar 1.5s ease-in-out infinite;
+    }
+    @keyframes piscar { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .ao-vivo-label { font-family: var(--font-display); font-size: var(--text-xs); color: var(--color-text-muted); letter-spacing: 0.1em; }
+    #eventos .section-title { margin-bottom: var(--space-sm); }
+    .section-subtitle {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      text-align: center;
+      max-width: 480px;
+      margin: 0 auto var(--space-xl);
+    }
 
     /* ── Eventos abertos (vitrine) ── */
     .eventos-grid { display: grid; gap: var(--space-md); margin-bottom: var(--space-lg); }
@@ -129,7 +144,9 @@
     .evento-icone-vazio { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
     .evento-nome { font-weight: var(--weight-bold); color: var(--color-text); }
     .evento-arena { font-size: var(--text-xs); color: var(--color-text-muted); }
-    .evento-chevron { margin-left: auto; color: var(--color-text-muted); }
+    .evento-jogo { margin-left: auto; text-align: right; flex-shrink: 0; }
+    .evento-jogo-nome { font-size: var(--text-xs); color: var(--color-text-muted); }
+    .evento-jogo-score { font-size: var(--text-sm); font-weight: var(--weight-bold); color: var(--color-secondary); font-family: var(--font-mono); }
     .eventos-vazio, .eventos-erro { text-align: center; color: var(--color-text-muted); font-size: var(--text-sm); padding: var(--space-lg) 0; }
     .eventos-ver-todos { display: block; text-align: center; font-size: var(--text-sm); color: var(--color-accent); text-decoration: none; }
 
@@ -189,8 +206,6 @@
       <a href="login.html" class="btn-primary" id="cta-primaria">Criar minha Arena grátis</a>
       <a href="#eventos" class="btn-ghost">Ver eventos abertos agora</a>
     </div>
-    <p class="hero-conta" id="hero-conta"></p>
-    <div class="hero-scroll">▼ CONHEÇA</div>
   </section>
 
   <section class="section">
@@ -218,42 +233,58 @@
     <h2 class="section-title">O que já está no ar</h2>
     <div class="features">
       <div class="feature animate-slide-up">
-        <div class="feature-icon">🏟️</div>
+        <div class="feature-icon">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+        </div>
         <div class="feature-title">Arena em 1 minuto</div>
         <div class="feature-text">Self-serve e grátis: escolhe o nome e sua competição já está de pé.</div>
       </div>
       <div class="feature animate-slide-up">
-        <div class="feature-icon">📡</div>
+        <div class="feature-icon">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+        </div>
         <div class="feature-title">Ranking em tempo real</div>
         <div class="feature-text">As posições mudam ao vivo, sem ninguém precisar apertar F5.</div>
       </div>
       <div class="feature animate-slide-up">
-        <div class="feature-icon">🎮</div>
+        <div class="feature-icon">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
+        </div>
         <div class="feature-title">Pontuação sem conta</div>
         <div class="feature-text">Login só pra quem organiza, protege o nick ou usa o seguir.</div>
       </div>
       <div class="feature animate-slide-up">
-        <div class="feature-icon">👥</div>
+        <div class="feature-icon">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+        </div>
         <div class="feature-title">Seguir jogadores</div>
         <div class="feature-text">Você é avisado quando alguém que segue passa o seu score no mesmo jogo.</div>
       </div>
       <div class="feature animate-slide-up">
-        <div class="feature-icon">🤝</div>
+        <div class="feature-icon">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+        </div>
         <div class="feature-title">Coadministração</div>
         <div class="feature-text">Convide amigos por convite assíncrono pra tocar a Arena junto com você.</div>
       </div>
       <div class="feature animate-slide-up">
-        <div class="feature-icon">📺</div>
+        <div class="feature-icon">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect><polyline points="17 2 12 7 7 2"></polyline></svg>
+        </div>
         <div class="feature-title">Modo telão</div>
         <div class="feature-text">Tela dedicada com carrossel entre os jogos, feita pra evento presencial.</div>
       </div>
       <div class="feature animate-slide-up">
-        <div class="feature-icon">📱</div>
+        <div class="feature-icon">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><line x1="14" y1="14" x2="14" y2="14.01"></line><line x1="21" y1="14" x2="21" y2="14.01"></line><line x1="14" y1="21" x2="14" y2="21.01"></line><line x1="21" y1="21" x2="21" y2="21.01"></line><line x1="17.5" y1="17.5" x2="17.5" y2="17.51"></line></svg>
+        </div>
         <div class="feature-title">QR code de acesso</div>
         <div class="feature-text">A galera aponta o celular e já envia a pontuação na hora.</div>
       </div>
       <div class="feature animate-slide-up">
-        <div class="feature-icon">🎨</div>
+        <div class="feature-icon">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+        </div>
         <div class="feature-title">Identidade própria</div>
         <div class="feature-text">Logo e cor da sua Arena num wizard rapidinho depois da criação.</div>
       </div>
@@ -261,8 +292,12 @@
   </section>
 
   <section class="section" id="eventos">
-    <div class="section-eyebrow">DESCUBRA</div>
+    <div class="ao-vivo">
+      <div class="ao-vivo-dot"></div>
+      <span class="ao-vivo-label">AO VIVO</span>
+    </div>
     <h2 class="section-title">Eventos abertos agora</h2>
+    <p class="section-subtitle">Entre nas arenas, desafie os líderes e envie sua pontuação.</p>
     <div class="eventos-grid" id="eventos-destaque">
       <div class="eventos-vazio">Carregando...</div>
     </div>
@@ -314,28 +349,45 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // Sessão só personaliza o CTA — o widget de login em si vive em
-// login.html (ARENA_SPEC.md D.8), não duplicado aqui.
+// login.html (ARENA_SPEC.md D.8), não duplicado aqui. "Logado como" saiu
+// desta página e foi pro menu hamburguer (nav.js), pedido do Bruno.
 async function carregarSessao() {
   try {
     const resp = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
     if (!resp.ok) return;
     const usuario = await resp.json();
-    const nome = usuario.nome || usuario.email || 'sua conta';
-    document.getElementById('hero-conta').innerHTML =
-      `Logado como <strong>${escaparHtml(nome)}</strong>`;
     if (usuario.tem_arena) {
       for (const id of ['cta-primaria', 'cta-final']) {
         const el = document.getElementById(id);
-        el.textContent = '🏟️ Ir pro meu painel';
+        el.textContent = 'Ir pro meu painel';
         el.href = 'admin.html';
       }
     }
   } catch { /* silencioso — CTA padrão de "criar Arena" continua válido */ }
 }
 
+// Pra cada event em destaque, busca o jogo "ativo" (primeiro por ordem,
+// mesmo critério de admin.html) e a melhor pontuação nele — reaproveita
+// GET /api/e/{slug}/games e GET /api/e/{slug}/ranking/lideres (já
+// existentes, usados hoje no play.html pra mostrar o líder por jogo).
+async function buscarDestaqueDoEvento(slug) {
+  try {
+    const [games, lideres] = await Promise.all([
+      fetch(`${API_URL}/api/e/${encodeURIComponent(slug)}/games`).then(r => r.ok ? r.json() : []),
+      fetch(`${API_URL}/api/e/${encodeURIComponent(slug)}/ranking/lideres`).then(r => r.ok ? r.json() : {}),
+    ]);
+    if (games.length === 0) return null;
+    const jogo = games[0];
+    const lider = lideres[jogo.id];
+    return { jogoNome: jogo.nome, pontuacao: lider ? lider.pontuacao : null };
+  } catch {
+    return null;
+  }
+}
+
 async function carregarEventosDestaque() {
   const el = document.getElementById('eventos-destaque');
-  const LIMITE = 4;
+  const LIMITE = 5;
   try {
     const resp = await fetch(`${API_URL}/api/arenas/eventos-abertos`);
     const eventos = resp.ok ? await resp.json() : [];
@@ -345,7 +397,18 @@ async function carregarEventosDestaque() {
       return;
     }
 
-    el.innerHTML = eventos.slice(0, LIMITE).map(e => `
+    const destaque = eventos.slice(0, LIMITE);
+    const jogos = await Promise.all(destaque.map(e => buscarDestaqueDoEvento(e.slug)));
+
+    el.innerHTML = destaque.map((e, i) => {
+      const jogo = jogos[i];
+      const blocoJogo = jogo
+        ? `<div class="evento-jogo">
+             <div class="evento-jogo-nome">${escaparHtml(jogo.jogoNome)}</div>
+             <div class="evento-jogo-score">${jogo.pontuacao != null ? jogo.pontuacao.toLocaleString('pt-BR') + ' pts' : 'sem pontuação'}</div>
+           </div>`
+        : '';
+      return `
       <a href="play.html?evento=${encodeURIComponent(e.slug)}" class="evento-card">
         ${e.logo_url
           ? `<img class="evento-icone" src="${escaparHtml(e.logo_url)}" alt="${escaparHtml(e.nome)}">`
@@ -354,9 +417,9 @@ async function carregarEventosDestaque() {
           <div class="evento-nome">${escaparHtml(e.nome)}</div>
           <div class="evento-arena">${escaparHtml(e.arena_nome)}</div>
         </div>
-        <span class="evento-chevron">›</span>
-      </a>
-    `).join('');
+        ${blocoJogo}
+      </a>`;
+    }).join('');
   } catch {
     el.innerHTML = `<div class="eventos-erro">Não foi possível carregar os eventos agora.</div>`;
   }

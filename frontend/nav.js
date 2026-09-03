@@ -74,6 +74,24 @@ export function inserirNav(paginaAtual, overrides = {}) {
       font-size: 24px; line-height: 1; cursor: pointer; margin-bottom: var(--space-md);
       padding: 4px;
     }
+    .site-nav-conta {
+      display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm);
+      padding: 10px 14px;
+      margin-bottom: var(--space-sm);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      font-size: var(--text-xs);
+      color: rgba(255,255,255,0.75);
+      min-height: 1.2em;
+    }
+    .site-nav-conta strong { color: var(--color-primary, #5e2b82); }
+    .site-nav-conta-sair, .site-nav-conta-entrar {
+      background: none; border: none;
+      color: var(--color-accent, #72cddd);
+      font-size: var(--text-xs);
+      cursor: pointer; padding: 0;
+      text-decoration: none;
+    }
+    .site-nav-conta-sair { text-decoration: underline; }
   `;
   document.head.appendChild(style);
 
@@ -94,6 +112,7 @@ export function inserirNav(paginaAtual, overrides = {}) {
   painel.setAttribute('aria-label', 'Navegação');
   painel.innerHTML = `
     <button type="button" class="site-nav-fechar" aria-label="Fechar menu">✕</button>
+    <div class="site-nav-conta" id="site-nav-conta"></div>
     ${LINKS.map(l => `
       <a href="${overrides[l.id] || l.href}" class="site-nav-link ${l.id === paginaAtual ? 'ativo' : ''}">
         <span aria-hidden="true">${l.icone}</span><span>${l.label}</span>
@@ -101,6 +120,7 @@ export function inserirNav(paginaAtual, overrides = {}) {
     `).join('')}
   `;
   document.body.appendChild(painel);
+  carregarContaNoMenu(painel.querySelector('#site-nav-conta'));
 
   const abrir  = () => { backdrop.classList.add('aberto'); painel.classList.add('aberto'); };
   const fechar = () => { backdrop.classList.remove('aberto'); painel.classList.remove('aberto'); };
@@ -109,4 +129,35 @@ export function inserirNav(paginaAtual, overrides = {}) {
   backdrop.addEventListener('click', fechar);
   painel.querySelector('.site-nav-fechar').addEventListener('click', fechar);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') fechar(); });
+}
+
+// "Logado como" saiu de index.html (pedido do Bruno) e vira info
+// site-wide aqui no menu hamburguer, já que ele aparece em toda página
+// pública. Checagem própria de sessão — não depende da página chamadora
+// já ter feito a sua.
+async function carregarContaNoMenu(container) {
+  const API_URL = 'https://retro-score-ranking-production.up.railway.app';
+  try {
+    const resp = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
+    if (resp.ok) {
+      const usuario = await resp.json();
+      const nome = usuario.nome || usuario.email || 'sua conta';
+      container.innerHTML = `
+        <span>Logado como <strong>${escaparHtml(nome)}</strong></span>
+        <button type="button" class="site-nav-conta-sair" id="site-nav-sair">Sair</button>
+      `;
+      container.querySelector('#site-nav-sair').addEventListener('click', async () => {
+        try { await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' }); } catch {}
+        location.reload();
+      });
+      return;
+    }
+  } catch { /* silencioso — cai no estado deslogado abaixo */ }
+  container.innerHTML = `<a href="login.html" class="site-nav-conta-entrar">Entrar</a>`;
+}
+
+function escaparHtml(texto) {
+  const div = document.createElement('div');
+  div.textContent = texto;
+  return div.innerHTML;
 }
