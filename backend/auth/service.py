@@ -138,7 +138,7 @@ def gerar_token_magic_link() -> tuple[str, str]:
 
 async def solicitar_magic_link(pool, email: str, next_path: str | None = None) -> None:
     """
-    next_path: caminho relativo pra onde login.html deve mandar a pessoa
+    next_path: caminho relativo pra onde verify.html deve mandar a pessoa
     de volta depois de validar o token (ex.: '/admin.html'). Validação
     de segurança (só relativo, nunca URL absoluta) fica no router, não
     aqui — este service só concatena o que já chegou validado.
@@ -148,7 +148,7 @@ async def solicitar_magic_link(pool, email: str, next_path: str | None = None) -
     token, token_hash = gerar_token_magic_link()
     await auth_repo.criar_magic_link_token(pool, email, token_hash, settings.magic_link_ttl_minutes)
 
-    link = f"{settings.frontend_base_url}/login.html?token={token}"
+    link = f"{settings.frontend_base_url}/verify.html?token={token}"
     if next_path:
         link += f"&next={urllib.parse.quote(next_path, safe='')}"
     await _enviar_email_magic_link(email, link)

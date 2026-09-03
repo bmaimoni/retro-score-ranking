@@ -2,10 +2,12 @@
 // RETRO SCORE RANKING — Navegação site-wide (hamburguer)
 // ============================================================
 // docs/BACKLOG_2026.md §3.4: link "Participar" perdido no rodapé →
-// navegação real entre as telas. Escopo deliberado: só index.html e
-// ranking.html chamam inserirNav() (mais perfil.html, que também é
-// tela pública navegada ativamente) — admin.html fica com abas (modelo
-// autenticado, condicional por nível) e telao.html fica de fora
+// navegação real entre as telas. Escopo deliberado: index.html,
+// ranking.html e perfil.html chamam inserirNav() com destaque real (têm
+// entrada em LINKS abaixo); login.html e play.html também chamam, mas
+// sem entrada correspondente — são telas de ação, não destinos de menu
+// (ARENA_SPEC.md D.8) — admin.html/console.html ficam com abas próprias
+// (modelo autenticado, condicional por nível) e telao.html fica de fora
 // (uso passivo, exibição num telão físico, sem navegação por toque).
 
 const LINKS = [

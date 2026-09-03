@@ -788,7 +788,8 @@ inserirNav('play'); // sem entrada correspondente em nav.js LINKS de propósito 
 // Slug do event — vem da URL (?evento=slug). Fase 8 (ARENA_SPEC.md
 // D.1): play.html sempre exige esse parâmetro explícito, sem fallback
 // nenhum — a descoberta de "pra qual evento ir" migrou inteira pra
-// index.html (home institucional). Permite múltiplos events
+// login.html (D.8: index.html virou landing de marketing pura).
+// Permite múltiplos events
 // simultâneos, cada um com sua própria URL de envio (ex:
 // play.html?evento=canal3expo-2027) — ver docs/EVENTOS_SPEC.md.
 let EVENT_SLUG = new URLSearchParams(location.search).get('evento');
@@ -810,8 +811,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // play.html sempre exige ?evento= explícito na URL (Fase 8,
   // ARENA_SPEC.md D.1) — a lógica de fallback/seleção de arena que
-  // existia aqui antes migrou inteira pra descoberta da home
-  // institucional (index.html). Sem ?evento=, não tenta adivinhar.
+  // existia aqui antes migrou inteira pra descoberta em login.html
+  // (D.8). Sem ?evento=, não tenta adivinhar.
   if (EVENT_SLUG) {
     await Promise.all([carregarJogos(), carregarIdentidadeVisual()]);
   } else {
@@ -827,7 +828,7 @@ function renderSemEventoNaUrl() {
   const buscaBar = document.getElementById('games-busca-input')?.closest('.games-busca-bar');
   if (buscaBar) buscaBar.style.display = 'none';
   document.getElementById('games-lista').innerHTML =
-    `<div class="loading-games"><span>Sem evento identificado. <a href="index.html" style="color:var(--color-primary)">Voltar pra home</a> pra encontrar um evento aberto.</span></div>`;
+    `<div class="loading-games"><span>Sem evento identificado. <a href="login.html" style="color:var(--color-primary)">Encontre um evento aberto</a> pra participar.</span></div>`;
 }
 
 // ── CONTA / LOGIN (opcional — AUTH_SPEC.md §4) ─────────────────
@@ -965,7 +966,12 @@ window.toggleLoginPainel = async function() {
 window.loginGoogle = function() {
   // Navegação de página inteira (não fetch) — é assim que o fluxo
   // OAuth funciona, precisa sair do domínio pro Google e voltar.
-  window.location.href = `${API_URL}/api/auth/google/start`;
+  // next explícito preserva o event atual — sem isso, cai no fallback
+  // de _resolver_redirect_final (frontend_base_url puro, a landing de
+  // marketing desde D.8), perdendo o contexto de qual event a pessoa
+  // estava jogando.
+  const next = EVENT_SLUG ? `/play.html?evento=${encodeURIComponent(EVENT_SLUG)}` : '/play.html';
+  window.location.href = `${API_URL}/api/auth/google/start?next=${encodeURIComponent(next)}`;
 };
 
 window.loginMagicLink = async function() {

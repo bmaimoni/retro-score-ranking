@@ -604,7 +604,7 @@
 
     <div class="ranking-footer-qr">
       <div class="ranking-footer-qr-label">PARTICIPE PELO CELULAR</div>
-      <a id="ranking-qr-link" href="https://retro-score-ranking.vercel.app/index.html" target="_blank" style="display:inline-block">
+      <a id="ranking-qr-link" href="https://retro-score-ranking.vercel.app/login.html" target="_blank" style="display:inline-block">
         <div class="ranking-footer-qr-box">
           <div id="ranking-qrcode"></div>
         </div>
@@ -616,7 +616,7 @@
   <!-- Footer -->
   <footer class="ranking-footer">
     <div class="footer-qr-hint">
-      <a href="index.html" id="link-participar" style="color:var(--color-text-muted);text-decoration:none;font-size:var(--text-xs)">
+      <a href="login.html" id="link-participar" style="color:var(--color-text-muted);text-decoration:none;font-size:var(--text-xs)">
         ▶ Participar
       </a>
     </div>
@@ -639,9 +639,10 @@ const UPLOAD_URL   = 'https://retro-score-ranking.vercel.app';
 // QR/link já publicado quebra. Ver docs/MARCAS_SPEC.md §4.5.
 const EVENT_SLUG = new URLSearchParams(location.search).get('evento');
 
-// "Início" aponta pra home institucional sempre (Fase 8) — não faz
-// mais sentido levar contexto de event pra lá, já que index.html não
-// participa mais do fluxo de envio (isso migrou pra play.html).
+// "Início" aponta pra landing de marketing sempre (Fase 8, revisada em
+// D.8) — não faz mais sentido levar contexto de event pra lá, já que
+// index.html não participa do fluxo de envio nem de descoberta de
+// evento (isso migrou pra play.html e login.html, respectivamente).
 inserirNav('ranking');
 // id de entry vindo de perfil.html ("ver no ranking") — navega até a
 // página certa e destaca o card, uma única vez (docs/BACKLOG_2026.md §3.6).
@@ -710,10 +711,11 @@ async function gerarQR() {
   }
   // Com slugAlvo resolvido, aponta direto pro fluxo de envio
   // (play.html, Fase 8) — sem slug (nenhum event ativo pra sugerir),
-  // cai na home institucional pra descoberta.
+  // cai em login.html pra descoberta (D.8 — index.html virou landing
+  // de marketing, não faz mais discovery de evento).
   const url = slugAlvo
     ? `${UPLOAD_URL}/play.html?evento=${slugAlvo}`
-    : `${UPLOAD_URL}/index.html`;
+    : `${UPLOAD_URL}/login.html`;
 
   const el = document.getElementById('ranking-qrcode');
   el.innerHTML = '';

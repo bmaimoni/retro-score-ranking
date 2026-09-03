@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entrando... — Canal3</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Poppins:wght@400;600;700&display=swap">
+  <style>
+    .login-page {
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-xl) var(--space-md);
+      text-align: center;
+    }
+    .login-card {
+      max-width: 420px;
+      width: 100%;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: var(--radius-md);
+      padding: var(--space-2xl) var(--space-lg);
+    }
+    .login-icon {
+      font-size: 40px;
+      margin-bottom: var(--space-md);
+    }
+    .login-titulo {
+      font-family: var(--font-display);
+      font-size: var(--text-md);
+      color: var(--color-primary);
+      margin-bottom: var(--space-sm);
+      line-height: 1.5;
+    }
+    .login-msg {
+      font-size: var(--text-sm);
+      color: var(--color-text-muted);
+      line-height: 1.6;
+      margin-bottom: var(--space-lg);
+    }
+    .login-voltar {
+      display: inline-block;
+      color: var(--color-accent);
+      font-size: var(--text-sm);
+      text-decoration: none;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm, 6px);
+      padding: 10px 20px;
+      transition: border-color var(--transition);
+    }
+    .login-voltar:hover { border-color: var(--color-accent); }
+    @keyframes girar { to { transform: rotate(360deg); } }
+    .login-spinner {
+      display: inline-block;
+      animation: girar 1s linear infinite;
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-icon" id="login-icon"><span class="login-spinner">⏳</span></div>
+    <h1 class="login-titulo" id="login-titulo">VALIDANDO SEU LINK...</h1>
+    <p class="login-msg" id="login-msg">Só um instante.</p>
+    <a href="login.html" class="login-voltar" id="login-voltar" style="display:none">← Voltar</a>
+  </div>
+</div>
+
+<script type="module">
+const API_URL = 'https://retro-score-ranking-production.up.railway.app';
+
+const params = new URLSearchParams(location.search);
+const token = params.get('token');
+const next  = params.get('next');
+
+// Só caminho relativo simples — mesma checagem de segurança do backend
+// (auth/router.py._next_e_seguro), evita open-redirect se 'next' vier
+// adulterado na URL.
+function destinoFinal() {
+  if (next && next.startsWith('/') && !next.startsWith('//')) return next;
+  return 'login.html';
+}
+
+const elIcon   = document.getElementById('login-icon');
+const elTitulo = document.getElementById('login-titulo');
+const elMsg    = document.getElementById('login-msg');
+const elVoltar = document.getElementById('login-voltar');
+
+function mostrarErro(msg) {
+  elIcon.innerHTML = '⚠️';
+  elTitulo.textContent = 'NÃO FOI POSSÍVEL ENTRAR';
+  elMsg.textContent = msg;
+  elVoltar.style.display = 'inline-block';
+}
+
+function mostrarSucesso(nomeExibicao) {
+  elIcon.innerHTML = '✅';
+  elTitulo.textContent = 'VOCÊ ENTROU!';
+  elMsg.textContent = `Bem-vindo${nomeExibicao ? ', ' + nomeExibicao : ''}! Redirecionando...`;
+}
+
+async function verificar() {
+  if (!token) {
+    mostrarErro('Esse link está incompleto. Peça um novo link de acesso.');
+    return;
+  }
+
+  try {
+    const resp = await fetch(`${API_URL}/api/auth/magic-link/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // essencial: é aqui que o cookie de sessão é gravado
+      body: JSON.stringify({ token }),
+    });
+
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      mostrarErro(data.detail || 'Link inválido, expirado ou já utilizado. Peça um novo.');
+      return;
+    }
+
+    mostrarSucesso(data.nome || data.email);
+    setTimeout(() => { location.href = destinoFinal(); }, 1500);
+  } catch {
+    mostrarErro('Não foi possível validar o link agora. Tente de novo em instantes.');
+  }
+}
+
+verificar();
+</script>
+
+</body>
+</html>

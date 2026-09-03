@@ -5,729 +5,230 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#0b1331">
-  <title>Retro Score — Crie sua Arena</title>
+  <meta name="description" content="Retro Score Ranking: crie sua Arena grátis, convide seus amigos e dispute o ranking em tempo real — do campeonato caseiro ao evento presencial.">
+  <title>Retro Score Ranking</title>
   <link rel="stylesheet" href="style.css">
-  <!-- Pré-carrega fontes principais para evitar flash e atraso -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Poppins:wght@400;600;700&family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap">
   <style>
-    /* ── Página ── */
-    .upload-page {
+    .landing { display: flex; flex-direction: column; align-items: center; }
+
+    /* ── Hero ── */
+    .hero {
+      width: 100%;
       min-height: 100dvh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: var(--space-xl) var(--space-md) var(--space-2xl);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center;
+      padding: var(--space-2xl) var(--space-md);
+    }
+    .hero-logo { height: 96px; width: auto; object-fit: contain; margin-bottom: var(--space-lg); }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: var(--text-xl);
+      color: var(--color-primary);
+      line-height: 1.5;
+      max-width: 720px;
+      margin-bottom: var(--space-md);
+    }
+    .hero-subtitle {
+      font-size: var(--text-md);
+      color: var(--color-text-muted);
+      max-width: 560px;
+      margin-bottom: var(--space-xl);
+      line-height: 1.6;
+    }
+    .hero-ctas { display: flex; flex-wrap: wrap; gap: var(--space-md); justify-content: center; margin-bottom: var(--space-md); }
+    .hero-ctas .btn-primary, .hero-ctas .btn-ghost { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+    .hero-conta { font-size: var(--text-xs); color: var(--color-text-muted); min-height: 1.2em; }
+    .hero-conta a { color: var(--color-accent); }
+    .hero-scroll {
+      margin-top: var(--space-2xl);
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      letter-spacing: 0.1em;
+      animation: pulse 2s ease infinite;
     }
 
-    .page-header {
-      text-align: center;
-      margin-bottom: var(--space-lg);
+    /* ── Seções genéricas ── */
+    .section {
       width: 100%;
-      max-width: 520px;
+      max-width: 960px;
+      padding: var(--space-2xl) var(--space-md);
     }
-    .page-logo {
-      height: 96px; width: auto; object-fit: contain;
-      display: block; margin: 0 auto var(--space-md);
+    .section-eyebrow {
+      font-family: var(--font-display);
+      font-size: var(--text-xs);
+      color: var(--color-accent);
+      text-align: center;
+      margin-bottom: var(--space-sm);
+      letter-spacing: 0.1em;
     }
-    .page-title {
+    .section-title {
       font-family: var(--font-display);
       font-size: var(--text-lg);
-      color: var(--color-primary);
-      line-height: 1.4; margin-bottom: var(--space-xs);
-    }
-    .page-subtitle { font-size: var(--text-sm); color: var(--color-text-muted); }
-
-    /* ── Conta / login ── */
-    .conta-bar {
-      width: 100%;
-      max-width: 520px;
-      margin-bottom: var(--space-md);
-    }
-    .conta-status {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-sm);
-      min-height: 32px;
-    }
-    .conta-carregando {
-      color: var(--color-text-muted);
-      font-size: var(--text-xs);
-      letter-spacing: 0.1em;
-    }
-    .conta-info {
-      font-size: var(--text-sm);
-      color: rgba(255,255,255,0.75);
-    }
-    .conta-info strong { color: var(--color-primary); }
-    .conta-avatar {
-      width: 24px; height: 24px;
-      border-radius: 50%;
-      object-fit: cover;
-      border: 1px solid rgba(255,255,255,0.2);
-      flex-shrink: 0;
-    }
-    .conta-sair {
-      background: transparent;
-      border: none;
-      color: var(--color-text-muted);
-      font-size: var(--text-xs);
-      text-decoration: underline;
-      cursor: pointer;
-      padding: 4px 8px;
-    }
-    .conta-entrar-btn {
-      background: rgba(0,0,0,0.35);
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: var(--radius-md);
-      color: rgba(255,255,255,0.8);
-      font-size: var(--text-xs);
-      padding: 8px 16px;
-      cursor: pointer;
-      transition: border-color var(--transition);
-      width: 100%;
-    }
-    .conta-entrar-btn:hover { border-color: var(--color-primary); }
-
-    .login-painel {
-      margin-top: var(--space-sm);
-      background: rgba(0,0,0,0.35);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: var(--radius-md);
-      padding: var(--space-md);
-    }
-    .login-painel-texto {
-      font-size: var(--text-xs);
-      color: var(--color-text-muted);
+      color: var(--color-text);
       text-align: center;
-      margin-bottom: var(--space-md);
+      margin-bottom: var(--space-xl);
       line-height: 1.5;
     }
-    .login-btn {
-      width: 100%;
-      border-radius: var(--radius-sm, 6px);
-      padding: 10px 16px;
-      font-size: var(--text-sm);
-      font-weight: var(--weight-bold);
-      cursor: pointer;
-      transition: filter var(--transition);
-    }
-    .login-btn:hover { filter: brightness(1.1); }
-    .login-btn-google {
-      background: #ffffff;
-      color: #1f1f1f;
-      border: 1px solid rgba(0,0,0,0.1);
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-    }
-    .login-divisor {
-      display: flex; align-items: center; gap: var(--space-sm);
-      margin: var(--space-md) 0;
-      color: var(--color-text-muted);
-      font-size: var(--text-xs);
-    }
-    .login-divisor::before, .login-divisor::after {
-      content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.15);
-    }
-    .login-email-form { display: flex; flex-direction: column; gap: var(--space-sm); }
-    .login-btn-email {
-      background: var(--color-primary);
-      color: var(--color-bg, #0b1331);
-    }
-    .login-email-status {
-      font-size: var(--text-xs);
-      color: var(--color-text-muted);
-      text-align: center;
-      margin-top: var(--space-sm);
-      min-height: 1em;
-    }
 
-    /* ── Busca de games ── */
-    .games-busca-bar {
-      width: 100%;
-      max-width: 520px;
-      margin-bottom: var(--space-md);
-    }
-    .games-busca-input {
-      width: 100%;
-      background: var(--color-bg-surface);
-      border: var(--border-width) solid var(--color-border);
-      border-radius: var(--radius-sm, 6px);
-      color: var(--color-text);
-      font-family: var(--font-body);
-      font-size: var(--text-sm);
-      padding: var(--space-sm) var(--space-md);
-      transition: border-color var(--transition);
-    }
-    .games-busca-input::placeholder { color: var(--color-text-muted); }
-    .games-busca-input:focus {
-      outline: none;
-      border-color: var(--color-primary);
-    }
-    .games-busca-vazio {
-      text-align: center;
-      color: var(--color-text-muted);
-      font-size: var(--text-sm);
-      padding: var(--space-lg) 0;
-    }
-
-    /* ── Link direto por game (?game=) ── */
-    .voltar-todos-games {
-      display: inline-block;
-      margin-bottom: var(--space-md);
-      color: var(--color-text-muted);
-      font-size: var(--text-xs);
-      text-decoration: underline;
-      cursor: pointer;
-    }
-
-    /* ── Link "ver ranking" no card fechado ── */
-    .game-ranking-link {
-      flex-shrink: 0;
-      font-size: var(--text-xs);
-      color: var(--color-text-muted);
-      text-decoration: none;
-      padding: 6px 10px;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: var(--radius-sm, 6px);
-      white-space: nowrap;
-      transition: border-color var(--transition), color var(--transition);
-    }
-    .game-ranking-link:hover {
-      border-color: var(--card-primary, var(--color-primary));
-      color: var(--card-primary, var(--color-primary));
-    }
-
-    /* ── Regras ── */
-    .regras-card {
-      width: 100%;
-      max-width: 520px;
-      background: rgba(0,0,0,0.35);
-      border: 1px solid rgba(255,255,255,0.1);
+    /* ── Como funciona ── */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-lg); }
+    .step {
+      background: rgba(0,0,0,0.25);
+      border: 1px solid var(--color-border);
       border-radius: var(--radius-md);
-      padding: var(--space-md) var(--space-lg);
-      margin-bottom: var(--space-lg);
+      padding: var(--space-lg);
+      text-align: center;
     }
-    .regras-titulo {
+    .step-num {
       font-family: var(--font-display);
-      font-size: var(--text-xs);
-      color: var(--color-primary);
-      letter-spacing: 0.1em;
+      font-size: var(--text-lg);
+      color: var(--color-secondary);
       margin-bottom: var(--space-sm);
     }
-    .regras-lista {
-      list-style: none;
-      padding: 0; margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .regras-lista li {
-      font-size: var(--text-sm);
-      color: rgba(255,255,255,0.7);
-      line-height: 1.6;
-      padding-left: 16px;
-      position: relative;
-    }
-    .regras-lista li strong {
-      color: var(--color-primary);
-      font-weight: 600;
-    }
-    .regras-lista li::before {
-      content: '▸';
-      color: var(--color-primary);
-      position: absolute;
-      left: 0;
-      top: 0;
-    }
-    .regras-expandido {
-      display: none;
-      margin-top: var(--space-sm);
-      padding-top: var(--space-sm);
-      border-top: 1px solid rgba(255,255,255,0.08);
-    }
-    .regras-expandido.aberto { display: block; }
-    .regras-expandido li {
-      font-size: var(--text-xs);
-      color: rgba(255,255,255,0.45);
-      line-height: 1.5;
-      margin-bottom: 6px;
-      padding-left: 14px;
-      position: relative;
-    }
-    .regras-expandido li::before {
-      content: '–';
-      color: var(--color-primary);
-      position: absolute;
-      left: 0;
-      top: 0;
-      opacity: 0.6;
-    }
-    .regras-toggle {
-      background: none;
-      border: none;
-      color: var(--color-primary);
-      font-size: var(--text-xs);
-      font-family: var(--font-display);
-      letter-spacing: 0.08em;
-      cursor: pointer;
-      padding: var(--space-xs) 0 0;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      opacity: 0.8;
-      transition: opacity 0.2s;
-    }
-    .regras-toggle:hover { opacity: 1; }
-    .regras-toggle-icon { transition: transform 0.25s; display: inline-block; }
-    .regras-toggle.aberto .regras-toggle-icon { transform: rotate(180deg); }
+    .step-title { font-weight: var(--weight-bold); margin-bottom: var(--space-xs); }
+    .step-text { font-size: var(--text-sm); color: var(--color-text-muted); line-height: 1.5; }
 
-    /* ── Lista de games ── */
-    .games-lista {
-      width: 100%;
-      max-width: 520px;
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-sm);
-    }
+    /* ── Features ── */
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-lg); }
+    .feature { padding: var(--space-md); }
+    .feature-icon { font-size: 32px; margin-bottom: var(--space-sm); }
+    .feature-title { font-weight: var(--weight-bold); margin-bottom: var(--space-xs); color: var(--color-text); }
+    .feature-text { font-size: var(--text-sm); color: var(--color-text-muted); line-height: 1.5; }
 
-    /* ── Card de game (colapsado) ── */
-    .game-card {
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      transition: box-shadow 0.3s ease, opacity 0.3s ease;
-      border: var(--border-width) solid var(--color-border);
-      background: var(--color-bg-surface);
-    }
-
-    /* Quando outro card está expandido, os demais esmaeecem */
-    .games-lista.tem-expandido .game-card:not(.expandido) {
-      opacity: 0.45;
-    }
-    .games-lista.tem-expandido .game-card.expandido {
-      border-color: var(--card-primary, var(--color-primary));
-      box-shadow: 0 0 0 1px var(--card-primary, var(--color-primary));
-    }
-
-    /* ── Header do card (sempre visível) ── */
-    .game-header {
-      display: flex;
-      align-items: center;
-      gap: var(--space-md);
-      padding: var(--space-md) var(--space-lg);
-      cursor: pointer;
-      transition: background 0.2s;
-      position: relative;
-    }
-    .game-header::before {
-      content: '';
-      position: absolute;
-      left: 0; top: 0; bottom: 0;
-      width: 4px;
-      background: var(--card-primary, var(--color-primary));
-      transition: width 0.2s;
-    }
-    .game-card.expandido .game-header::before { width: 5px; }
-    .game-header:hover { background: rgba(255,255,255,0.03); }
-
-    .game-icone {
-      font-size: 28px; line-height: 1;
-      flex-shrink: 0; width: 40px; text-align: center;
-    }
-    .game-icone-img { width: 32px; height: 32px; object-fit: contain; border-radius: 4px; }
-
-    .game-info { flex: 1; min-width: 0; }
-    .game-nome {
-      font-size: var(--text-md);
-      font-weight: var(--weight-bold);
-      color: var(--color-text);
-      letter-spacing: 0.04em;
-    }
-    .game-lider {
-      font-size: var(--text-xs);
-      color: var(--color-text-muted);
-      margin-top: 3px;
-      display: flex; align-items: center; gap: 6px;
-    }
-    .lider-score {
-      font-family: var(--font-mono);
-      color: var(--card-accent, var(--color-accent));
-      font-weight: var(--weight-bold);
-    }
-    .lider-nick { color: var(--color-text-muted); }
-
-    .game-chevron {
-      font-size: var(--text-md);
-      color: var(--color-text-dim);
-      transition: transform 0.3s ease, color 0.2s;
-      flex-shrink: 0;
-    }
-    .game-card.expandido .game-chevron {
-      transform: rotate(90deg);
-      color: var(--card-primary, var(--color-primary));
-    }
-
-    /* ── Corpo expansível do card ── */
-    .game-body {
-      max-height: 0;
-      overflow: hidden;
-      transition: max-height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .game-card.expandido .game-body {
-      max-height: 900px;
-    }
-
-    /* ── Conteúdo interno do card (formulário com tema) ── */
-    .game-conteudo {
-      padding: var(--space-md) var(--space-lg) var(--space-xl);
-      border-top: var(--border-width) solid rgba(255,255,255,0.06);
-      background: var(--card-bg, var(--color-bg-surface));
-      position: relative;
-      overflow: hidden;
-    }
-
-    /* Imagem de fundo do tema dentro do card */
-    .game-conteudo::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background-image: var(--card-bg-image, none);
-      background-size: cover;
-      background-position: center;
-      opacity: calc(1 - var(--card-overlay, 0.75));
-      pointer-events: none;
-      z-index: 0;
-    }
-    .game-conteudo > * { position: relative; z-index: 1; }
-
-    /* ── Formulário dentro do card ── */
-    .card-form { display: flex; flex-direction: column; }
-
-    /* Zona de foto */
-    .photo-zone {
-      position: relative; width: 100%;
-      aspect-ratio: 4/3;
-      background: rgba(0,0,0,0.3);
-      border: var(--border-width) dashed rgba(255,255,255,0.2);
-      border-radius: var(--radius-md);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: var(--space-sm); cursor: pointer;
-      overflow: hidden; transition: border-color 0.2s;
-      margin-bottom: var(--space-md);
-    }
-    .photo-zone:hover { border-color: rgba(255,255,255,0.4); }
-    .photo-zone.has-photo { border-style: solid; border-color: var(--card-secondary, var(--color-secondary)); }
-    .photo-zone-icon { font-size: 36px; line-height: 1; }
-    .photo-zone-text { font-size: var(--text-sm); color: rgba(255,255,255,0.6); text-align: center; padding: 0 var(--space-md); line-height: 1.5; }
-    .photo-zone-badge { font-size: var(--text-xs); font-weight: var(--weight-bold); letter-spacing: 0.1em; text-transform: uppercase; color: var(--card-secondary, var(--color-secondary)); border: 1px solid var(--card-secondary, var(--color-secondary)); border-radius: var(--radius-full); padding: 3px 10px; }
-    .photo-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-    .photo-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.6); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-sm); opacity: 0; transition: opacity 0.2s; }
-    .photo-zone.has-photo:hover .photo-overlay { opacity: 1; }
-    .photo-overlay span { font-size: var(--text-sm); color: #fff; font-weight: var(--weight-bold); }
-
-    /* Campos do card — usam variáveis do tema scoped */
-    .card-field { display: flex; flex-direction: column; gap: var(--space-xs); margin-bottom: var(--space-md); }
-    .card-label { font-size: var(--text-xs); font-weight: var(--weight-bold); letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.55); }
-    .card-input {
-      width: 100%;
-      padding: 14px var(--space-md);
-      background: rgba(0,0,0,0.35);
-      border: var(--border-width) solid rgba(255,255,255,0.15);
-      border-radius: var(--radius-sm);
-      color: #fff;
-      font-family: var(--font-body);
-      font-size: var(--text-md);
-      outline: none;
-      transition: border-color 0.2s;
-      -webkit-appearance: none;
-    }
-    .card-input::placeholder { color: rgba(255,255,255,0.3); }
-    .card-input:focus {
-      border-color: var(--card-secondary, var(--color-secondary));
-      box-shadow: 0 0 0 3px rgba(255,255,255,0.08);
-    }
-
-    /* Consentimento dentro do card */
-    .card-consent {
-      display: flex; align-items: flex-start; gap: var(--space-sm);
-      margin-bottom: var(--space-md);
-      padding: var(--space-sm) var(--space-md);
+    /* ── Eventos abertos (vitrine) ── */
+    .eventos-grid { display: grid; gap: var(--space-md); margin-bottom: var(--space-lg); }
+    .evento-card {
+      display: flex; align-items: center; gap: var(--space-md);
       background: rgba(0,0,0,0.25);
-      border: var(--border-width) solid rgba(255,255,255,0.1);
-      border-radius: var(--radius-sm);
-    }
-    .card-consent-check {
-      flex-shrink: 0; width: 18px; height: 18px;
-      margin-top: 2px; cursor: pointer;
-      accent-color: var(--card-primary, var(--color-primary));
-    }
-    .card-consent-text { font-size: var(--text-xs); color: rgba(255,255,255,0.5); line-height: 1.6; }
-
-    /* Botão do card com cor primária do tema */
-    .card-btn {
-      display: block; width: 100%;
-      padding: 16px var(--space-lg);
-      background: var(--card-primary, var(--color-primary));
-      color: var(--card-bg, #000);
-      font-family: var(--font-body);
-      font-size: var(--text-base);
-      font-weight: var(--weight-bold);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      border: 1px solid var(--color-border);
       border-radius: var(--radius-md);
-      border: none; cursor: pointer;
-      transition: filter 0.15s, transform 0.15s;
-    }
-    .card-btn:hover { filter: brightness(1.15); }
-    .card-btn:active { transform: scale(0.98); }
-    .card-btn:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
-
-    /* Progress bar */
-    .card-progress { display: none; flex-direction: column; gap: var(--space-xs); margin-bottom: var(--space-md); }
-    .card-progress.visible { display: flex; }
-    .progress-track { width: 100%; height: 3px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
-    .progress-fill { height: 100%; background: var(--card-primary, var(--color-primary)); width: 0%; transition: width 0.3s ease; border-radius: 3px; }
-    .progress-txt { font-size: var(--text-xs); color: rgba(255,255,255,0.5); text-align: center; letter-spacing: 0.08em; text-transform: uppercase; }
-
-    /* Sucesso dentro do card */
-    .card-sucesso {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      padding: var(--space-lg) 0;
-      gap: var(--space-md);
-    }
-    .card-sucesso.visible { display: flex; animation: fadeIn 0.4s ease both; }
-    .sucesso-icon { font-size: 52px; }
-    .sucesso-titulo { font-family: var(--font-display); font-size: var(--text-sm); color: var(--card-secondary, var(--color-secondary)); line-height: 1.5; }
-    .sucesso-score { font-family: var(--font-mono); font-size: var(--text-2xl); color: var(--card-primary, var(--color-primary)); font-weight: var(--weight-bold); }
-    .sucesso-msg { font-size: var(--text-sm); color: rgba(255,255,255,0.6); max-width: 280px; }
-    .sucesso-posicao {
-      font-family: var(--font-display);
-      font-size: var(--text-lg);
-      color: var(--card-primary, var(--color-primary));
-      margin: 4px 0 2px;
-      letter-spacing: 0.05em;
-    }
-    .sucesso-posicao span {
-      font-size: var(--text-3xl, 2.5rem);
-      display: block;
-      line-height: 1;
-    }
-    /* Compartilhamento */
-    .share-section {
-      width: 100%;
-      border-top: 1px solid rgba(255,255,255,0.08);
-      padding-top: var(--space-sm);
-      margin-top: var(--space-xs);
-    }
-    .share-label {
-      font-size: 9px;
-      letter-spacing: 0.12em;
-      color: rgba(255,255,255,0.35);
-      text-align: center;
-      margin-bottom: 8px;
-    }
-    .share-buttons {
-      display: flex;
-      gap: 8px;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-    .share-btn {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 14px;
-      border-radius: 8px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      transition: opacity 0.2s, transform 0.15s;
+      padding: var(--space-md);
       text-decoration: none;
+      transition: border-color var(--transition);
     }
-    .share-btn:active { transform: scale(0.96); }
-    .share-btn-native {
-      background: var(--card-primary, var(--color-primary));
-      color: #000;
-      flex: 1;
-    }
-    .share-btn-instagram { background: #E1306C; color: white; }
-    .share-btn-tiktok    { background: #010101; color: white; border: 1px solid #333; }
-    .share-btn-facebook  { background: #1877F2; color: white; }
+    .evento-card:hover { border-color: var(--color-border-hover); }
+    .evento-icone { width: 40px; height: 40px; border-radius: var(--radius-sm); object-fit: cover; flex-shrink: 0; }
+    .evento-icone-vazio { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0; }
+    .evento-nome { font-weight: var(--weight-bold); color: var(--color-text); }
+    .evento-arena { font-size: var(--text-xs); color: var(--color-text-muted); }
+    .evento-chevron { margin-left: auto; color: var(--color-text-muted); }
+    .eventos-vazio, .eventos-erro { text-align: center; color: var(--color-text-muted); font-size: var(--text-sm); padding: var(--space-lg) 0; }
+    .eventos-ver-todos { display: block; text-align: center; font-size: var(--text-sm); color: var(--color-accent); text-decoration: none; }
 
-    .link-pessoal-box {
+    /* ── CTA final ── */
+    .cta-final {
       width: 100%;
-      background: rgba(0,0,0,0.3);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-top: 8px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .link-pessoal-url {
-      flex: 1;
-      font-size: 10px;
-      color: rgba(255,255,255,0.5);
-      word-break: break-all;
-      line-height: 1.4;
-    }
-    .link-pessoal-copy {
-      background: none;
-      border: 1px solid rgba(255,255,255,0.2);
-      color: rgba(255,255,255,0.6);
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-size: 10px;
-      cursor: pointer;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .link-pessoal-copy:hover { border-color: var(--card-primary, var(--color-primary)); color: var(--card-primary, var(--color-primary)); }
-
-    /* Fogos de artifício */
-    @keyframes fogoBurst {
-      0%   { transform: translate(-50%,-50%) scale(0); opacity:1; }
-      80%  { opacity:1; }
-      100% { transform: translate(-50%,-50%) scale(1); opacity:0; }
-    }
-    .fogo-particle {
-      position: fixed;
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      pointer-events: none;
-      z-index: 9998;
-      animation: fogoQueda linear forwards;
-    }
-    @keyframes fogoQueda {
-      0%   { transform: translateY(0) scale(1); opacity:1; }
-      100% { transform: translateY(80px) scale(0.3); opacity:0; }
-    }
-
-    .share-rede {
-      width: 44px; height: 44px;
-      border-radius: 50%;
-      border: none;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-      color: white;
-      transition: transform 0.15s, filter 0.15s;
-      padding: 0;
-      flex-shrink: 0;
-    }
-    .share-rede:hover { transform: scale(1.12); filter: brightness(1.2); }
-    .share-rede[title="Instagram"] { background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fd5949 45%, #d6249f 60%, #285AEB 90%); }
-    .share-rede[title="TikTok"]    { background: #010101; border: 1px solid #444; }
-    .share-rede[title="Facebook"]  { background: #1877F2; }
-    .share-rede[title="WhatsApp"]  { background: #25D366; }
-    .share-rede[title="Salvar imagem"] { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); opacity: 0.6; }
-
-    .toast-superado {
-      position: fixed;
-      bottom: 80px; left: 50%;
-      transform: translateX(-50%) translateY(20px);
-      background: rgba(20,10,0,0.95);
-      border: 1px solid var(--color-primary);
-      border-radius: 12px;
-      padding: 14px 20px;
-      max-width: 320px;
-      width: 90%;
       text-align: center;
-      opacity: 0;
-      transition: opacity 0.3s, transform 0.3s;
-      pointer-events: none;
-      z-index: 999;
+      padding: var(--space-2xl) var(--space-md);
+      background: rgba(0,0,0,0.2);
+      border-top: 1px solid var(--color-border);
     }
-    .toast-superado.show {
-      opacity: 1;
-      transform: translateX(-50%) translateY(0);
-    }
-    .toast-superado-titulo {
-      font-family: var(--font-display);
+    .cta-final .section-title { margin-bottom: var(--space-lg); }
+
+    /* ── Footer ── */
+    .landing-footer {
+      width: 100%;
+      text-align: center;
+      padding: var(--space-lg) var(--space-md) var(--space-2xl);
       font-size: var(--text-xs);
-      color: var(--color-primary);
-      letter-spacing: 0.1em;
-      margin-bottom: 4px;
+      color: var(--color-text-dim);
     }
-    .toast-superado-msg {
-      font-size: var(--text-sm);
-      color: rgba(255,255,255,0.8);
-      line-height: 1.4;
+    .landing-footer a { color: var(--color-text-muted); text-decoration: none; margin: 0 var(--space-sm); }
+    .landing-footer a:hover { color: var(--color-accent); }
+
+    @media (max-width: 720px) {
+      .steps { grid-template-columns: 1fr; }
     }
-
-    .sucesso-motivacao {
-      font-size: var(--text-sm);
-      color: rgba(255,255,255,0.75);
-      max-width: 260px;
-      line-height: 1.5;
-      margin-top: 4px;
-      font-style: italic;
-    }
-    .sucesso-actions { display: flex; flex-direction: column; gap: var(--space-sm); width: 100%; }
-
-    /* ── Links ── */
-    .ranking-link {
-      display: flex; align-items: center; justify-content: center;
-      gap: var(--space-sm); margin-top: var(--space-xl);
-      color: var(--color-text-muted); font-size: var(--text-sm);
-      text-decoration: none; transition: color 0.2s;
-    }
-    .ranking-link:hover { color: var(--color-secondary); }
-
-    /* Loading */
-    .loading-games { display: flex; flex-direction: column; align-items: center; gap: var(--space-md); padding: var(--space-2xl); color: var(--color-text-muted); }
-    .loading-blink { font-family: var(--font-display); font-size: var(--text-sm); animation: blink 1s step-end infinite; }
-
-    input[type="file"] { display: none; }
   </style>
 </head>
 <body>
 
-<div class="upload-page">
-  <div class="page-header animate-slide-up">
-    <img src="logo.png" alt="Retro Score Ranking" class="page-logo">
-    <h1 class="page-title" id="page-title">TODO CAMPEONATO MERECE UM PLACAR DE VERDADE</h1>
-    <p class="page-subtitle" id="page-subtitle">Sua Arena, seu ranking — crie o seu em segundos ou venha competir nos eventos disponíveis.</p>
-  </div>
+<div class="landing">
 
-  <!-- Conta / login — precisa estar logado pra criar uma Arena -->
-  <div class="conta-bar animate-slide-up" id="conta-bar">
-    <div class="conta-status" id="conta-status">
-      <span class="conta-carregando">···</span>
+  <section class="hero animate-slide-up">
+    <img src="logo.png" alt="Retro Score Ranking" class="hero-logo">
+    <h1 class="hero-title">TODO CAMPEONATO MERECE UM PLACAR DE VERDADE</h1>
+    <p class="hero-subtitle">Crie sua Arena grátis, convide seus amigos e dispute o ranking em tempo real — do campeonato caseiro com a galera ao evento presencial com telão.</p>
+    <div class="hero-ctas">
+      <a href="login.html" class="btn-primary" id="cta-primaria">🏟️ Criar minha Arena grátis</a>
+      <a href="#eventos" class="btn-ghost">Ver eventos abertos agora</a>
     </div>
-  </div>
+    <p class="hero-conta" id="hero-conta"></p>
+    <div class="hero-scroll">▼ CONHEÇA</div>
+  </section>
 
-  <!-- Criar Arena -->
-  <div class="regras-card animate-slide-up" id="criar-arena-card">
-    <div class="regras-titulo">🏟️ CRIAR SUA ARENA</div>
-    <p style="font-size:var(--text-sm);color:var(--color-text-muted);margin-bottom:var(--space-md)">
-      Uma Arena é o seu espaço de competição — convide amigos, crie uma competição e comece a jogar. Grátis, leva menos de um minuto.
-    </p>
-    <input type="text" id="arena-nome-input" class="games-busca-input" placeholder="Nome da sua Arena" maxlength="80" style="margin-bottom:var(--space-sm)">
-    <button class="regras-toggle" id="criar-arena-btn" onclick="criarArena()" style="width:100%;justify-content:center">
-      <span>Criar Arena</span>
-    </button>
-    <p id="criar-arena-status" style="font-size:var(--text-xs);margin-top:var(--space-sm);min-height:1.2em"></p>
-  </div>
+  <section class="section">
+    <div class="section-eyebrow">COMO FUNCIONA</div>
+    <h2 class="section-title">Do zero ao primeiro placar em menos de um minuto</h2>
+    <div class="steps">
+      <div class="step animate-slide-up">
+        <div class="step-num">1</div>
+        <div class="step-title">Crie sua Arena</div>
+        <div class="step-text">Só o nome — sem burocracia, sem esperar aprovação de ninguém. Grátis.</div>
+      </div>
+      <div class="step animate-slide-up">
+        <div class="step-num">2</div>
+        <div class="step-title">Convide seus amigos</div>
+        <div class="step-text">Manda o link, eles entram e já podem jogar ou coadministrar com você.</div>
+      </div>
+      <div class="step animate-slide-up">
+        <div class="step-num">3</div>
+        <div class="step-title">Registre e dispute</div>
+        <div class="step-text">Cada pontuação enviada atualiza o ranking na hora, pro grupo inteiro ver.</div>
+      </div>
+    </div>
+  </section>
 
-  <!-- Diretório de eventos abertos (Fase 8, ARENA_SPEC.md D.1/D.7) -->
-  <div class="page-header animate-slide-up" style="margin-top:var(--space-xl);margin-bottom:var(--space-sm)">
-    <p class="page-subtitle" style="font-weight:600">EVENTOS ABERTOS AGORA</p>
-  </div>
-  <div class="games-lista" id="eventos-abertos-lista">
-    <div class="loading-games"><span>Carregando...</span></div>
-  </div>
+  <section class="section">
+    <div class="section-eyebrow">O QUE VOCÊ GANHA</div>
+    <h2 class="section-title">Feito pra quem organiza e pra quem joga</h2>
+    <div class="features">
+      <div class="feature animate-slide-up">
+        <div class="feature-icon">🏟️</div>
+        <div class="feature-title">Arena própria e grátis</div>
+        <div class="feature-text">Auto-serviço: você cria e administra a sua, sem depender de ninguém pra liberar.</div>
+      </div>
+      <div class="feature animate-slide-up">
+        <div class="feature-icon">🏆</div>
+        <div class="feature-title">Ranking em tempo real</div>
+        <div class="feature-text">Toda pontuação nova atualiza o placar na hora — ótimo até pra acompanhar num telão.</div>
+      </div>
+      <div class="feature animate-slide-up">
+        <div class="feature-icon">👥</div>
+        <div class="feature-title">Perfil e rivalidade</div>
+        <div class="feature-text">Siga outros jogadores e saiba na hora quando alguém supera sua pontuação.</div>
+      </div>
+      <div class="feature animate-slide-up">
+        <div class="feature-icon">🎮</div>
+        <div class="feature-title">Sem conta pra jogar</div>
+        <div class="feature-text">Entrar num evento e enviar pontuação nunca exige cadastro — login só pra quem organiza.</div>
+      </div>
+    </div>
+  </section>
 
-  <a href="ranking.html" class="ranking-link">Ver ranking geral →</a>
+  <section class="section" id="eventos">
+    <div class="section-eyebrow">DESCUBRA</div>
+    <h2 class="section-title">Eventos abertos agora</h2>
+    <div class="eventos-grid" id="eventos-destaque">
+      <div class="eventos-vazio">Carregando...</div>
+    </div>
+    <a href="login.html" class="eventos-ver-todos">Ver todos os eventos abertos →</a>
+  </section>
+
+  <section class="cta-final">
+    <h2 class="section-title">Sua galera já merece um ranking de verdade</h2>
+    <a href="login.html" class="btn-primary" id="cta-final">🏟️ Criar minha Arena grátis</a>
+  </section>
+
+  <footer class="landing-footer">
+    <a href="ranking.html">Ranking geral</a>
+    <a href="login.html">Entrar</a>
+  </footer>
+
 </div>
-
-<div class="toast" id="toast"></div>
 
 <script type="module">
 import { inserirNav } from './nav.js';
@@ -736,254 +237,64 @@ const API_URL = 'https://retro-score-ranking-production.up.railway.app';
 
 inserirNav('index');
 
-// ── CONTA / LOGIN (AUTH_SPEC.md §4) ─────────────────────────────
-// Criar Arena exige sessão ativa (Fase 8, ARENA_SPEC.md D.2) — login
-// resolvido antes de qualquer criação, sem estado transitório de
-// "preencha o formulário, autentique depois".
-
-let usuarioAtual = null;
-let providersCache = null;
-let nickAtualCache = null;
-
 document.addEventListener('DOMContentLoaded', async () => {
-  await carregarSessao();
-  carregarEventosAbertos();
+  carregarSessao();
+  carregarEventosDestaque();
 });
 
+// Sessão só personaliza o CTA — o widget de login em si vive em
+// login.html (ARENA_SPEC.md D.8), não duplicado aqui.
 async function carregarSessao() {
   try {
     const resp = await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
-    if (resp.ok) {
-      usuarioAtual = await resp.json();
-      await carregarNickAtual();
-      renderContaLogado(usuarioAtual);
-    } else {
-      usuarioAtual = null;
-      renderContaDeslogado();
+    if (!resp.ok) return;
+    const usuario = await resp.json();
+    const nome = usuario.nome || usuario.email || 'sua conta';
+    document.getElementById('hero-conta').innerHTML =
+      `Logado como <strong>${escaparHtml(nome)}</strong>`;
+    if (usuario.tem_arena) {
+      for (const id of ['cta-primaria', 'cta-final']) {
+        const el = document.getElementById(id);
+        el.textContent = '🏟️ Ir pro meu painel';
+        el.href = 'admin.html';
+      }
     }
-  } catch {
-    usuarioAtual = null;
-    renderContaDeslogado();
-  }
+  } catch { /* silencioso — CTA padrão de "criar Arena" continua válido */ }
 }
 
-// Apelido usado nas pontuações (docs/NICKNAME_SPEC.md) — prioridade
-// sobre o nome da conta Google/e-mail na saudação. Mesmo padrão já
-// usado em play.html: falha silenciosa, é só conveniência de exibição.
-async function carregarNickAtual() {
-  try {
-    const resp = await fetch(`${API_URL}/api/perfil`, { credentials: 'include' });
-    if (resp.ok) {
-      const perfil = await resp.json();
-      nickAtualCache = perfil.nick_atual || null;
-    }
-  } catch { /* silencioso */ }
-}
-
-function renderContaLogado(usuario) {
-  const el = document.getElementById('conta-status');
-  const nomeExibicao = nickAtualCache || usuario.nome || usuario.email || 'sua conta';
-  const linkPainel = usuario.tem_arena
-    ? `<a href="admin.html" class="conta-sair" style="text-decoration:underline">Meu painel</a>`
-    : '';
-  el.innerHTML = `
-    <span class="conta-info">✓ Logado como <strong>${escaparHtml(nomeExibicao)}</strong></span>
-    ${linkPainel}
-    <a href="perfil.html" class="conta-sair" style="text-decoration:underline">Meu perfil</a>
-    <button class="conta-sair" onclick="fazerLogout()">Sair</button>
-  `;
-}
-
-function renderContaDeslogado() {
-  const el = document.getElementById('conta-status');
-  el.innerHTML = `
-    <button class="conta-entrar-btn" onclick="toggleLoginPainel()">
-      👤 Entrar pra criar sua Arena
-    </button>
-    <div class="login-painel" id="login-painel" style="display:none">
-      <p class="login-painel-texto">
-        Login é rápido e necessário só pra criar/administrar sua Arena — ver
-        ranking e enviar pontuação continua funcionando sem conta.
-      </p>
-      <button class="login-btn login-btn-google" id="btn-login-google" onclick="loginGoogle()" style="display:none">
-        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
-        Continuar com Google
-      </button>
-      <div class="login-divisor" id="login-divisor" style="display:none"><span>ou</span></div>
-      <div class="login-email-form" id="login-email-form" style="display:none">
-        <input type="email" class="card-input" id="login-email-input"
-               placeholder="seu@email.com" autocomplete="email">
-        <button class="login-btn login-btn-email" onclick="loginMagicLink()">Enviar link de acesso</button>
-      </div>
-      <p class="login-email-status" id="login-email-status"></p>
-    </div>
-  `;
-}
-
-async function carregarProviders() {
-  if (providersCache) return providersCache;
-  try {
-    const resp = await fetch(`${API_URL}/api/auth/providers`);
-    providersCache = await resp.json();
-  } catch {
-    providersCache = { google: false, magic_link: false };
-  }
-  return providersCache;
-}
-
-window.toggleLoginPainel = async function() {
-  const painel = document.getElementById('login-painel');
-  const visivel = painel.style.display !== 'none';
-  painel.style.display = visivel ? 'none' : 'block';
-  if (!visivel) {
-    const providers = await carregarProviders();
-    document.getElementById('btn-login-google').style.display = providers.google ? 'flex' : 'none';
-    document.getElementById('login-divisor').style.display =
-      (providers.google && providers.magic_link) ? 'flex' : 'none';
-    document.getElementById('login-email-form').style.display = providers.magic_link ? 'flex' : 'none';
-  }
-};
-
-window.loginGoogle = function() {
-  // Navegação de página inteira (não fetch) — precisa sair do domínio
-  // pro Google e voltar. Volta pra esta mesma home.
-  window.location.href = `${API_URL}/api/auth/google/start`;
-};
-
-window.loginMagicLink = async function() {
-  const input  = document.getElementById('login-email-input');
-  const status = document.getElementById('login-email-status');
-  const email  = input.value.trim();
-  if (!email) return;
-
-  status.textContent = 'Enviando...';
-  try {
-    const resp = await fetch(`${API_URL}/api/auth/magic-link/request`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    const data = await resp.json();
-    status.textContent = data.mensagem || 'Se esse e-mail existir, enviamos um link de acesso.';
-    input.value = '';
-  } catch {
-    status.textContent = 'Não foi possível enviar agora. Tente de novo em instantes.';
-  }
-};
-
-window.fazerLogout = async function() {
-  try {
-    await fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
-  } catch {}
-  usuarioAtual = null;
-  renderContaDeslogado();
-};
-
-function escaparHtml(texto) {
-  const div = document.createElement('div');
-  div.textContent = texto;
-  return div.innerHTML;
-}
-
-function showToast(msg, tipo = 'success') {
-  const toast = document.getElementById('toast');
-  toast.textContent = msg;
-  toast.className = `toast show ${tipo}`;
-  setTimeout(() => { toast.className = 'toast'; }, 3500);
-}
-
-// ── CRIAR ARENA (Fase 8, ARENA_SPEC.md D.2/D.3) ─────────────────
-// Só nome — slug auto-derivado (editável seria refinamento futuro,
-// não bloqueante aqui). Colisão/rate-limit/heurística são resolvidos
-// inteiramente no backend (POST /api/admin/arenas); esta função só
-// traduz os status HTTP em mensagem clara.
-
-function slugify(texto) {
-  return texto
-    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60);
-}
-
-window.criarArena = async function() {
-  const input  = document.getElementById('arena-nome-input');
-  const status = document.getElementById('criar-arena-status');
-  const nome   = input.value.trim();
-
-  if (!nome) {
-    status.textContent = 'Digite um nome pra sua Arena.';
-    return;
-  }
-  if (!usuarioAtual) {
-    status.textContent = 'Entre com sua conta primeiro (botão acima).';
-    await window.toggleLoginPainel();
-    return;
-  }
-
-  const slug = slugify(nome);
-  status.textContent = 'Criando...';
-
-  try {
-    const resp = await fetch(`${API_URL}/api/admin/arenas`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, slug }),
-    });
-    const data = await resp.json();
-
-    if (resp.status === 201) {
-      status.textContent = `Arena "${data.nome}" criada! Acesse o painel pra configurar.`;
-      showToast('Arena criada com sucesso!', 'success');
-      input.value = '';
-      setTimeout(() => { window.location.href = 'admin.html'; }, 1500);
-    } else if (resp.status === 409) {
-      status.textContent = data.detail || 'Esse nome já está em uso — tente outro.';
-    } else if (resp.status === 429) {
-      status.textContent = data.detail || 'Limite de Arenas por dia atingido.';
-    } else if (resp.status === 401) {
-      status.textContent = 'Sessão expirada — entre novamente.';
-      renderContaDeslogado();
-    } else {
-      status.textContent = data.detail || 'Não foi possível criar agora. Tente de novo.';
-    }
-  } catch {
-    status.textContent = 'Erro de conexão — tente de novo em instantes.';
-  }
-};
-
-// ── DIRETÓRIO DE EVENTOS ABERTOS ────────────────────────────────
-
-async function carregarEventosAbertos() {
-  const el = document.getElementById('eventos-abertos-lista');
+async function carregarEventosDestaque() {
+  const el = document.getElementById('eventos-destaque');
+  const LIMITE = 4;
   try {
     const resp = await fetch(`${API_URL}/api/arenas/eventos-abertos`);
     const eventos = resp.ok ? await resp.json() : [];
 
     if (eventos.length === 0) {
-      el.innerHTML = `<div class="loading-games"><span>Nenhum evento aberto pra descoberta no momento — peça o link direto de quem organiza.</span></div>`;
+      el.innerHTML = `<div class="eventos-vazio">Nenhum evento aberto pra descoberta agora — que tal criar o seu?</div>`;
       return;
     }
 
-    el.innerHTML = eventos.map(e => `
-      <a href="play.html?evento=${encodeURIComponent(e.slug)}" class="game-card" style="text-decoration:none;display:block">
-        <div class="game-header">
-          <span class="game-icone">
-            ${e.logo_url ? `<img class="game-icone-img" src="${escaparHtml(e.logo_url)}" alt="${escaparHtml(e.nome)}">` : '🎮'}
-          </span>
-          <div class="game-info">
-            <div class="game-nome">${escaparHtml(e.nome)}</div>
-            <div class="game-lider" style="opacity:0.7">${escaparHtml(e.arena_nome)}</div>
-          </div>
-          <span class="game-chevron">›</span>
+    el.innerHTML = eventos.slice(0, LIMITE).map(e => `
+      <a href="play.html?evento=${encodeURIComponent(e.slug)}" class="evento-card">
+        ${e.logo_url
+          ? `<img class="evento-icone" src="${escaparHtml(e.logo_url)}" alt="${escaparHtml(e.nome)}">`
+          : `<span class="evento-icone-vazio">🎮</span>`}
+        <div>
+          <div class="evento-nome">${escaparHtml(e.nome)}</div>
+          <div class="evento-arena">${escaparHtml(e.arena_nome)}</div>
         </div>
+        <span class="evento-chevron">›</span>
       </a>
     `).join('');
   } catch {
-    el.innerHTML = `<div class="loading-games"><span style="color:var(--color-error)">Erro ao carregar eventos</span></div>`;
+    el.innerHTML = `<div class="eventos-erro">Não foi possível carregar os eventos agora.</div>`;
   }
+}
+
+function escaparHtml(texto) {
+  const div = document.createElement('div');
+  div.textContent = texto;
+  return div.innerHTML;
 }
 </script>
 

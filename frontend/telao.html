@@ -339,11 +339,12 @@
   // event "ativo agora" pra apontar, então cai no envio padrão.
   // Com event específico, aponta direto pro fluxo de envio
   // (play.html, Fase 8) — telão de placar agregado (sem event único)
-  // cai na home institucional pra descoberta.
+  // cai em login.html pra descoberta (D.8 — index.html virou landing
+  // de marketing, não faz mais discovery de evento).
   function urlUpload() {
     return eventoSlug
       ? `${UPLOAD_URL}/play.html?evento=${eventoSlug}`
-      : `${UPLOAD_URL}/index.html`;
+      : `${UPLOAD_URL}/login.html`;
   }
 
   // ── QR Code ──────────────────────────────────────────────────

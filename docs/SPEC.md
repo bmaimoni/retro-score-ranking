@@ -74,12 +74,19 @@ backend/
     smoke/                    # E2E com Playwright (fase C, precisa ambiente real)
 
 frontend/
-  index.html                # tela de upload (o visitante usa no celular)
-  ranking.html               # ranking público de um jogo (scrollável, com histórico por nick)
-  telao.html                  # exibição para o telão do evento (carrossel entre jogos, SSE)
-  admin.html                   # painel de moderação (feed, pendentes, gestão de jogos/config)
-  temas.js                      # temas visuais por slug de jogo (cores, tipografia, ícone)
-  style.css                      # estilos compartilhados
+  index.html                # landing de marketing (ARENA_SPEC.md D.8) — proposta de valor, CTA, vitrine de eventos abertos
+  login.html                 # entrar (Google/magic link) + criar Arena + diretório completo de eventos abertos (D.8)
+  verify.html                  # callback de verificação do magic link (era login.html antes de D.9)
+  play.html                     # envio de pontuação de um event específico (?evento=slug obrigatório, Fase 8 D.1)
+  ranking.html                   # ranking público de um jogo (scrollável, com histórico por nick)
+  telao.html                      # exibição para o telão do evento (carrossel entre jogos, SSE)
+  perfil.html                      # perfil do usuário logado (nick, avatar, seguir, histórico)
+  convite.html                      # preview + aceite de convite de coadministração (Fase 10)
+  admin.html                         # painel de quem administra uma Arena (games, moderação, wizard)
+  console.html                        # painel exclusivo de super (config global, avatares, manutenção, catálogo)
+  temas.js                              # temas visuais por slug de jogo (cores, tipografia, ícone)
+  nav.js                                 # navegação site-wide (hamburguer)
+  style.css                               # estilos compartilhados
 ```
 
 **Padrão de camadas:** `router` (HTTP) → `service` (regra de negócio) →
