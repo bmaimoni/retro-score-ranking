@@ -52,9 +52,13 @@ async def test_buscar_mapeia_resultado_corretamente():
         {
             "id": 3186,
             "name": "Street Fighter II",
-            "platforms": [{"id": 52, "name": "Arcade"}],
+            "platforms": [
+                {"id": 52, "name": "Arcade", "generation": 3},
+                {"id": 19, "name": "Super Nintendo", "generation": 4},
+            ],
             "first_release_date": 665366400,  # 1991-02-06 UTC
             "cover": {"image_id": "abc123"},
+            "genres": [{"id": 4, "name": "Fighting"}],
         },
         {
             "id": 231006,
@@ -73,13 +77,47 @@ async def test_buscar_mapeia_resultado_corretamente():
     assert len(resultados) == 2
     assert resultados[0]["igdb_id"] == 3186
     assert resultados[0]["nome"] == "Street Fighter II"
-    assert resultados[0]["plataforma"] == "Arcade"
+    assert resultados[0]["plataforma"] == "Arcade, Super Nintendo"
     assert resultados[0]["ano_lancamento"] == 1991
     assert resultados[0]["capa_url"] == "https://images.igdb.com/igdb/image/upload/t_cover_big/abc123.jpg"
+    assert resultados[0]["generos"] == ["Fighting"]
+    assert resultados[0]["geracoes"] == [3, 4]  # CATALOGO_JOGOS_SPEC.md 7.3 — conjunto, ordenado
 
     assert resultados[1]["plataforma"] is None
     assert resultados[1]["ano_lancamento"] is None
     assert resultados[1]["capa_url"] is None
+    assert resultados[1]["generos"] is None
+    assert resultados[1]["geracoes"] is None
+
+
+@pytest.mark.asyncio
+async def test_buscar_deduplica_geracoes_repetidas_entre_plataformas():
+    """CATALOGO_JOGOS_SPEC.md 7.3 — duas plataformas da mesma geração
+    (ex: 2 variantes de Arcade) não podem duplicar a geração no array."""
+    resposta_token = MagicMock()
+    resposta_token.json.return_value = {"access_token": "tok123", "expires_in": 5_000_000}
+    resposta_token.raise_for_status = MagicMock()
+
+    resposta_busca = MagicMock()
+    resposta_busca.raise_for_status = MagicMock()
+    resposta_busca.json.return_value = [{
+        "id": 1,
+        "name": "Jogo Multi-Arcade",
+        "platforms": [
+            {"id": 52, "name": "Arcade", "generation": 3},
+            {"id": 80, "name": "Arcade Cabinet", "generation": 3},
+        ],
+    }]
+
+    client_mock = AsyncMock()
+    client_mock.__aenter__.return_value = client_mock
+    client_mock.post = AsyncMock(side_effect=[resposta_token, resposta_busca])
+
+    with patch("services.igdb.get_settings", return_value=_settings_configurado()), \
+         patch("services.igdb.httpx.AsyncClient", return_value=client_mock):
+        resultados = await igdb.buscar("Jogo Multi-Arcade")
+
+    assert resultados[0]["geracoes"] == [3]
 
 
 @pytest.mark.asyncio

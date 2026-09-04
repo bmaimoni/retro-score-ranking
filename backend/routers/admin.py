@@ -47,6 +47,10 @@ class CriarJogo(BaseModel):
     # antigo vinculava a todos, ver criar_game abaixo).
     igdb_id: int | None = None
     event_id: str | None = None
+    # CATALOGO_JOGOS_SPEC.md Fase 7 — só preenchidos no caminho IGDB
+    # (7.4); o frontend nunca envia isso no cadastro manual.
+    generos: list[str] | None = None
+    geracoes: list[int] | None = None
 
     @field_validator("ano_lancamento")
     @classmethod
@@ -390,6 +394,8 @@ async def criar_game(
                     capa_url=body.capa_url,
                     gameplay_url=body.gameplay_url,
                     igdb_id=body.igdb_id,
+                    generos=body.generos,
+                    geracoes=body.geracoes,
                 )
             except Exception as exc:
                 if "unique" in str(exc).lower():

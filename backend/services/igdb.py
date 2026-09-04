@@ -74,6 +74,14 @@ def _mapear_resultado(item: dict) -> dict:
     plataformas = item.get("platforms") or []
     plataforma = ", ".join(p["name"] for p in plataformas) if plataformas else None
 
+    # CATALOGO_JOGOS_SPEC.md 7.3 — geração é atributo da plataforma, não
+    # do jogo; um jogo com várias plataformas carrega o conjunto de
+    # gerações delas (dedup + ordenado), não um valor só.
+    geracoes = sorted({p["generation"] for p in plataformas if p.get("generation")}) or None
+
+    # 7.1 — gêneros vêm de game.genres (lista de {id, name})
+    generos = [g["name"] for g in (item.get("genres") or [])] or None
+
     ano_lancamento = None
     if item.get("first_release_date"):
         ano_lancamento = datetime.fromtimestamp(
@@ -91,6 +99,8 @@ def _mapear_resultado(item: dict) -> dict:
         "plataforma": plataforma,
         "ano_lancamento": ano_lancamento,
         "capa_url": capa_url,
+        "generos": generos,
+        "geracoes": geracoes,
     }
 
 
@@ -111,7 +121,7 @@ async def buscar(query: str, limite: int = 10) -> list[dict]:
     query_escapada = query.replace('"', '\\"')
     corpo = (
         f'search "{query_escapada}"; '
-        f'fields name,platforms.name,first_release_date,cover.image_id; '
+        f'fields name,platforms.name,platforms.generation,first_release_date,cover.image_id,genres.name; '
         f'limit {limite};'
     )
 

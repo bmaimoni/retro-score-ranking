@@ -11,7 +11,8 @@ async def listar_ativos(pool: Pool) -> list[dict]:
     """
     rows = await pool.fetch(
         """
-        SELECT id, nome, slug, score_max, plataforma, ano_lancamento, capa_url, gameplay_url
+        SELECT id, nome, slug, score_max, plataforma, ano_lancamento, capa_url, gameplay_url,
+               generos, geracoes
         FROM games
         WHERE ativo = true AND pendente_aprovacao = false
         ORDER BY nome
@@ -27,7 +28,8 @@ async def buscar_por_slug(pool: Pool, slug: str) -> dict | None:
     row = await pool.fetchrow(
         """
         SELECT id, nome, slug, ativo, score_max,
-               plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id
+               plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id,
+               generos, geracoes
         FROM games WHERE slug = $1
         """,
         slug,
@@ -47,17 +49,21 @@ async def criar(
     capa_url: str | None = None,
     gameplay_url: str | None = None,
     igdb_id: int | None = None,
+    generos: list[str] | None = None,
+    geracoes: list[int] | None = None,
 ) -> dict:
     row = await pool.fetchrow(
         """
         INSERT INTO games (nome, slug, score_max, pendente_aprovacao, criado_por,
-                            plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                            plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id,
+                            generos, geracoes)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id, nome, slug, ativo, score_max, pendente_aprovacao, criado_por, criado_em,
-                  plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id
+                  plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id, generos, geracoes
         """,
         nome, slug, score_max, pendente_aprovacao, criado_por,
         plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id,
+        generos, geracoes,
     )
     return dict(row)
 
@@ -69,7 +75,7 @@ async def buscar_por_igdb_id(pool: Pool, igdb_id: int) -> dict | None:
     row = await pool.fetchrow(
         """
         SELECT id, nome, slug, ativo, score_max, pendente_aprovacao, criado_por, criado_em,
-               plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id
+               plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id, generos, geracoes
         FROM games WHERE igdb_id = $1
         """,
         igdb_id,
@@ -112,7 +118,10 @@ async def atualizar(
     nome: str | None = None,
     slug: str | None = None,
 ) -> dict | None:
-    # Constrói SET dinâmico com apenas os campos fornecidos
+    # Constrói SET dinâmico com apenas os campos fornecidos. generos/
+    # geracoes não entram aqui de propósito — edição manual deles fica
+    # fora de escopo (docs/CATALOGO_JOGOS_SPEC.md 7.6): só nascem do
+    # cadastro via IGDB, editar à mão abriria taxonomia sem curadoria.
     campos, valores = [], []
     idx = 1
 
@@ -153,7 +162,8 @@ async def listar_todos(pool: Pool) -> list[dict]:
     rows = await pool.fetch(
         """
         SELECT id, nome, slug, ativo, score_max, pendente_aprovacao, criado_em,
-               plataforma, ano_lancamento, capa_url, gameplay_url
+               plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id,
+               generos, geracoes
         FROM games ORDER BY nome
         """
     )

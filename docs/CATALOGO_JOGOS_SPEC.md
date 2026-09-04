@@ -1,6 +1,6 @@
 # Catálogo de jogos: admissão, integração IGDB e jornada de cadastro/seleção
 
-> Status: **Todas as fases fechadas** (1, 2, 3, 4, 5 e 6). Revisa o
+> Status: **Todas as fases fechadas** (1, 2, 3, 4, 5, 6 e 7). Revisa o
 > item 3.1 do `docs/BACKLOG_2026.md`
 > (decisão anterior: "sem integração externa... processo à parte, fora
 > do projeto") — reaberta aqui por pedido explícito, não por
@@ -155,3 +155,59 @@ mesclado, evento sem jogo nenhum" — só um dos dois exigia mudança:
 Implementação de 4.1: `frontend/ranking.html` (`carregarJogos`, novo
 `renderSemJogo`), `frontend/telao.html` (`carregarConfigTelao`, mesmo
 padrão adaptado ao tema do telão).
+
+## Fase 7 — Metadado de busca: gênero e geração de plataforma (2026-09-03)
+
+Motivada por queixa de usabilidade no canto "Jogos"
+(`docs/PAINEIS_ADMIN_SPEC.md` §10): buscar jogo hoje só filtra por
+nome. Pedido do Bruno: filtrar também por gênero (ex: "jogos de luta"),
+geração de console (ex: "3ª geração") — ano já dava pra filtrar
+(`ano_lancamento` já existe). Pesquisa no schema oficial da IGDB
+(verificado contra a definição de campos real, não por suposição)
+confirma disponibilidade:
+
+| Campo desejado | Campo IGDB | Onde mora | Multiplicidade |
+|---|---|---|---|
+| Gênero | `game.genres` → `genre.name` (ex: "Fighting", "Platform") | No jogo | Vários por jogo |
+| Geração de console | `platform.generation` (inteiro) | Na **plataforma**, não no jogo | Um jogo pode ter várias plataformas, cada uma com sua geração |
+| Ano | `game.first_release_date` | No jogo | Já temos (`ano_lancamento`) |
+
+### Decisões
+
+| # | Tópico | Decisão |
+|---|---|---|
+| 7.1 | Novas colunas em `games` | `generos text[]` e `geracoes integer[]`, ambas nullable, sem índice — dataset pequeno hoje (12 jogos em produção), mesmo raciocínio já aplicado a `plataforma`/`ano_lancamento` (sem índice) |
+| 7.2 | Por que array nativo, não tabela de junção | Mesmo nível de simplicidade que o resto do catálogo já usa (`plataforma` é string livre, não FK pra uma tabela de plataformas). `text[]`/`integer[]` dá `WHERE 'Fighting' = ANY(generos)` sem tabela nova nem JOIN — volume do catálogo (dezenas de jogos, não milhares) não justifica a complexidade extra |
+| 7.3 | Geração — um jogo, várias plataformas, várias gerações | `geracoes` guarda o **conjunto**, não um valor só — ex.: Street Fighter II saiu em Arcade e SNES, gerações diferentes; filtrar "3ª geração" deve achar o jogo se **qualquer** plataforma dele for gen 3 |
+| 7.4 | Cadastro manual (sem IGDB) | Sem gênero/geração — mesma régua de sempre: esses campos só vêm de fonte estruturada (IGDB); cadastro manual continua com metadado mínimo, sem obrigar o admin a digitar taxonomia |
+| 7.5 | Onde filtra | Cliente (JS), sobre o catálogo já carregado em `admin-jogos.html` (`games-todos` já traz tudo pra lá) — sem endpoint novo, sem paginação server-side. Reavaliar se o catálogo crescer de dezenas pra centenas |
+| 7.6 | Edição manual de gênero/geração no catálogo global | **Fora desta rodada.** Super já edita plataforma/ano/capa/etc (Fase 6), mas gênero/geração "vêm de fora" — editar à mão abriria inconsistência de taxonomia sem curadoria nenhuma. Gap consciente, não esquecido |
+
+### Migração 031 — o que muda, em português simples
+
+**O que muda**: 2 colunas novas em `games` — `generos` (lista de
+textos, ex.: `{Fighting, Action}`) e `geracoes` (lista de números, ex.:
+`{3, 4}`). Nenhuma tabela nova, nenhuma constraint nova.
+
+**É reversível?** Sim — `DROP COLUMN` desfaz sem efeito colateral em
+nenhuma outra tabela (nada referencia essas colunas via FK).
+
+**Afeta dado existente?** Não — as 2 colunas nascem `NULL` em todo jogo
+já cadastrado (nenhum dos 12 jogos em produção tem esse dado hoje,
+porque o campo nunca existiu). Sem backfill necessário; jogos antigos
+simplesmente não aparecem em filtro de gênero/geração até serem
+recadastrados via IGDB — ninguém pediu re-sync em massa, fora de
+escopo.
+
+**Validado contra o Postgres de produção** (mesmo processo da Fase 0 do
+`PAINEIS_ADMIN_SPEC.md`): conectado via `DATABASE_URL` (só leitura
+antes de rodar), confirmado o schema atual de `games` e a contagem real
+(12 jogos) — dataset pequeno, migração de baixíssimo risco.
+
+Implementação: `backend/migrations/031_generos_geracoes_jogos.sql`,
+`backend/services/igdb.py` (Apicalypse pede `genres.name`/
+`platforms.generation`, `_mapear_resultado` extrai e agrega),
+`backend/repositories/game.py` (`criar`/`atualizar`/todas as SELECT),
+`backend/routers/admin.py` (`CriarJogo`/`AtualizarJogo`),
+`frontend/admin-jogos.html` (filtro por gênero/geração na busca de jogo
+existente, badges nos resultados da IGDB).

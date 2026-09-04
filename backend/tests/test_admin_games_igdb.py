@@ -108,7 +108,33 @@ async def test_criar_game_via_igdb_pula_aprovacao_mesmo_nao_super(client):
         pool, "Street Fighter II", "street-fighter-ii", None,
         pendente_aprovacao=False, criado_por="pessoa@x.com",
         plataforma=None, ano_lancamento=None, capa_url=None, gameplay_url=None,
-        igdb_id=3186,
+        igdb_id=3186, generos=None, geracoes=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_criar_game_via_igdb_repassa_generos_e_geracoes(client):
+    """docs/CATALOGO_JOGOS_SPEC.md Fase 7 — generos/geracoes vindos da
+    busca IGDB (frontend já resolveu via buscar-igdb) chegam até o
+    repository, não só os campos que já existiam antes desta fase."""
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    criar_mock = AsyncMock(return_value=make_game())
+    with patch("repositories.game.buscar_por_igdb_id", AsyncMock(return_value=None)), \
+         patch("repositories.game.criar", criar_mock):
+        resp = await client.post("/api/admin/games", json={
+            "nome": "Street Fighter II", "slug": "street-fighter-ii",
+            "igdb_id": 3186, "generos": ["Fighting"], "geracoes": [3, 4],
+        })
+
+    assert resp.status_code == 201
+    criar_mock.assert_called_once_with(
+        pool, "Street Fighter II", "street-fighter-ii", None,
+        pendente_aprovacao=False, criado_por="admin",
+        plataforma=None, ano_lancamento=None, capa_url=None, gameplay_url=None,
+        igdb_id=3186, generos=["Fighting"], geracoes=[3, 4],
     )
 
 

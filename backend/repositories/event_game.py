@@ -35,6 +35,7 @@ async def listar_por_event_admin(pool: Pool, event_id: str) -> list[dict]:
         SELECT
             j.id, j.nome, j.slug, j.score_max,
             j.ativo AS jogo_ativo_global, j.pendente_aprovacao,
+            j.generos, j.geracoes,
             ej.ativo, ej.ordem
         FROM event_games ej
         JOIN games j ON j.id = ej.game_id
