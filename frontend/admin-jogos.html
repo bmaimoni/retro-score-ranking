@@ -215,6 +215,7 @@
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
     .carregando-igdb { animation: pulse 1.2s ease-in-out infinite; }
+    .aviso-nome-existente { color: var(--color-warning, #e6a23c); margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -441,6 +442,17 @@ function imgAmpliavel(url, style) {
 // ordenado do mais antigo pro mais novo: pra catálogo retrô, o jogo
 // original tende a ser o candidato certo, não o remaster/relançamento;
 // sem ano (raro) fica por último, não misturado no meio.
+// Achado 2026-09-05 (River Raid) — nome igual, sem igdb_id em comum,
+// não era pego pelo dedup existente (por igdb_id). Comparação simples
+// (case/trim-insensitive) é suficiente pro caso real que aconteceu;
+// não tenta ser tão abrangente quanto a colisão por substring do
+// cadastro manual (game_admissao.avaliar_colisao) de propósito — aqui é
+// só aviso, não bloqueio, então prefere menos falso-positivo.
+function acharNoCatalogoPorNome(nome) {
+  const alvo = nome.trim().toLowerCase();
+  return (catalogoCache || []).find(g => g.nome.trim().toLowerCase() === alvo) || null;
+}
+
 function ordenarPorAnoAntigo(lista) {
   return [...lista].sort((a, b) => {
     if (a.ano_lancamento == null) return 1;
@@ -851,19 +863,32 @@ async function buscarIgdb(termo) {
     }
     document.getElementById('credito-igdb').style.display = 'block';
 
-    container.innerHTML = '<p class="resultados-grupo-titulo">Encontrado na IGDB</p>' + resultados.map((r, i) => `
+    container.innerHTML = '<p class="resultados-grupo-titulo">Encontrado na IGDB</p>' + resultados.map((r, i) => {
+      // Achado 2026-09-05 (River Raid) — dedup por igdb_id (acima) não
+      // pega jogo manual com o mesmo nome; "+Cadastrar" criava um
+      // registro novo e separado do que já tinha recorde/vínculo real.
+      // Aviso + botão de override consciente, em vez de bloquear
+      // (pode legitimamente ser um jogo diferente com nome igual).
+      const existente = acharNoCatalogoPorNome(r.nome);
+      const aviso = existente
+        ? `<p class="game-meta aviso-nome-existente">⚠ Já existe "${escapar(existente.nome)}" no catálogo — considere "Atualizar da IGDB" nele em vez de cadastrar outro</p>`
+        : '';
+      const botao = existente
+        ? `<button class="btn-action btn-detalhe btn-cadastrar-igdb" data-idx="${i}" title="Cria um registro novo e separado, mesmo já existindo um com esse nome">Cadastrar mesmo assim</button>`
+        : `<button class="btn-action btn-reativar btn-cadastrar-igdb" data-idx="${i}">${eventoAtual ? '+ Cadastrar e vincular' : '+ Cadastrar'}</button>`;
+      return `
       <div class="resultado-card">
         ${imgAmpliavel(r.capa_url, 'width:36px;height:48px;object-fit:cover;border-radius:4px')}
         <div style="flex:1;min-width:0">
           <div class="game-nome" style="font-size:var(--text-sm)">${escapar(r.nome)}</div>
           <div class="game-meta">${escapar(r.plataforma || '')} ${r.ano_lancamento || ''}</div>
           ${badgesMetadado(r)}
+          ${aviso}
         </div>
-        <button class="btn-action btn-reativar btn-cadastrar-igdb" data-idx="${i}">
-          ${eventoAtual ? '+ Cadastrar e vincular' : '+ Cadastrar'}
-        </button>
+        ${botao}
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     container.querySelectorAll('.btn-cadastrar-igdb').forEach(btn => {
       btn.addEventListener('click', () => selecionarJogoIgdb(resultados[parseInt(btn.dataset.idx, 10)]));
