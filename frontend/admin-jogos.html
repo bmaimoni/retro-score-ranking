@@ -125,7 +125,45 @@
       letter-spacing: 0.06em;
       margin: var(--space-md) 0 var(--space-xs);
     }
+    /* Grid, não flex — pra plataforma/ano/ação ficarem em colunas
+       alinhadas entre um jogo e outro, em vez de deslizar conforme o
+       tamanho do nome/badges de cada linha (pedido do Bruno). */
+    .resultado-card, .resultado-header {
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr) 110px 56px auto;
+      gap: 10px;
+      align-items: center;
+    }
     .resultado-card {
+      padding: 8px 0;
+      border-bottom: var(--border-width) solid var(--color-border);
+    }
+    .resultado-header {
+      padding: 0 0 4px;
+      font-size: 10px;
+      font-weight: var(--weight-bold);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--color-text-muted);
+      border-bottom: var(--border-width) solid var(--color-border);
+    }
+    .resultado-card-plataforma, .resultado-card-ano {
+      font-size: var(--text-xs);
+      color: var(--color-text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .resultado-card-ano, .resultado-header .col-ano { text-align: right; }
+    .resultado-card-acoes { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+    @media (max-width: 640px) {
+      .resultado-card, .resultado-header { grid-template-columns: 36px minmax(0, 1fr) auto; }
+      .resultado-card-plataforma, .resultado-card-ano,
+      .resultado-header .col-plataforma, .resultado-header .col-ano { display: none; }
+    }
+    /* Listas simples (candidatos de resync, resultado de busca IGDB) —
+       não são o catálogo tabulado acima, ficam com o flex de sempre. */
+    .card-simples {
       display: flex;
       gap: 10px;
       align-items: center;
@@ -600,7 +638,16 @@ function renderResultadosCatalogo() {
     ? `${achados.length} jogo${achados.length === 1 ? '' : 's'} encontrado${achados.length === 1 ? '' : 's'}`
     : `Catálogo da plataforma — ${achados.length} jogo${achados.length === 1 ? '' : 's'}`;
 
-  container.innerHTML = `<p class="resultados-grupo-titulo">${titulo}</p>` + achados.map(g => {
+  const cabecalho = `
+    <div class="resultado-header">
+      <span></span>
+      <span>Jogo</span>
+      <span class="col-plataforma">Plataforma</span>
+      <span class="col-ano">Ano</span>
+      <span></span>
+    </div>`;
+
+  container.innerHTML = `<p class="resultados-grupo-titulo">${titulo}</p>${cabecalho}` + achados.map(g => {
     const vinculo = vinculoPorId.get(g.id);
     // Card do catálogo concentra vincular + ativar/desativar no evento
     // (CATALOGO_JOGOS_SPEC.md Fase 9) — não existe mais lista separada
@@ -615,17 +662,20 @@ function renderResultadosCatalogo() {
     const aberto = jogoDetalheAbertoId === g.id;
     return `
     <div class="resultado-card">
-      ${imgAmpliavel(g.capa_url, 'width:36px;height:48px;object-fit:cover;border-radius:4px')}
-      <div style="flex:1;min-width:0">
+      <div>${imgAmpliavel(g.capa_url, 'width:36px;height:48px;object-fit:cover;border-radius:4px')}</div>
+      <div style="min-width:0">
         <div class="game-nome" style="font-size:var(--text-sm)">
           ${escapar(g.nome)}
           ${g.ativo === false ? '<span class="badge-pendente-game" title="Desativado no catálogo global por super">Oculto globalmente</span>' : ''}
         </div>
-        <div class="game-meta">${escapar(g.plataforma || '')} ${g.ano_lancamento || ''}</div>
         ${badgesMetadado(g)}
       </div>
-      <button class="btn-action btn-detalhe" data-id="${g.id}" title="Ver detalhe do jogo">${aberto ? '▴ Detalhes' : '▾ Detalhes'}</button>
-      ${acao}
+      <div class="resultado-card-plataforma" title="${escapar(g.plataforma || '')}">${escapar(g.plataforma || '—')}</div>
+      <div class="resultado-card-ano">${g.ano_lancamento || '—'}</div>
+      <div class="resultado-card-acoes">
+        <button class="btn-action btn-detalhe" data-id="${g.id}" title="Ver detalhe do jogo">${aberto ? '▴ Detalhes' : '▾ Detalhes'}</button>
+        ${acao}
+      </div>
     </div>
     ${aberto ? renderDetalheJogo(g) : ''}`;
   }).join('');
@@ -704,7 +754,7 @@ function renderDetalheJogo(g) {
     return `<div class="resultado-detalhe">
       <p class="resultados-grupo-titulo">Qual desses é "${escapar(g.nome)}"?</p>
       ${candidatos.map(c => `
-        <div class="resultado-card">
+        <div class="card-simples">
           ${imgAmpliavel(c.capa_url, 'width:32px;height:44px;object-fit:cover;border-radius:4px')}
           <div style="flex:1;min-width:0">
             <div class="game-nome" style="font-size:var(--text-sm)">${escapar(c.nome)}</div>
@@ -842,7 +892,7 @@ async function buscarIgdb(termo) {
         ? `<button class="btn-action btn-detalhe btn-cadastrar-igdb" data-idx="${i}" title="Cria um registro novo e separado, mesmo já existindo um com esse nome">Cadastrar mesmo assim</button>`
         : `<button class="btn-action btn-reativar btn-cadastrar-igdb" data-idx="${i}">${eventoAtual ? '+ Cadastrar e vincular' : '+ Cadastrar'}</button>`;
       return `
-      <div class="resultado-card">
+      <div class="card-simples">
         ${imgAmpliavel(r.capa_url, 'width:36px;height:48px;object-fit:cover;border-radius:4px')}
         <div style="flex:1;min-width:0">
           <div class="game-nome" style="font-size:var(--text-sm)">${escapar(r.nome)}</div>
