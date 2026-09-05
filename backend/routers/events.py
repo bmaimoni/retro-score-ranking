@@ -10,6 +10,7 @@ só super opera fora dela. arena_id é obrigatório desde a migration 019
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from datetime import datetime
+from typing import Literal
 from utils.db import get_pool
 from middleware.auth import require_admin, AdminContext
 import repositories.event      as event_repo
@@ -78,6 +79,10 @@ class EventoUpdate(BaseModel):
 class EventoJogoUpdate(BaseModel):
     ativo: bool | None = None
     ordem: int | None = None
+
+
+class OrdenarGamesBody(BaseModel):
+    criterio: Literal["nome", "ano", "plataforma", "pontuacoes"]
 
 
 def _exigir_admin_na_arena(admin: AdminContext, arena_id: str, acao: str):
@@ -164,6 +169,23 @@ async def listar_games_do_event(
     if not admin.super and not admin.tem_acesso_na_arena(event["arena_id"]):
         raise HTTPException(status_code=403, detail="Sem acesso a este event")
     return await event_game_repo.listar_por_event_admin(pool, event_id)
+
+
+@router.post("/{event_id}/games/ordenar")
+async def ordenar_games_do_event(
+    event_id: str,
+    dados: OrdenarGamesBody,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """Recalcula a ordem de todos os games do event por um critério
+    pré-definido — substitui o reorder manual jogo a jogo
+    (docs/CATALOGO_JOGOS_SPEC.md Fase 9). Precisa vir ANTES de
+    /{game_id} abaixo: senão "ordenar" seria capturado como game_id."""
+    event = await _resolver_event_ou_404(pool, event_id)
+    _exigir_admin_na_arena(admin, event["arena_id"], "reordenar os games deste event")
+
+    return await event_game_repo.reordenar_por_criterio(pool, event_id, dados.criterio)
 
 
 @router.post("/{event_id}/games/{game_id}", status_code=201)

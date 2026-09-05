@@ -708,3 +708,73 @@ async def test_upload_event_nao_publico_retorna_403(client):
             files=[("foto", ("f.jpg", io.BytesIO(jpeg), "image/jpeg"))])
 
     assert resp.status_code == 403
+
+
+# ── Ordenar games por critério (CATALOGO_JOGOS_SPEC.md Fase 9) ─────────
+
+@pytest.mark.asyncio
+async def test_admin_ordena_games_do_event_por_criterio_valido(client):
+    event = _event(arena_id=ARENA_A)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+    resultado = [{"id": make_uuid(), "game_id": make_uuid(), "ordem": 0}]
+
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=event)), \
+         patch("repositories.event_game.reordenar_por_criterio",
+               AsyncMock(return_value=resultado)) as mock_reordenar:
+        resp = await client.post(
+            f"/api/admin/events/{event['id']}/games/ordenar", json={"criterio": "pontuacoes"}
+        )
+
+    assert resp.status_code == 200
+    assert resp.json() == resultado
+    mock_reordenar.assert_awaited_once_with(pool, event["id"], "pontuacoes")
+
+
+@pytest.mark.asyncio
+async def test_ordenar_games_rejeita_criterio_desconhecido(client):
+    """Literal do Pydantic barra qualquer valor fora dos 4 pré-definidos
+    — nunca chega a montar SQL com um critério arbitrário."""
+    event = _event(arena_id=ARENA_A)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=event)):
+        resp = await client.post(
+            f"/api/admin/events/{event['id']}/games/ordenar", json={"criterio": "aleatorio"}
+        )
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_moderador_nao_ordena_games_do_event(client):
+    """Mesmo gate de edição do vínculo jogo↔evento — moderador só lê."""
+    event = _event(arena_id=ARENA_A)
+    app.dependency_overrides[require_admin] = lambda: moderador_ctx(arena_id=ARENA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=event)):
+        resp = await client.post(
+            f"/api/admin/events/{event['id']}/games/ordenar", json={"criterio": "nome"}
+        )
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_admin_nao_ordena_games_de_event_de_outra_arena(client):
+    event = _event(arena_id=ARENA_B)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
+    pool = MagicMock()
+    app.dependency_overrides[get_pool] = lambda: pool
+
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=event)):
+        resp = await client.post(
+            f"/api/admin/events/{event['id']}/games/ordenar", json={"criterio": "nome"}
+        )
+
+    assert resp.status_code == 403

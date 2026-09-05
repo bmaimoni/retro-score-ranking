@@ -476,12 +476,6 @@
     .pag-info { font-size: var(--text-xs); color: var(--color-text-muted); }
 
     /* ── Tabela de games ── */
-    .games-grid {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-sm);
-      margin-bottom: var(--space-xl);
-    }
     .game-card {
       background: var(--color-bg-surface);
       border: var(--border-width) solid var(--color-border);
@@ -492,53 +486,8 @@
       gap: var(--space-md);
       align-items: center;
     }
-    .game-card.inativo { opacity: 0.5; }
     .game-nome { font-size: var(--text-md); font-weight: var(--weight-bold); }
-    .badge-pendente-game {
-      display: inline-block;
-      font-size: 10px;
-      font-weight: var(--weight-bold);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      background: var(--color-warning, #e6a23c);
-      color: #1a1a1a;
-      padding: 2px 8px;
-      border-radius: var(--radius-full, 999px);
-      margin-left: 8px;
-      vertical-align: middle;
-    }
-    .game-meta { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; }
-    .game-actions { display: flex; gap: var(--space-xs); align-items: center; }
 
-    .toggle-ativo {
-      width: 44px; height: 24px;
-      border-radius: var(--radius-full);
-      background: var(--color-bg-surface2);
-      border: var(--border-width) solid var(--color-border);
-      cursor: pointer;
-      position: relative;
-      transition: background var(--transition);
-      flex-shrink: 0;
-    }
-    .toggle-ativo.on { background: var(--color-secondary); border-color: var(--color-secondary); }
-    .toggle-ativo::after {
-      content: '';
-      position: absolute;
-      top: 2px; left: 2px;
-      width: 18px; height: 18px;
-      border-radius: 50%;
-      background: #fff;
-      transition: transform var(--transition);
-    }
-    .toggle-ativo.on::after { transform: translateX(20px); }
-
-    /* ── Formulário criar game ── */
-    .criar-game-form {
-      background: var(--color-bg-surface);
-      border: var(--border-width) solid var(--color-border);
-      border-radius: var(--radius-md);
-      padding: var(--space-lg);
-    }
     .form-title {
       font-size: var(--text-md);
       font-weight: var(--weight-bold);
@@ -739,7 +688,6 @@
     </button>
 
     <button class="admin-tab" data-tab="wizard" id="tab-btn-wizard" style="display:none">Wizard</button>
-    <button class="admin-tab" data-tab="games">Games</button>
     <button class="admin-tab" data-tab="config">Event</button>
     <button class="admin-tab" data-tab="telao">Telão</button>
     <button class="admin-tab" data-tab="administradores" id="tab-btn-administradores" style="display:none">Administradores</button>
@@ -796,54 +744,6 @@
     </div>
   </div>
 
-
-
-  <!-- ── ABA: GAMES (games do event ativo, docs/PAINEIS_ADMIN_SPEC.md Fase I) ── -->
-  <div class="tab-content" id="tab-games">
-    <!-- Super não tem event fixo (I.8) — precisa escolher qual event
-         gerenciar. Admin/moderador escopado herda o event-selector do
-         topbar (mesmo eventoAtual do Feed). -->
-    <div class="field" id="games-event-selector-wrap" style="display:none;max-width:320px;margin-bottom:var(--space-md)">
-      <label class="field-label" for="games-event-selector">Event</label>
-      <select class="field-input" id="games-event-selector"></select>
-    </div>
-
-    <div id="games-sem-event" style="display:none;color:var(--color-text-muted);font-size:var(--text-sm)">
-      Nenhum event nesta Arena ainda — crie um na aba Event antes de gerenciar games.
-    </div>
-
-    <div id="games-conteudo">
-      <div class="section-header">
-        <span class="section-title">Games deste event</span>
-      </div>
-      <div class="games-grid" id="games-list"></div>
-
-      <div class="criar-game-form" id="adicionar-game-form">
-        <p class="form-title">+ Adicionar game já existente ao event</p>
-        <input class="field-input" type="search" id="games-busca-input" placeholder="Buscar por nome no catálogo…">
-        <div id="games-busca-resultados"></div>
-      </div>
-
-      <div class="criar-game-form" id="criar-game-form">
-        <p class="form-title">+ Novo game</p>
-        <div class="form-row">
-          <div class="field">
-            <label class="field-label" for="game-nome">Nome</label>
-            <input class="field-input" type="text" id="game-nome" placeholder="Ex: Pac-Man">
-          </div>
-          <div class="field">
-            <label class="field-label" for="game-slug">Slug (URL)</label>
-            <input class="field-input" type="text" id="game-slug" placeholder="Ex: pac-man">
-          </div>
-        </div>
-        <div class="field">
-          <label class="field-label" for="game-score-max">Score máximo (opcional)</label>
-          <input class="field-input" type="number" id="game-score-max" placeholder="Ex: 999990 — deixe vazio para sem limite">
-        </div>
-        <button class="btn-primary" id="criar-game-btn">CRIAR GAME</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ── ABA: CONFIG ── -->
   <div class="tab-content" id="tab-config">
@@ -915,6 +815,9 @@
         (não arquivado). <strong>Público</strong> = ranking/telão acessíveis.
         <strong>Janela</strong> = período em que aceita novas pontuações —
         um event pode continuar público/consultável mesmo fora da janela.
+        Vincular/ativar jogos a um event agora é feito na
+        <a href="admin-jogos.html" style="color:var(--color-primary)">tela de Jogos</a>
+        — aqui só a ordem deles (abaixo, por critério).
       </p>
       <div id="events-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:var(--space-md)"></div>
 
@@ -1094,8 +997,6 @@
 // ── CONFIGURAÇÃO ──────────────────────────────────────────────────────────────
 const API_URL = 'https://retro-score-ranking-production.up.railway.app';
 const POLL_INTERVAL = 300000; // 5 minutos
-let jogosCarregados = false;
-let jogosCache = [];  // usado pelo select de "mesclar com" em games pendentes
 
 // ── ESTADO ────────────────────────────────────────────────────────────────────
 let adminSecret = '';
@@ -1126,9 +1027,6 @@ function nivelDaMarca(marcaId) {
 // arenas) já checam nível linha a linha na hora de montar o HTML.
 function aplicarVisibilidadePorNivel() {
   const super_ = !!(meInfo && meInfo.super);
-
-  const criarJogo = document.getElementById('criar-game-form');
-  if (criarJogo) criarJogo.style.display = ehAdminEmAlgumaMarca() ? '' : 'none';
 
   const criarMarca = document.getElementById('arena-form-details');
   if (criarMarca) criarMarca.style.display = super_ ? '' : 'none';
@@ -1361,7 +1259,6 @@ function configurarIdentidadeEEscopo() {
     eventoAtual = elSelector.value;
     feedOffset = 0;  // troca de event sempre volta pra primeira página
     carregarTudo();
-    carregarJogos();  // Games é por event (Fase I) — não fica preso ao cache de carregarTudo
   };
 }
 
@@ -1413,7 +1310,6 @@ function selecionarArenaAtiva(arenaId) {
   aplicarBrandingArena(arenasDisponiveis.find(a => a.id === arenaId));
   filtrarEventSelectorPorArena();
   carregarInicio();
-  atualizarContextoGames();  // Games é por event (I.8) — troca de Arena muda o event em contexto
   if (document.getElementById('tab-config').classList.contains('active')) carregarEventos();
 }
 
@@ -1501,8 +1397,6 @@ async function carregarTudo() {
   if (btn) { btn.classList.add('loading'); btn.textContent = '↻ Atualizando...'; }
   // Feed já inclui pendentes via filtro
   await carregarFeed();
-  // Games só carrega uma vez — raramente muda
-  if (!jogosCarregados) await carregarJogos();
   if (btn) { btn.classList.remove('loading'); btn.textContent = '↻ Atualizar'; }
 }
 
@@ -1683,240 +1577,6 @@ function popularFiltroFeedComCatalogo() {
       .map(j => `<option value="${j.id}">${escapar(j.nome)}</option>`).join('');
   selFeedJogo.value = selecionado;
 }
-
-async function popularSeletorEventoGames() {
-  const wrap = document.getElementById('games-event-selector-wrap');
-  const sel  = document.getElementById('games-event-selector');
-  if (!meInfo || !meInfo.super) { wrap.style.display = 'none'; return; }
-  if (!arenaAtual) { wrap.style.display = 'none'; return; }
-
-  try {
-    const resp = await apiFetch('/api/admin/events');
-    if (!resp.ok) return;
-    const events = (await resp.json()).filter(e => e.arena_id === arenaAtual);
-    if (events.length === 0) { wrap.style.display = 'none'; eventoAtual = null; return; }
-
-    wrap.style.display = 'block';
-    sel.innerHTML = events.map(e =>
-      `<option value="${e.id}">${escapar(e.nome)}${e.ativo === false ? ' (arquivado)' : ''}</option>`
-    ).join('');
-    if (!eventoAtual || !events.some(e => e.id === eventoAtual)) eventoAtual = events[0].id;
-    sel.value = eventoAtual;
-    sel.onchange = () => { eventoAtual = sel.value; carregarJogos(); };
-  } catch { /* silencioso */ }
-}
-
-// Chamado sempre que a Arena ativa muda (super) ou o event-selector do
-// Feed muda (admin/moderador escopado) — mantém a aba Games em sincronia
-// mesmo se ela não estiver visível no momento da troca.
-async function atualizarContextoGames() {
-  if (meInfo && meInfo.super) await popularSeletorEventoGames();
-  await carregarJogos();
-}
-
-async function carregarJogos() {
-  jogosCarregados = true;
-  const semEvento = document.getElementById('games-sem-event');
-  const conteudo  = document.getElementById('games-conteudo');
-
-  if (!eventoAtual) {
-    semEvento.style.display = 'block';
-    conteudo.style.display  = 'none';
-    return;
-  }
-  semEvento.style.display = 'none';
-  conteudo.style.display  = '';
-
-  await carregarCatalogoGlobal();
-
-  try {
-    const resp = await apiFetch(`/api/admin/events/${eventoAtual}/games`);
-    if (!resp.ok) { document.getElementById('games-list').innerHTML = emptyState('Erro ao carregar games deste event'); return; }
-    renderJogos(await resp.json());
-  } catch { /* silencioso */ }
-}
-
-function renderJogos(games) {
-  jogosCache = games;
-  const container = document.getElementById('games-list');
-
-  // Leitura é liberada pra moderador (backend: events.py `listar_games_do_event`),
-  // mas edição (toggle/ordem/adicionar) exige admin na Arena ativa — esconder
-  // aqui, não só bloquear depois do clique (docs/PERMISSOES_SPEC.md §7 item 5).
-  const podeEditar = !!(meInfo && (meInfo.super || nivelDaMarca(arenaAtual) === 'admin'));
-  document.getElementById('adicionar-game-form').style.display = podeEditar ? '' : 'none';
-
-  if (games.length === 0) {
-    container.innerHTML = emptyState('Nenhum game vinculado a este event ainda — adicione um abaixo');
-    return;
-  }
-  const ordenados = [...games].sort((a, b) => a.ordem - b.ordem);
-  container.innerHTML = ordenados.map((j, i) => `
-    <div class="game-card ${j.ativo ? '' : 'inativo'}" data-id="${j.id}">
-      <div>
-        <div class="game-nome">
-          ${escapar(j.nome)}
-          ${j.pendente_aprovacao ? '<span class="badge-pendente-game">Aguardando aprovação</span>' : ''}
-          ${j.jogo_ativo_global === false ? '<span class="badge-pendente-game" title="Desativado no catálogo global por super">Oculto globalmente</span>' : ''}
-        </div>
-        <div class="game-meta">
-          slug: ${j.slug}
-          ${j.score_max ? ` · máx: ${j.score_max.toLocaleString('pt-BR')}` : ' · sem limite de score'}
-        </div>
-      </div>
-      <div class="game-actions">
-        <div style="display:flex;align-items:center;gap:var(--space-sm)">
-          ${podeEditar ? `
-          <button class="btn-action btn-ocultar btn-reordenar" data-id="${j.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Mover pra cima" style="padding:2px 8px">↑</button>
-          <button class="btn-action btn-ocultar btn-reordenar" data-id="${j.id}" data-dir="1" ${i === ordenados.length - 1 ? 'disabled' : ''} title="Mover pra baixo" style="padding:2px 8px">↓</button>` : ''}
-          ${meInfo && meInfo.super ? `
-          <button class="btn-action btn-rejeitar btn-arquivar-game" data-id="${j.id}" data-nome="${j.nome}"
-                  title="Arquivar ranking deste game (todas as arenas)" style="padding:4px 10px;font-size:10px">
-            ⬇ Arquivar
-          </button>` : ''}
-          ${podeEditar ? `
-          <div class="toggle-ativo ${j.ativo ? 'on' : ''}"
-               data-id="${j.id}" data-ativo="${j.ativo}"
-               title="${j.ativo ? 'Ativo neste event — clique para desativar' : 'Inativo neste event — clique para ativar'}">
-          </div>` : ''}
-        </div>
-      </div>
-    </div>
-  `).join('');
-
-  // Botão arquivar ranking por game (global — todas as arenas, super-only)
-  container.querySelectorAll('.btn-arquivar-game').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const nome = btn.dataset.nome;
-      if (!confirm(`Arquivar todo o ranking de "${nome}"? As entries poderão ser restauradas depois.`)) return;
-      try {
-        const resp = await apiFetch('/api/admin/manutencao/limpar-ranking', 'POST', {
-          game_id: btn.dataset.id, permanente: false, confirmar: 'CONFIRMAR'
-        });
-        const data = await resp.json();
-        showToast(`${data.total_afetadas} entries arquivadas de "${nome}"`, 'success');
-        carregarFeed();
-      } catch { showToast('Erro ao arquivar ranking', 'error'); }
-    });
-  });
-
-  // I.2 — vínculo do event, nunca mais o catálogo global
-  container.querySelectorAll('.toggle-ativo').forEach(toggle => {
-    toggle.addEventListener('click', async () => {
-      const id    = toggle.dataset.id;
-      const ativo = toggle.dataset.ativo === 'true';
-      try {
-        await apiFetch(`/api/admin/events/${eventoAtual}/games/${id}`, 'PATCH', { ativo: !ativo });
-        showToast(!ativo ? 'Game ativado neste event' : 'Game desativado neste event', 'success');
-        carregarJogos();
-      } catch { showToast('Erro ao atualizar game', 'error'); }
-    });
-  });
-
-  // I.4 — reordenar com setas simples; renumera a lista inteira em
-  // sequência (0..N-1) a cada troca, então nunca fica preso em `ordem`
-  // duplicado (ex: todos nascem em 0 ao serem adicionados).
-  container.querySelectorAll('.btn-reordenar').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const idx     = ordenados.findIndex(j => j.id === btn.dataset.id);
-      const alvoIdx = idx + parseInt(btn.dataset.dir);
-      if (alvoIdx < 0 || alvoIdx >= ordenados.length) return;
-      const nova = [...ordenados];
-      [nova[idx], nova[alvoIdx]] = [nova[alvoIdx], nova[idx]];
-      try {
-        await Promise.all(nova.map((j, i) =>
-          apiFetch(`/api/admin/events/${eventoAtual}/games/${j.id}`, 'PATCH', { ordem: i })
-        ));
-        carregarJogos();
-      } catch { showToast('Erro ao reordenar', 'error'); }
-    });
-  });
-}
-
-// I.3 — adicionar game já existente do catálogo a este event
-document.getElementById('games-busca-input').addEventListener('input', async (e) => {
-  const termo = e.target.value.trim().toLowerCase();
-  const resultados = document.getElementById('games-busca-resultados');
-  if (termo.length < 2) { resultados.innerHTML = ''; return; }
-
-  const catalogo = await carregarCatalogoGlobal();
-  const idsNoEvento = new Set((jogosCache || []).map(j => j.id));
-  const achados = catalogo
-    .filter(g => !g.pendente_aprovacao && !idsNoEvento.has(g.id))
-    .filter(g => g.nome.toLowerCase().includes(termo))
-    .slice(0, 8);
-
-  resultados.innerHTML = achados.length === 0
-    ? `<p style="font-size:var(--text-xs);color:var(--color-text-muted);margin-top:var(--space-sm)">Nada encontrado</p>`
-    : achados.map(g => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:var(--border-width) solid var(--color-border)">
-          <span style="font-size:var(--text-sm)">${escapar(g.nome)}</span>
-          <button class="btn-action btn-reativar btn-adicionar-ao-event" data-id="${g.id}" style="padding:4px 10px;font-size:10px">+ Adicionar</button>
-        </div>
-      `).join('');
-
-  resultados.querySelectorAll('.btn-adicionar-ao-event').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      if (!eventoAtual) return;
-      try {
-        const ordem = (jogosCache || []).length;
-        const resp = await apiFetch(`/api/admin/events/${eventoAtual}/games/${btn.dataset.id}?ordem=${ordem}`, 'POST');
-        if (!resp.ok) {
-          const err = await resp.json();
-          showToast(err.detail || 'Erro ao adicionar game', 'error');
-          return;
-        }
-        showToast('Game adicionado ao event', 'success');
-        document.getElementById('games-busca-input').value = '';
-        resultados.innerHTML = '';
-        carregarJogos();
-      } catch { showToast('Erro ao adicionar game', 'error'); }
-    });
-  });
-});
-
-// Games pendentes de aprovação migraram pro console.html
-// (docs/PAINEIS_ADMIN_SPEC.md II.2) — já eram super-only no backend, e
-// dependiam de `jogosCache` pra montar o select de "mesclar com", que
-// desde a Fase I passou a ser só os games do event ativo (não mais o
-// catálogo inteiro) — a seção tinha ficado com escopo errado sem
-// ninguém perceber. Corrigido junto da mudança de lugar.
-
-// Slug automático ao digitar nome
-document.getElementById('game-nome').addEventListener('input', e => {
-  document.getElementById('game-slug').value = e.target.value
-    .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-});
-
-document.getElementById('criar-game-btn').addEventListener('click', async () => {
-  const nome      = document.getElementById('game-nome').value.trim();
-  const slug      = document.getElementById('game-slug').value.trim();
-  const scoreMax  = parseInt(document.getElementById('game-score-max').value) || null;
-
-  if (!nome || !slug) { showToast('Nome e slug são obrigatórios', 'error'); return; }
-  if (!eventoAtual) { showToast('Selecione um event primeiro', 'error'); return; }
-
-  try {
-    // event_id vincula direto ao event em contexto (achado 5.9 do
-    // CATALOGO_JOGOS_SPEC.md — sem isso o game nasce sem vínculo
-    // nenhum e não aparece na aba Games de lugar algum).
-    const resp = await apiFetch('/api/admin/games', 'POST', { nome, slug, score_max: scoreMax, event_id: eventoAtual });
-    if (!resp.ok) {
-      const err = await resp.json();
-      showToast(err.detail || 'Erro ao criar game', 'error');
-      return;
-    }
-    document.getElementById('game-nome').value = '';
-    document.getElementById('game-slug').value = '';
-    document.getElementById('game-score-max').value = '';
-    showToast(`Game "${nome}" criado!`, 'success');
-    catalogoGlobal = null;  // invalida cache — o game novo precisa aparecer na busca/filtro
-    carregarJogos();
-  } catch { showToast('Erro ao criar game', 'error'); }
-});
 
 // ── WIZARD (Fase 9 + CATALOGO_JOGOS_SPEC.md Fase 1) ────────────────────────────
 // Checklist não-bloqueante (E.1): progresso calculado on-the-fly pelo backend
@@ -2969,6 +2629,17 @@ const MODOS_RANKING = {
   geral:            'Geral da plataforma',
 };
 
+// CATALOGO_JOGOS_SPEC.md Fase 9 — substitui o reorder manual jogo a
+// jogo (setas ↑/↓) por um critério aplicado de uma vez a todos os jogos
+// do event. Vincular/ativar jogos continua em admin-jogos.html; só a
+// ordem é ação daqui, junto do resto da config do event.
+const CRITERIOS_ORDENAR_JOGOS = {
+  nome:        'Alfabética',
+  ano:         'Ano de lançamento',
+  plataforma:  'Plataforma',
+  pontuacoes:  'Mais pontuações',
+};
+
 async function carregarEventos() {
   try {
     const [rEventos, rMarcas] = await Promise.all([
@@ -3025,7 +2696,16 @@ async function carregarEventos() {
               ${Object.entries(MODOS_RANKING).map(([valor, label]) =>
                 `<option value="${valor}" ${e.modo_ranking === valor ? 'selected' : ''}>${label}</option>`
               ).join('')}
-            </select>` : `
+            </select>
+            <select class="field-input" id="ordenar-jogos-criterio-${e.id}" style="font-size:10px;padding:4px 8px;width:auto">
+              ${Object.entries(CRITERIOS_ORDENAR_JOGOS).map(([valor, label]) =>
+                `<option value="${valor}">${label}</option>`
+              ).join('')}
+            </select>
+            <button class="btn-action" style="padding:4px 10px;font-size:10px"
+                    onclick="ordenarJogosDoEvento('${e.id}')" title="Recalcula a ordem de todos os jogos deste event pelo critério escolhido — não existe mais reorder manual jogo a jogo (CATALOGO_JOGOS_SPEC.md Fase 9)">
+              Ordenar jogos
+            </button>` : `
             <span style="font-size:10px;color:var(--color-text-muted);padding:4px 10px">
               ${e.publico ? '👁 Público' : '🚫 Inacessível'} · ${MODOS_RANKING[e.modo_ranking] || e.modo_ranking}
             </span>`}
@@ -3046,6 +2726,19 @@ async function atualizarModoRanking(id, modoRanking) {
   const resp = await apiFetch(`/api/admin/events/${id}`, 'PATCH', { modo_ranking: modoRanking });
   if (resp.ok) { showToast(`Modo de ranking: ${MODOS_RANKING[modoRanking]}`, 'success'); carregarEventos(); }
   else { const d = await resp.json(); showToast(d.detail || 'Erro ao atualizar modo de ranking', 'error'); }
+}
+
+async function ordenarJogosDoEvento(id) {
+  const criterio = document.getElementById(`ordenar-jogos-criterio-${id}`).value;
+  try {
+    const resp = await apiFetch(`/api/admin/events/${id}/games/ordenar`, 'POST', { criterio });
+    if (resp.ok) {
+      showToast(`Jogos ordenados por: ${CRITERIOS_ORDENAR_JOGOS[criterio]}`, 'success');
+    } else {
+      const d = await resp.json();
+      showToast(d.detail || 'Erro ao ordenar jogos', 'error');
+    }
+  } catch { showToast('Erro ao ordenar jogos', 'error'); }
 }
 
 async function criarEvento() {

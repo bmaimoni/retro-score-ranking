@@ -10,6 +10,11 @@
 > esquecimento. Nenhuma decisão anterior é tratada como imutável, mesma
 > postura já registrada em `ARENA_SPEC.md` A.4.
 >
+> **Fase 9 implementada** (§9 abaixo), **pendente de validação manual em
+> navegador** (mesma ressalva de sempre, [[project_sandbox_env_constraints]])
+> — fim do reorder manual jogo↔evento, ordenação por critério movida pra
+> aba "Event" do `admin.html`, aba "Games" duplicada aposentada.
+>
 > **Correção de roteiro (2026-09-03)**: as Fases 2 e 3 (§2 abaixo) foram
 > fechadas sem que este documento fosse atualizado — o trabalho saiu sob
 > o nome "Fase I" e "II.2" de `docs/PAINEIS_ADMIN_SPEC.md` (fechadas em
@@ -399,3 +404,82 @@ Nenhuma migração nova — mudança de comportamento em
 `repositories.game.mesclar` (mesma função já usada pelo console.html,
 chamada aqui direto contra produção, mesmo processo de leitura+ação
 autorizada usado pra migração 032).
+
+---
+
+## 9. Fase 9 — Ordenação por critério e fim do vínculo duplicado (2026-09-05)
+
+Motivada pelo Bruno questionando por que `admin-jogos.html` mostra o
+catálogo inteiro (já indicando "✓ Vinculado" por jogo) **e** uma segunda
+lista "Vinculados a este evento" logo abaixo — pareceu redundante.
+Investigando o motivo real da segunda lista (não só aceitar a proposta
+de juntar as duas, ver postura crítica do `CLAUDE.md`), achou-se que ela
+não é só um espelho do catálogo: é o único lugar que edita **ordem**
+(setas ↑/↓) e **ativo/inativo no evento** — e reordenar jogo a jogo
+misturado numa lista alfabética/filtrável/paginada em 60 itens (a do
+catálogo) não faz sentido (não há "vizinho" visível pra comparar quando
+o catálogo está filtrado).
+
+### 9.1 Achados que mudaram o escopo original do pedido
+
+| # | Achado | Onde |
+|---|---|---|
+| 9.A1 | `frontend/admin.html` tem uma aba "Games" com implementação **própria e independente** do mesmo vínculo jogo↔evento (busca/adicionar, ↑/↓, toggle ativo) — não é código morto, é uma aba viva (`data-tab="games"`). Historicamente já causou confusão de tracking (ver nota de correção de roteiro no topo deste doc: mesma tela, dois nomes de fase, um marcado concluído e o outro não) | `frontend/admin.html:742,1659-1917` |
+| 9.A2 | `event_games.ordem` não é só um detalhe de exibição do admin — a home pública (`index.html`) usa o **primeiro jogo por ordem** de cada evento como "jogo em destaque" no card do evento | `frontend/index.html:369-379`, `backend/repositories/event_game.py` (`ORDER BY ej.ordem, j.nome`) |
+| 9.A3 | `telao_jogos.ordem` é uma ordenação **separada e independente** de `event_games.ordem` (comentário no próprio código) — fora do escopo desta fase | `backend/routers/teloes_admin.py:7` |
+| 9.A4 | A ação "Arquivar ranking" que só existia dentro da aba Games do `admin.html` já existe, duplicada, em `console.html` (super-only) — retirar a aba não tira essa capacidade de ninguém | `frontend/console.html:190-199` |
+
+### 9.2 Decisões fechadas com o Bruno
+
+| # | Tópico | Decisão |
+|---|---|---|
+| 9.1 | Reorder manual (↑/↓) | **Sai de vez**, em `admin-jogos.html` e em `admin.html`. Vira só critério automático — aceito o efeito colateral do achado 9.A2 (a home passa a destacar "o jogo que vier primeiro pelo critério escolhido", não mais uma curadoria manual por evento) |
+| 9.2 | Critérios disponíveis | Alfabética (nome), ano de lançamento, plataforma, e "mais pontuações" — desempate sempre por nome, mesmo padrão já usado em `ORDER BY ej.ordem, j.nome` |
+| 9.3 | O que conta em "mais pontuações" | Só entries **válidas** (`pendente=false AND no_ranking=true`) do jogo **naquele evento** — reflete popularidade real no ranking público, não volume bruto de envio (que inclui pendente de moderação/oculto) |
+| 9.4 | Onde mora a ação de ordenar | Na aba "Event" (config) de `admin.html`, junto dos outros ajustes por evento (`publico`, `modo_ranking`, janela de envio) — é uma propriedade do evento, não uma ação por jogo. **Não** vira tela nova, **não** fica em `admin-jogos.html` |
+| 9.5 | Implementação (por quê) | Sem migração: `event_games.ordem` continua existindo e sendo lido por todo mundo (admin, home) exatamente como hoje — a ordenação por critério é uma ação em lote que **recalcula e regrava `ordem`** de uma vez pra todos os jogos do evento, não uma leitura dinâmica espalhada pelo código. Endpoint novo `POST /api/admin/events/{event_id}/games/ordenar` |
+| 9.6 | Aba "Games" do `admin.html` | Aposentada — removida (busca/adicionar/reorder/toggle/arquivar). O vínculo jogo↔evento passa a viver só em `admin-jogos.html`, elimina a duplicação do achado 9.A1 |
+| 9.7 | `admin-jogos.html` — bloco "Vinculados a este evento" | Removido — sem função exclusiva depois que a ordenação sai (9.1) e o toggle ativo/inativo é absorvido pelo próprio card do catálogo (troca o badge estático "✓ Vinculado" por um controle interativo) |
+
+### 9.3 Consequência aceita explicitamente
+
+Depois desta fase, **não existe mais curadoria manual de ordem** —
+nem por jogo (setas), nem por evento (só os 4 critérios). Quem cuidava
+de qual jogo aparecia primeiro no card de destaque da home (achado
+9.A2) passa a depender do critério escolhido pra aquele evento. Aceito
+pelo Bruno como troca válida pela simplicidade.
+
+### Implementação
+
+- [x] `backend/repositories/event_game.py`: `reordenar_por_criterio(pool,
+  event_id, criterio)` — recalcula `ordem` de todos os `event_games` do
+  evento (ativos e inativos) por `nome`/`ano_lancamento`/`plataforma`/
+  contagem de entries válidas, desempate por nome, grava em lote
+- [x] `backend/routers/events.py`: `POST
+  /api/admin/events/{event_id}/games/ordenar` (`{criterio: "nome" |
+  "ano" | "plataforma" | "pontuacoes"}`), mesmo gate de edição do
+  vínculo (`_exigir_admin_na_arena`). Achado no caminho: precisa vir
+  **antes** de `POST /{event_id}/games/{game_id}` no arquivo — senão
+  "ordenar" é capturado como `game_id` (FastAPI casa rotas na ordem
+  declarada), pego pelos testes antes de chegar em produção
+- [x] `frontend/admin.html`: aba "Event" ganha controle "Ordenar jogos
+  por…" + aplicar, por evento (`CRITERIOS_ORDENAR_JOGOS`,
+  `ordenarJogosDoEvento`); aba "Games" inteira removida (botão,
+  `tab-content`, `carregarJogos`/`renderJogos`/busca/reorder/arquivar) —
+  link pra `admin-jogos.html` adicionado na aba Event, já que é lá que
+  vincular/ativar jogos passa a acontecer
+- [x] `frontend/admin-jogos.html`: bloco "Vinculados a este evento"
+  removido; card do catálogo ganha toggle ativo/inativo (`.toggle-ativo`)
+  no lugar do badge estático "✓ Vinculado" quando já vinculado
+- [x] Testes novos pro endpoint de ordenação: critério válido,
+  critério desconhecido (422 via `Literal` do Pydantic), moderador
+  bloqueado (403), cross-arena bloqueado (403) — suíte completa em
+  720/720 (`pytest tests/ --ignore=tests/smoke`)
+- [x] Validação da query de ordenação contra Postgres real de **produção**
+  (autorizado pelo Bruno, só leitura — SELECT sem UPDATE) — rodada contra
+  o evento real "Canal3 Expo" (9 jogos vinculados, incluindo o "River
+  Raid" duplicado/arquivado do incidente §8.6, ainda vinculado como
+  "Oculto globalmente"): os 4 critérios produzem sequência 0..N-1
+  contígua, sem perder nem duplicar linha, desempate por nome correto em
+  todos. UPDATE de verdade não foi executado nessa validação — primeira
+  vez que a feature roda de fato será via uso real no admin

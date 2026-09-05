@@ -78,3 +78,54 @@ async def atualizar(pool: Pool, event_id: str, game_id: str, dados: dict) -> dic
         dados.get("ordem"),
     )
     return dict(row) if row else None
+
+
+# CATALOGO_JOGOS_SPEC.md Fase 9 — substitui o reorder manual jogo a
+# jogo por um recálculo em lote de `ordem`, disparado por critério
+# escolhido na config do event. Chaves fixas (nunca vêm direto do
+# usuário pra dentro do SQL) — validação real acontece no router
+# (Literal do Pydantic), o ValueError aqui é só defesa em profundidade.
+_CRITERIOS_ORDER_BY = {
+    "nome":        "j.nome",
+    "ano":         "j.ano_lancamento NULLS LAST, j.nome",
+    "plataforma":  "j.plataforma NULLS LAST, j.nome",
+    "pontuacoes":  "COALESCE(p.qtd, 0) DESC, j.nome",
+}
+
+
+async def reordenar_por_criterio(pool: Pool, event_id: str, criterio: str) -> list[dict]:
+    """Recalcula e regrava `ordem` de todo jogo vinculado ao event
+    (ativo e inativo no vínculo), por um dos critérios pré-definidos.
+    "pontuacoes" conta só entries válidas (não pendente, não oculta do
+    ranking) daquele jogo neste event — reflete popularidade real, não
+    volume bruto de envio (docs/CATALOGO_JOGOS_SPEC.md Fase 9, 9.3)."""
+    if criterio not in _CRITERIOS_ORDER_BY:
+        raise ValueError(f"criterio inválido: {criterio!r}")
+    order_by = _CRITERIOS_ORDER_BY[criterio]
+
+    rows = await pool.fetch(
+        f"""
+        WITH pontuacoes_validas AS (
+            SELECT game_id, COUNT(*) AS qtd
+            FROM entries
+            WHERE event_id = $1 AND pendente = false AND no_ranking = true
+            GROUP BY game_id
+        ),
+        ranqueado AS (
+            SELECT
+                ej.id,
+                ROW_NUMBER() OVER (ORDER BY {order_by}) - 1 AS nova_ordem
+            FROM event_games ej
+            JOIN games j ON j.id = ej.game_id
+            LEFT JOIN pontuacoes_validas p ON p.game_id = j.id
+            WHERE ej.event_id = $1
+        )
+        UPDATE event_games eg
+        SET ordem = ranqueado.nova_ordem
+        FROM ranqueado
+        WHERE eg.id = ranqueado.id
+        RETURNING eg.id, eg.game_id, eg.ordem
+        """,
+        event_id,
+    )
+    return [dict(r) for r in rows]

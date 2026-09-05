@@ -40,21 +40,7 @@
     .topbar-right { display: flex; align-items: center; gap: var(--space-md); }
 
     .conteudo { padding: var(--space-lg); max-width: 900px; margin: 0 auto; width: 100%; }
-    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-lg); gap: var(--space-md); flex-wrap: wrap; }
-    .section-title { font-size: var(--text-lg); font-weight: var(--weight-bold); color: var(--color-text); }
 
-    .games-grid { display: flex; flex-direction: column; gap: var(--space-sm); margin-bottom: var(--space-xl); }
-    .game-card {
-      background: var(--color-bg-surface);
-      border: var(--border-width) solid var(--color-border);
-      border-radius: var(--radius-md);
-      padding: var(--space-md);
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: var(--space-md);
-      align-items: center;
-    }
-    .game-card.inativo { opacity: 0.5; }
     .game-nome { font-size: var(--text-md); font-weight: var(--weight-bold); }
     .badge-pendente-game {
       display: inline-block;
@@ -70,7 +56,6 @@
       vertical-align: middle;
     }
     .game-meta { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 2px; }
-    .game-actions { display: flex; gap: var(--space-xs); align-items: center; }
 
     .toggle-ativo {
       width: 44px; height: 24px;
@@ -154,17 +139,6 @@
       border-radius: var(--radius-full, 999px);
       background: var(--color-bg-surface2);
       color: var(--color-text-muted);
-    }
-    .badge-vinculado {
-      font-size: 10px;
-      font-weight: var(--weight-bold);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      background: rgba(95,187,80,0.12);
-      color: var(--color-success);
-      padding: 3px 10px;
-      border-radius: var(--radius-full, 999px);
-      white-space: nowrap;
     }
     /* CATALOGO_JOGOS_SPEC.md 8.3 — detalhe rico só ao expandir, pra não
        pesar a listagem de até 60 cards com resumo/galeria/etc de cada. */
@@ -274,9 +248,11 @@
 
     <!-- Catálogo lidera a tela — funciona com ou sem evento escolhido, e
          lista todo jogo que existe na plataforma por padrão (não só
-         resultado de busca). Só o VÍNCULO a um evento exige ter um
-         selecionado (seção "Vinculados a este evento" abaixo, do evento
-         ativo, existe independente disso). -->
+         resultado de busca). Vincular/ativar/desativar no evento também
+         acontece aqui, direto no card (CATALOGO_JOGOS_SPEC.md Fase 9) —
+         não existe mais uma segunda lista "Vinculados a este evento";
+         ordenar por critério virou ação da config do evento em
+         admin.html, não daqui. -->
     <div id="busca-secao" style="display:none">
       <div class="caixa-form">
         <p class="form-title">Catálogo da plataforma</p>
@@ -321,18 +297,12 @@
       </div>
     </div>
 
-    <div id="jogos-conteudo" style="display:none">
-      <div class="section-header">
-        <span class="section-title">Vinculados a este evento</span>
-      </div>
-      <div class="games-grid" id="games-list"></div>
-    </div>
   </div>
 </div>
 
 <script type="module">
 import {
-  exigirAdmin, apiFetch, escapar, showToast, emptyState,
+  exigirAdmin, apiFetch, escapar, showToast,
   inicializarArenaAtiva, getArenaAtual, onArenaChange, eventosDaArenaAtiva,
   nivelNaArena, getMeInfo, montarDropdownPill,
 } from './admin-common.js';
@@ -426,7 +396,6 @@ async function popularSeletorEvento() {
   if (eventos.length === 0) {
     container.innerHTML = '';
     document.getElementById('sem-event-hint').style.display = 'block';
-    document.getElementById('jogos-conteudo').style.display = 'none';
     eventoAtual = null;
     jogosCache  = []; // sem evento, nada está "já vinculado" pra filtrar
     renderResultadosCatalogo(); // reflete a falta de evento nos botões
@@ -434,7 +403,6 @@ async function popularSeletorEvento() {
   }
 
   document.getElementById('sem-event-hint').style.display = 'none';
-  document.getElementById('jogos-conteudo').style.display = 'block';
 
   if (!eventoAtual || !eventos.some(e => e.id === eventoAtual)) eventoAtual = eventos[0].id;
 
@@ -455,13 +423,16 @@ function pillEvento(e) {
 }
 
 // ── LISTA DE JOGOS DO EVENT (mesma fonte de admin.html, Fase I) ────────────
+// Só popula jogosCache (vínculo + ativo/ordem de cada jogo no evento) —
+// não tem mais lista própria pra renderizar (CATALOGO_JOGOS_SPEC.md
+// Fase 9): o card do catálogo (renderResultadosCatalogo) já mostra e
+// edita o vínculo de cada jogo diretamente.
 async function carregarJogos() {
-  if (!eventoAtual) return;
+  if (!eventoAtual) { jogosCache = []; return; }
   try {
     const resp = await apiFetch(`/api/admin/events/${eventoAtual}/games`);
-    if (!resp.ok) { document.getElementById('games-list').innerHTML = emptyState('Erro ao carregar jogos deste evento'); return; }
-    renderJogos(await resp.json());
-  } catch { /* silencioso */ }
+    jogosCache = resp.ok ? await resp.json() : [];
+  } catch { jogosCache = []; }
 }
 
 // Lightbox de imagem — pedido do Bruno pra conseguir ver a capa ampliada
@@ -534,70 +505,6 @@ function badgesMetadado(g) {
   const geracoes = (g.geracoes || []).map(x => `<span class="badge-tag">${x}ª ger.</span>`);
   const tudo = [...generos, ...geracoes].join('');
   return tudo ? `<div class="resultado-badges">${tudo}</div>` : '';
-}
-
-function renderJogos(games) {
-  jogosCache = games;
-  const container = document.getElementById('games-list');
-  const editavel = podeEditar();
-
-  if (games.length === 0) {
-    container.innerHTML = emptyState('Nenhum jogo vinculado a este evento ainda — use o catálogo acima');
-    return;
-  }
-
-  const ordenados = [...games].sort((a, b) => a.ordem - b.ordem);
-  container.innerHTML = ordenados.map((j, i) => `
-    <div class="game-card ${j.ativo ? '' : 'inativo'}" data-id="${j.id}">
-      <div>
-        <div class="game-nome">
-          ${escapar(j.nome)}
-          ${j.pendente_aprovacao ? '<span class="badge-pendente-game">Aguardando aprovação</span>' : ''}
-          ${j.jogo_ativo_global === false ? '<span class="badge-pendente-game" title="Desativado no catálogo global por super">Oculto globalmente</span>' : ''}
-        </div>
-        <div class="game-meta">
-          slug: ${j.slug}
-          ${j.score_max ? ` · máx: ${j.score_max.toLocaleString('pt-BR')}` : ' · sem limite de score'}
-        </div>
-        ${badgesMetadado(j)}
-      </div>
-      <div class="game-actions">
-        ${editavel ? `
-        <button class="btn-action btn-ocultar btn-reordenar" data-id="${j.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Mover pra cima" style="padding:2px 8px">↑</button>
-        <button class="btn-action btn-ocultar btn-reordenar" data-id="${j.id}" data-dir="1" ${i === ordenados.length - 1 ? 'disabled' : ''} title="Mover pra baixo" style="padding:2px 8px">↓</button>
-        <div class="toggle-ativo ${j.ativo ? 'on' : ''}" data-id="${j.id}" data-ativo="${j.ativo}"
-             title="${j.ativo ? 'Ativo neste evento — clique para desativar' : 'Inativo neste evento — clique para ativar'}"></div>
-        ` : ''}
-      </div>
-    </div>
-  `).join('');
-
-  container.querySelectorAll('.toggle-ativo').forEach(toggle => {
-    toggle.addEventListener('click', async () => {
-      const id = toggle.dataset.id, ativo = toggle.dataset.ativo === 'true';
-      try {
-        await apiFetch(`/api/admin/events/${eventoAtual}/games/${id}`, 'PATCH', { ativo: !ativo });
-        showToast(!ativo ? 'Jogo ativado neste evento' : 'Jogo desativado neste evento', 'success');
-        carregarJogos();
-      } catch { showToast('Erro ao atualizar jogo', 'error'); }
-    });
-  });
-
-  container.querySelectorAll('.btn-reordenar').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const idx = ordenados.findIndex(j => j.id === btn.dataset.id);
-      const alvoIdx = idx + parseInt(btn.dataset.dir);
-      if (alvoIdx < 0 || alvoIdx >= ordenados.length) return;
-      const nova = [...ordenados];
-      [nova[idx], nova[alvoIdx]] = [nova[alvoIdx], nova[idx]];
-      try {
-        await Promise.all(nova.map((j, i) =>
-          apiFetch(`/api/admin/events/${eventoAtual}/games/${j.id}`, 'PATCH', { ordem: i })
-        ));
-        carregarJogos();
-      } catch { showToast('Erro ao reordenar', 'error'); }
-    });
-  });
 }
 
 // ── CATÁLOGO GLOBAL + FILTROS (docs/CATALOGO_JOGOS_SPEC.md Fase 7) ─────────
@@ -674,7 +581,7 @@ function renderResultadosCatalogo() {
     || (g.nomes_alternativos || []).some(n => n.toLowerCase().includes(termo))
     || (g.palavras_chave      || []).some(k => k.toLowerCase().includes(termo));
 
-  const idsNoEvento = new Set((jogosCache || []).map(j => j.id));
+  const vinculoPorId = new Map((jogosCache || []).map(j => [j.id, j]));
   const achados = catalogoCache
     .filter(g => !g.pendente_aprovacao) // fila de aprovação vive no console, não aqui
     .filter(bateTermo)
@@ -694,11 +601,16 @@ function renderResultadosCatalogo() {
     : `Catálogo da plataforma — ${achados.length} jogo${achados.length === 1 ? '' : 's'}`;
 
   container.innerHTML = `<p class="resultados-grupo-titulo">${titulo}</p>` + achados.map(g => {
-    const vinculado = idsNoEvento.has(g.id);
+    const vinculo = vinculoPorId.get(g.id);
+    // Card do catálogo concentra vincular + ativar/desativar no evento
+    // (CATALOGO_JOGOS_SPEC.md Fase 9) — não existe mais lista separada
+    // "Vinculados a este evento" só pra isso. Ordenar virou ação por
+    // critério na config do evento, em admin.html.
     const acao = !eventoAtual
       ? ''
-      : vinculado
-        ? '<span class="badge-vinculado">✓ Vinculado</span>'
+      : vinculo
+        ? `<div class="toggle-ativo ${vinculo.ativo ? 'on' : ''}" data-id="${g.id}" data-ativo="${vinculo.ativo}"
+             title="${vinculo.ativo ? 'Vinculado e ativo neste evento — clique para desativar' : 'Vinculado, mas inativo neste evento — clique para ativar'}"></div>`
         : `<button class="btn-action btn-reativar btn-vincular-catalogo" data-id="${g.id}">+ Vincular</button>`;
     const aberto = jogoDetalheAbertoId === g.id;
     return `
@@ -742,6 +654,18 @@ function renderResultadosCatalogo() {
     btn.addEventListener('click', () => {
       jogoDetalheAbertoId = (jogoDetalheAbertoId === btn.dataset.id) ? null : btn.dataset.id;
       renderResultadosCatalogo();
+    });
+  });
+
+  container.querySelectorAll('.toggle-ativo').forEach(toggle => {
+    toggle.addEventListener('click', async () => {
+      const id = toggle.dataset.id, ativo = toggle.dataset.ativo === 'true';
+      try {
+        await apiFetch(`/api/admin/events/${eventoAtual}/games/${id}`, 'PATCH', { ativo: !ativo });
+        showToast(!ativo ? 'Jogo ativado neste evento' : 'Jogo desativado neste evento', 'success');
+        await carregarJogos();
+        renderResultadosCatalogo();
+      } catch { showToast('Erro ao atualizar jogo', 'error'); }
     });
   });
 
