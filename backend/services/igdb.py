@@ -43,6 +43,12 @@ class IGDBIndisponivel(Exception):
 async def _obter_token() -> str:
     settings = get_settings()
     if not settings.igdb_client_id or not settings.igdb_client_secret:
+        # Único caminho de erro do módulo que não logava nada — achado
+        # 2026-09-05 investigando um 503 sem nenhuma linha de log
+        # correspondente (get_settings() é @lru_cache: se o processo já
+        # estava de pé antes da env var ser setada, continua vazio em
+        # memória até reiniciar de verdade).
+        log.warning("igdb_nao_configurado")
         raise IGDBNaoConfigurado()
 
     agora = time.time()
