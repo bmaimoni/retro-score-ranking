@@ -194,6 +194,26 @@
     .empty-admin-text { font-size: var(--text-md); font-weight: var(--weight-bold); color: var(--color-text-dim); }
 
     #jogos-loading { text-align: center; padding: var(--space-2xl); color: var(--color-text-muted); }
+
+    /* Lightbox de imagem ampliada (8.3/candidatos de resync) */
+    .lightbox-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      cursor: zoom-out;
+      padding: var(--space-lg);
+    }
+    .lightbox-overlay img {
+      max-width: 90vw;
+      max-height: 90vh;
+      object-fit: contain;
+      border-radius: var(--radius-md);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
   </style>
 </head>
 <body>
@@ -406,6 +426,43 @@ async function carregarJogos() {
   } catch { /* silencioso */ }
 }
 
+// Lightbox de imagem — pedido do Bruno pra conseguir ver a capa ampliada
+// antes de confirmar qual jogo da IGDB é o certo (candidatos do resync,
+// 8.5.3). Clique em qualquer capa/screenshot abre em tamanho grande, na
+// maior resolução que a IGDB serve (t_original), não só esticado por
+// CSS — a miniatura da listagem usa t_cover_big/t_screenshot_big.
+function imgAmpliavel(url, style) {
+  if (!url) return '';
+  return `<img src="${escapar(url)}" alt="" class="img-ampliavel" data-full="${escapar(url)}" style="${style};cursor:zoom-in">`;
+}
+
+function urlImagemOriginal(url) {
+  return url.replace(/\/t_[a-z0-9_]+\//, '/t_original/');
+}
+
+function abrirLightbox(url) {
+  const overlay = document.createElement('div');
+  overlay.className = 'lightbox-overlay';
+  overlay.innerHTML = `<img src="${escapar(urlImagemOriginal(url))}" alt="">`;
+
+  const fechar = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', aoTeclar);
+  };
+  function aoTeclar(e) { if (e.key === 'Escape') fechar(); }
+
+  overlay.addEventListener('click', fechar);
+  document.addEventListener('keydown', aoTeclar);
+  document.body.appendChild(overlay);
+}
+
+// Delegação num único listener — sobrevive a todo re-render de
+// innerHTML das listas (catálogo, busca IGDB, candidatos de resync).
+document.addEventListener('click', (e) => {
+  const img = e.target.closest('.img-ampliavel');
+  if (img) abrirLightbox(img.dataset.full);
+});
+
 function badgesMetadado(g) {
   const generos  = (g.generos  || []).map(x => `<span class="badge-tag">${escapar(x)}</span>`);
   const geracoes = (g.geracoes || []).map(x => `<span class="badge-tag">${x}ª ger.</span>`);
@@ -580,7 +637,7 @@ function renderResultadosCatalogo() {
     const aberto = jogoDetalheAbertoId === g.id;
     return `
     <div class="resultado-card">
-      ${g.capa_url ? `<img src="${escapar(g.capa_url)}" alt="" style="width:36px;height:48px;object-fit:cover;border-radius:4px">` : ''}
+      ${imgAmpliavel(g.capa_url, 'width:36px;height:48px;object-fit:cover;border-radius:4px')}
       <div style="flex:1;min-width:0">
         <div class="game-nome" style="font-size:var(--text-sm)">
           ${escapar(g.nome)}
@@ -658,7 +715,7 @@ function renderDetalheJogo(g) {
       <p class="resultados-grupo-titulo">Qual desses é "${escapar(g.nome)}"?</p>
       ${candidatos.map(c => `
         <div class="resultado-card">
-          ${c.capa_url ? `<img src="${escapar(c.capa_url)}" alt="" style="width:32px;height:44px;object-fit:cover;border-radius:4px">` : ''}
+          ${imgAmpliavel(c.capa_url, 'width:32px;height:44px;object-fit:cover;border-radius:4px')}
           <div style="flex:1;min-width:0">
             <div class="game-nome" style="font-size:var(--text-sm)">${escapar(c.nome)}</div>
             <div class="game-meta">${escapar(c.plataforma || '')} ${c.ano_lancamento || ''}</div>
@@ -684,7 +741,7 @@ function renderDetalheJogo(g) {
   const semNadaAinda = linhas.length === 0 && !g.screenshot_url;
 
   return `<div class="resultado-detalhe">
-    ${g.screenshot_url ? `<img src="${escapar(g.screenshot_url)}" alt="" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:8px">` : ''}
+    ${imgAmpliavel(g.screenshot_url, 'width:100%;max-width:320px;border-radius:6px;margin-bottom:8px;object-fit:cover')}
     ${linhas.join('')}
     ${semNadaAinda ? '<p class="game-meta">Sem detalhe da IGDB ainda.</p>' : ''}
     ${souSuper() ? `<button class="btn-action btn-reativar btn-resync-igdb" data-id="${g.id}">↻ Atualizar da IGDB</button>` : ''}
@@ -773,7 +830,7 @@ async function buscarIgdb(termo) {
 
     container.innerHTML = '<p class="resultados-grupo-titulo">Encontrado na IGDB</p>' + resultados.map((r, i) => `
       <div class="resultado-card">
-        ${r.capa_url ? `<img src="${escapar(r.capa_url)}" alt="" style="width:36px;height:48px;object-fit:cover;border-radius:4px">` : ''}
+        ${imgAmpliavel(r.capa_url, 'width:36px;height:48px;object-fit:cover;border-radius:4px')}
         <div style="flex:1;min-width:0">
           <div class="game-nome" style="font-size:var(--text-sm)">${escapar(r.nome)}</div>
           <div class="game-meta">${escapar(r.plataforma || '')} ${r.ano_lancamento || ''}</div>

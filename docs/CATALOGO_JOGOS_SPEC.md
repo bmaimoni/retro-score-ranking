@@ -342,5 +342,14 @@ reais de um evento.
   log de erro HTTP), `test_admin_games_resync.py` (+8, os 3 caminhos do
   endpoint + 403/404/409/503). Suíte completa: 716 passando
   (`pytest tests/ --ignore=tests/smoke`)
+- [x] `log.warning("igdb_nao_configurado")` — achado em produção
+  2026-09-05: era o único caminho de erro do módulo que não logava
+  nada, dificultou diagnosticar um 503 causado por credencial ainda
+  vazia (`get_settings()` é `@lru_cache` — processo já de pé antes da
+  env var ser setada no Railway continua com o valor antigo até reiniciar)
+- [x] Capa/screenshot clicável (lightbox, `imgAmpliavel`/`abrirLightbox`)
+  — pedido do Bruno pra conseguir ver a capa ampliada (resolução
+  `t_original` da IGDB, não só esticada por CSS) antes de confirmar um
+  candidato de resync (8.5.3)
 - [ ] Validação manual em navegador — pendente (mesma ressalva de
   sempre, [[project_sandbox_env_constraints]])
