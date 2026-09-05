@@ -875,8 +875,19 @@ async function buscarIgdb(termo) {
 }
 
 async function selecionarJogoIgdb(resultado) {
-  const slug = resultado.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  let slug = resultado.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+  // Nomes repetidos entre jogos diferentes são comuns na IGDB (ex.:
+  // "Donkey Kong" existe como registro separado pro arcade original e
+  // pra versão de Game Boy) — sem desambiguar, o segundo cadastro
+  // sempre colidia no slug (UNIQUE) e o POST inteiro falhava, incluindo
+  // o vínculo ao evento (achado do Bruno, 2026-09-05). Ano de
+  // lançamento resolve a esmagadora maioria dos casos; igdb_id como
+  // último recurso se nem isso existir.
+  if ((catalogoCache || []).some(g => g.slug === slug)) {
+    slug += '-' + (resultado.ano_lancamento || resultado.igdb_id);
+  }
 
   const body = {
     nome: resultado.nome, slug,
