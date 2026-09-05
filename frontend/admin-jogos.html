@@ -214,6 +214,7 @@
       border-radius: var(--radius-md);
       box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
+    .carregando-igdb { animation: pulse 1.2s ease-in-out infinite; }
   </style>
 </head>
 <body>
@@ -434,6 +435,18 @@ async function carregarJogos() {
 function imgAmpliavel(url, style) {
   if (!url) return '';
   return `<img src="${escapar(url)}" alt="" class="img-ampliavel" data-full="${escapar(url)}" style="${style};cursor:zoom-in">`;
+}
+
+// Pedido do Bruno — resultado da IGDB (busca e candidatos de resync)
+// ordenado do mais antigo pro mais novo: pra catálogo retrô, o jogo
+// original tende a ser o candidato certo, não o remaster/relançamento;
+// sem ano (raro) fica por último, não misturado no meio.
+function ordenarPorAnoAntigo(lista) {
+  return [...lista].sort((a, b) => {
+    if (a.ano_lancamento == null) return 1;
+    if (b.ano_lancamento == null) return -1;
+    return a.ano_lancamento - b.ano_lancamento;
+  });
 }
 
 function urlImagemOriginal(url) {
@@ -763,7 +776,7 @@ async function resincronizarIgdb(gameId, igdbIdEscolhido) {
     if (dados.candidatos) {
       // 8.5.3 — nunca decide sozinho qual jogo da IGDB é o certo pra um
       // game manual, mesmo com 1 candidato só; sempre pede confirmação.
-      candidatosPorJogo[gameId] = dados.candidatos;
+      candidatosPorJogo[gameId] = ordenarPorAnoAntigo(dados.candidatos);
     } else {
       delete candidatosPorJogo[gameId];
       const idx = catalogoCache.findIndex(x => x.id === dados.id);
@@ -796,10 +809,18 @@ function marcarIgdbIndisponivel(mensagem) {
   showToast(mensagem, 'error');
 }
 
+// Pedido do Bruno — a chamada de rede pra IGDB não é instantânea (viu
+// ~2s num caso real em produção), sem indicador a tela ficava parada
+// depois do debounce, parecendo travada.
+function marcarCarregandoIgdb(container) {
+  container.innerHTML = '<p class="resultados-grupo-titulo carregando-igdb">Buscando na IGDB…</p>';
+}
+
 async function buscarIgdb(termo) {
   const container = document.getElementById('resultados-igdb');
   if (Date.now() < igdbIndisponivelAte) return;
 
+  marcarCarregandoIgdb(container);
   try {
     const resp = await apiFetch(`/api/admin/games/buscar-igdb?q=${encodeURIComponent(termo)}`);
     if (resp.status === 503) {
@@ -819,7 +840,9 @@ async function buscarIgdb(termo) {
     const idsIgdbNoCatalogo = new Set(
       catalogoCache.filter(g => g.igdb_id).map(g => g.igdb_id)
     );
-    const resultados = todosResultados.filter(r => !idsIgdbNoCatalogo.has(r.igdb_id));
+    const resultados = ordenarPorAnoAntigo(
+      todosResultados.filter(r => !idsIgdbNoCatalogo.has(r.igdb_id))
+    );
 
     if (resultados.length === 0) {
       container.innerHTML = '';
