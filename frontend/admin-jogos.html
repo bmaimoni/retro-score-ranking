@@ -166,6 +166,28 @@
       border-radius: var(--radius-full, 999px);
       white-space: nowrap;
     }
+    /* CATALOGO_JOGOS_SPEC.md 8.3 — detalhe rico só ao expandir, pra não
+       pesar a listagem de até 60 cards com resumo/galeria/etc de cada. */
+    .btn-detalhe {
+      background: var(--color-bg-surface2);
+      color: var(--color-text-muted);
+      border-color: var(--color-border);
+    }
+    .btn-detalhe:hover { background: var(--color-bg-surface); }
+    .resultado-detalhe {
+      padding: var(--space-sm) 0 var(--space-md) 46px;
+      border-bottom: var(--border-width) solid var(--color-border);
+    }
+    .resultado-detalhe .game-meta { margin-bottom: 4px; }
+    .badge-rating-igdb {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: var(--weight-bold);
+      background: var(--color-bg-surface2);
+      color: var(--color-text-muted);
+      padding: 2px 8px;
+      border-radius: var(--radius-full, 999px);
+    }
 
     .empty-admin { text-align: center; padding: var(--space-2xl) var(--space-lg); color: var(--color-text-muted); }
     .empty-admin-icon { font-size: 48px; margin-bottom: var(--space-md); }
@@ -272,11 +294,17 @@ inserirNav('jogos');
 // precisa de debounce — só a chamada IGDB é debounced).
 const DEBOUNCE_MS = 600;
 
-let eventoAtual       = null;
-let jogosCache         = [];
-let catalogoCache      = null;
-let igdbIndisponivel   = false;
-let igdbDebounceTimer  = null;
+let eventoAtual          = null;
+let jogosCache           = [];
+let catalogoCache        = null;
+// CATALOGO_JOGOS_SPEC.md 8.B1 — cooldown curto (timestamp), não mais um
+// latch permanente pro resto da sessão: uma falha transitória não deve
+// exigir reload de página pra buscar de novo.
+let igdbIndisponivelAte  = 0;
+let igdbDebounceTimer    = null;
+// Detalhe rico (8.3) fica fechado por padrão — só um jogo expandido por
+// vez, guardado pelo id local (não igdb_id).
+let jogoDetalheAbertoId  = null;
 
 (async () => {
   const meInfo = await exigirAdmin();
@@ -309,6 +337,14 @@ function podeEditar() {
   const meInfo = getMeInfo();
   if (!meInfo) return false;
   return meInfo.super || nivelNaArena(getArenaAtual()) === 'admin';
+}
+
+// Resync (8.5) usa o mesmo gate de edição do catálogo global da Fase 6
+// (_exigir_super_editar_game no backend) — mais estreito que podeEditar,
+// que também libera admin de arena (esses só controlam o vínculo).
+function souSuper() {
+  const meInfo = getMeInfo();
+  return !!(meInfo && meInfo.super);
 }
 
 function atualizarVisibilidadeBusca() {
@@ -507,10 +543,18 @@ function renderResultadosCatalogo() {
   const geracao  = geracaoV ? parseInt(geracaoV, 10) : null;
   const filtrando = !!(termo || genero || geracao);
 
+  // CATALOGO_JOGOS_SPEC.md 8.3 — termo também bate contra nome
+  // alternativo/palavra-chave da IGDB (não exibidos, só ampliam o
+  // achar), ex.: buscar "Rockman" acha um jogo cadastrado como "Mega Man".
+  const bateTermo = g => !termo
+    || g.nome.toLowerCase().includes(termo)
+    || (g.nomes_alternativos || []).some(n => n.toLowerCase().includes(termo))
+    || (g.palavras_chave      || []).some(k => k.toLowerCase().includes(termo));
+
   const idsNoEvento = new Set((jogosCache || []).map(j => j.id));
   const achados = catalogoCache
     .filter(g => !g.pendente_aprovacao) // fila de aprovação vive no console, não aqui
-    .filter(g => !termo    || g.nome.toLowerCase().includes(termo))
+    .filter(bateTermo)
     .filter(g => !genero   || (g.generos  || []).includes(genero))
     .filter(g => !geracao  || (g.geracoes || []).includes(geracao))
     .slice(0, 60); // dataset pequeno hoje (dezenas) — reavaliar se crescer (CATALOGO_JOGOS_SPEC.md 7.5)
@@ -533,6 +577,7 @@ function renderResultadosCatalogo() {
       : vinculado
         ? '<span class="badge-vinculado">✓ Vinculado</span>'
         : `<button class="btn-action btn-reativar btn-vincular-catalogo" data-id="${g.id}">+ Vincular</button>`;
+    const aberto = jogoDetalheAbertoId === g.id;
     return `
     <div class="resultado-card">
       ${g.capa_url ? `<img src="${escapar(g.capa_url)}" alt="" style="width:36px;height:48px;object-fit:cover;border-radius:4px">` : ''}
@@ -544,8 +589,10 @@ function renderResultadosCatalogo() {
         <div class="game-meta">${escapar(g.plataforma || '')} ${g.ano_lancamento || ''}</div>
         ${badgesMetadado(g)}
       </div>
+      <button class="btn-action btn-detalhe" data-id="${g.id}" title="Ver detalhe do jogo">${aberto ? '▴ Detalhes' : '▾ Detalhes'}</button>
       ${acao}
-    </div>`;
+    </div>
+    ${aberto ? renderDetalheJogo(g) : ''}`;
   }).join('');
 
   container.querySelectorAll('.btn-vincular-catalogo').forEach(btn => {
@@ -567,6 +614,109 @@ function renderResultadosCatalogo() {
       } catch { showToast('Erro ao vincular jogo', 'error'); }
     });
   });
+
+  container.querySelectorAll('.btn-detalhe').forEach(btn => {
+    btn.addEventListener('click', () => {
+      jogoDetalheAbertoId = (jogoDetalheAbertoId === btn.dataset.id) ? null : btn.dataset.id;
+      renderResultadosCatalogo();
+    });
+  });
+
+  container.querySelectorAll('.btn-resync-igdb').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Atualizando…';
+      await resincronizarIgdb(btn.dataset.id);
+    });
+  });
+
+  container.querySelectorAll('.btn-escolher-candidato').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Ancorando…';
+      await resincronizarIgdb(btn.dataset.id, parseInt(btn.dataset.igdbId, 10));
+    });
+  });
+}
+
+// docs/CATALOGO_JOGOS_SPEC.md 8.3/8.5 — detalhe rico só ao expandir
+// (decisão do Bruno: card da listagem continua enxuto). Dois estados:
+// candidatos pendentes de confirmação (jogo manual, resync clicado sem
+// igdb_id ainda) ou o detalhe normal com o botão de resync.
+let candidatosPorJogo = {};
+
+function renderDetalheJogo(g) {
+  const candidatos = candidatosPorJogo[g.id];
+
+  if (candidatos) {
+    if (candidatos.length === 0) {
+      return `<div class="resultado-detalhe">
+        <p class="game-meta">Nada encontrado na IGDB pra "${escapar(g.nome)}" — corrija o nome do jogo ou deixe como cadastro manual.</p>
+      </div>`;
+    }
+    return `<div class="resultado-detalhe">
+      <p class="resultados-grupo-titulo">Qual desses é "${escapar(g.nome)}"?</p>
+      ${candidatos.map(c => `
+        <div class="resultado-card">
+          ${c.capa_url ? `<img src="${escapar(c.capa_url)}" alt="" style="width:32px;height:44px;object-fit:cover;border-radius:4px">` : ''}
+          <div style="flex:1;min-width:0">
+            <div class="game-nome" style="font-size:var(--text-sm)">${escapar(c.nome)}</div>
+            <div class="game-meta">${escapar(c.plataforma || '')} ${c.ano_lancamento || ''}</div>
+          </div>
+          <button class="btn-action btn-reativar btn-escolher-candidato" data-id="${g.id}" data-igdb-id="${c.igdb_id}">Ancorar este</button>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+
+  const linhas = [];
+  if (g.resumo) linhas.push(`<p class="game-meta">${escapar(g.resumo)}</p>`);
+  if (g.desenvolvedora || g.publicadora) {
+    linhas.push(`<p class="game-meta"><strong>Desenvolvedora:</strong> ${escapar(g.desenvolvedora || '—')} &nbsp;·&nbsp; <strong>Publicadora:</strong> ${escapar(g.publicadora || '—')}</p>`);
+  }
+  if ((g.modos_jogo || []).length) linhas.push(`<p class="game-meta"><strong>Modos:</strong> ${g.modos_jogo.map(escapar).join(', ')}</p>`);
+  if ((g.modos_multiplayer || []).length) linhas.push(`<p class="game-meta"><strong>Multiplayer:</strong> ${g.modos_multiplayer.map(escapar).join(', ')}</p>`);
+  if ((g.franquias || []).length) linhas.push(`<p class="game-meta"><strong>Franquia:</strong> ${g.franquias.map(escapar).join(', ')}</p>`);
+  // 8.4 — rótulo sempre "Nota IGDB", nunca ao lado do ranking real da plataforma.
+  if (g.rating_igdb != null) linhas.push(`<p class="game-meta"><span class="badge-rating-igdb">Nota IGDB: ${g.rating_igdb}/100</span></p>`);
+  if ((g.classificacoes_etarias || []).length) linhas.push(`<p class="game-meta"><strong>Classificação etária:</strong> ${g.classificacoes_etarias.map(escapar).join(', ')}</p>`);
+
+  const semNadaAinda = linhas.length === 0 && !g.screenshot_url;
+
+  return `<div class="resultado-detalhe">
+    ${g.screenshot_url ? `<img src="${escapar(g.screenshot_url)}" alt="" style="width:100%;max-width:320px;border-radius:6px;margin-bottom:8px">` : ''}
+    ${linhas.join('')}
+    ${semNadaAinda ? '<p class="game-meta">Sem detalhe da IGDB ainda.</p>' : ''}
+    ${souSuper() ? `<button class="btn-action btn-reativar btn-resync-igdb" data-id="${g.id}">↻ Atualizar da IGDB</button>` : ''}
+  </div>`;
+}
+
+async function resincronizarIgdb(gameId, igdbIdEscolhido) {
+  try {
+    const resp = await apiFetch(
+      `/api/admin/games/${gameId}/resync-igdb`, 'POST',
+      igdbIdEscolhido ? { igdb_id: igdbIdEscolhido } : {},
+    );
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      showToast(err.detail || 'Erro ao atualizar da IGDB', 'error');
+      return;
+    }
+    const dados = await resp.json();
+    if (dados.candidatos) {
+      // 8.5.3 — nunca decide sozinho qual jogo da IGDB é o certo pra um
+      // game manual, mesmo com 1 candidato só; sempre pede confirmação.
+      candidatosPorJogo[gameId] = dados.candidatos;
+    } else {
+      delete candidatosPorJogo[gameId];
+      const idx = catalogoCache.findIndex(x => x.id === dados.id);
+      if (idx !== -1) catalogoCache[idx] = { ...catalogoCache[idx], ...dados };
+      showToast('Jogo atualizado a partir da IGDB', 'success');
+    }
+    renderResultadosCatalogo();
+  } catch {
+    showToast('Erro ao atualizar da IGDB', 'error');
+  }
 }
 
 function limparBusca() {
@@ -576,20 +726,35 @@ function limparBusca() {
   document.getElementById('credito-igdb').style.display = 'none';
 }
 
-// ── BUSCA IGDB — docs/CATALOGO_JOGOS_SPEC.md Fase 5/7 ───────────────────────
+// ── BUSCA IGDB — docs/CATALOGO_JOGOS_SPEC.md Fase 5/7/8 ─────────────────────
+// 8.2/8.B1-8.B3 — achado investigando a queixa "nenhuma busca encontra
+// nada": uma falha transitória (rede/rate-limit) travava
+// `igdbIndisponivel` pro RESTO da sessão, e só a primeira falha mostrava
+// toast — todo keystroke seguinte saía calado, indistinguível de "sem
+// resultado". Cooldown curto (30s) + toast em toda falha corrige isso.
+const IGDB_COOLDOWN_MS = 30_000;
+
+function marcarIgdbIndisponivel(mensagem) {
+  igdbIndisponivelAte = Date.now() + IGDB_COOLDOWN_MS;
+  showToast(mensagem, 'error');
+}
+
 async function buscarIgdb(termo) {
   const container = document.getElementById('resultados-igdb');
-  if (igdbIndisponivel) return;
+  if (Date.now() < igdbIndisponivelAte) return;
 
   try {
     const resp = await apiFetch(`/api/admin/games/buscar-igdb?q=${encodeURIComponent(termo)}`);
     if (resp.status === 503) {
-      igdbIndisponivel = true;
       container.innerHTML = '';
-      showToast('Busca por jogo indisponível — use o cadastro manual', 'info');
+      marcarIgdbIndisponivel('Busca por jogo indisponível — tente de novo em instantes ou use o cadastro manual');
       return;
     }
-    if (!resp.ok) { container.innerHTML = ''; return; }
+    if (!resp.ok) {
+      container.innerHTML = '';
+      marcarIgdbIndisponivel('Erro ao buscar jogo na IGDB — tente de novo');
+      return;
+    }
 
     const todosResultados = await resp.json();
     // Não reoferece jogo que já está no catálogo (achável pela busca
@@ -623,7 +788,10 @@ async function buscarIgdb(termo) {
     container.querySelectorAll('.btn-cadastrar-igdb').forEach(btn => {
       btn.addEventListener('click', () => selecionarJogoIgdb(resultados[parseInt(btn.dataset.idx, 10)]));
     });
-  } catch { container.innerHTML = ''; }
+  } catch {
+    container.innerHTML = '';
+    marcarIgdbIndisponivel('Erro ao buscar jogo na IGDB — tente de novo');
+  }
 }
 
 async function selecionarJogoIgdb(resultado) {

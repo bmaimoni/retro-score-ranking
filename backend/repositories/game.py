@@ -2,6 +2,17 @@ from asyncpg import Pool
 from typing import Any
 
 
+# CATALOGO_JOGOS_SPEC.md 8.3 — colunas de detalhe rico, só relevantes
+# pro canto admin (listar_todos/buscar_por_igdb_id/resync) — telas
+# públicas (listar_ativos/buscar_por_slug) não precisam disso, mantidas
+# enxutas de propósito.
+_COLUNAS_DETALHE = (
+    "resumo, desenvolvedora, publicadora, modos_jogo, modos_multiplayer, "
+    "franquias, rating_igdb, classificacoes_etarias, screenshot_url, "
+    "palavras_chave, nomes_alternativos"
+)
+
+
 async def listar_ativos(pool: Pool) -> list[dict]:
     """
     Games do catálogo geral — usado por /api/games (sem event) e pelo
@@ -68,17 +79,68 @@ async def criar(
     return dict(row)
 
 
+async def atualizar_de_igdb(pool: Pool, game_id: str, dados: dict) -> dict | None:
+    """
+    Resync (CATALOGO_JOGOS_SPEC.md 8.5) — sobrescreve TODOS os campos de
+    origem IGDB de uma vez (plataforma/ano/capa/gênero/geração +
+    detalhe rico da Fase 8), a partir do dict que
+    `services.igdb.buscar_por_id` devolve. NUNCA toca nome/slug (8.5.2
+    — permanecem sob controle editorial exclusivo do super, Fase 6).
+    `dados["igdb_id"]` é sempre gravado — cobre tanto o refresh de um
+    game já ancorado quanto a primeira ancoragem de um game manual
+    (8.5.3, depois que o super confirma qual jogo da IGDB é o certo).
+    """
+    row = await pool.fetchrow(
+        """
+        UPDATE games SET
+            plataforma = $2, ano_lancamento = $3, capa_url = $4,
+            generos = $5, geracoes = $6, igdb_id = $7,
+            resumo = $8, desenvolvedora = $9, publicadora = $10,
+            modos_jogo = $11, modos_multiplayer = $12, franquias = $13,
+            rating_igdb = $14, classificacoes_etarias = $15,
+            screenshot_url = $16, palavras_chave = $17, nomes_alternativos = $18
+        WHERE id = $1
+        RETURNING id, nome, slug, ativo, score_max, plataforma, ano_lancamento,
+                  capa_url, gameplay_url, igdb_id, generos, geracoes, """ + _COLUNAS_DETALHE + """
+        """,
+        game_id, dados.get("plataforma"), dados.get("ano_lancamento"), dados.get("capa_url"),
+        dados.get("generos"), dados.get("geracoes"), dados.get("igdb_id"),
+        dados.get("resumo"), dados.get("desenvolvedora"), dados.get("publicadora"),
+        dados.get("modos_jogo"), dados.get("modos_multiplayer"), dados.get("franquias"),
+        dados.get("rating_igdb"), dados.get("classificacoes_etarias"),
+        dados.get("screenshot_url"), dados.get("palavras_chave"), dados.get("nomes_alternativos"),
+    )
+    return dict(row) if row else None
+
+
 async def buscar_por_igdb_id(pool: Pool, igdb_id: int) -> dict | None:
     """Dedup estrutural do caminho IGDB (docs/CATALOGO_JOGOS_SPEC.md
     5.1) — se já existe um game com esse igdb_id, o endpoint de
     criação reaproveita em vez de tentar criar duplicata."""
     row = await pool.fetchrow(
-        """
+        f"""
         SELECT id, nome, slug, ativo, score_max, pendente_aprovacao, criado_por, criado_em,
-               plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id, generos, geracoes
+               plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id, generos, geracoes,
+               {_COLUNAS_DETALHE}
         FROM games WHERE igdb_id = $1
         """,
         igdb_id,
+    )
+    return dict(row) if row else None
+
+
+async def buscar_por_id(pool: Pool, game_id: str) -> dict | None:
+    """Um game específico com todo o detalhe (8.3) — usado pelo resync
+    (8.5) pra saber se já tem igdb_id (resync direto) ou não (precisa
+    buscar candidato por nome primeiro)."""
+    row = await pool.fetchrow(
+        f"""
+        SELECT id, nome, slug, ativo, score_max, pendente_aprovacao, criado_em,
+               plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id, generos, geracoes,
+               {_COLUNAS_DETALHE}
+        FROM games WHERE id = $1
+        """,
+        game_id,
     )
     return dict(row) if row else None
 
@@ -160,10 +222,10 @@ async def atualizar(
 async def listar_todos(pool: Pool) -> list[dict]:
     """Lista todos os games (ativos e inativos) para o painel admin."""
     rows = await pool.fetch(
-        """
+        f"""
         SELECT id, nome, slug, ativo, score_max, pendente_aprovacao, criado_em,
                plataforma, ano_lancamento, capa_url, gameplay_url, igdb_id,
-               generos, geracoes
+               generos, geracoes, {_COLUNAS_DETALHE}
         FROM games ORDER BY nome
         """
     )

@@ -503,6 +503,79 @@ async def atualizar_game(
         raise HTTPException(status_code=404, detail="Jogo não encontrado ou nada para atualizar")
     return game
 
+
+class ResyncIgdb(BaseModel):
+    # Preenchido pelo frontend só depois que o super confirma qual jogo
+    # da IGDB corresponde a um game manual (8.5.3) — ausente na primeira
+    # chamada, que devolve candidatos em vez de aplicar.
+    igdb_id: int | None = None
+
+
+@router.post("/games/{game_id}/resync-igdb")
+async def resync_game_igdb(
+    game_id: UUID4,
+    body: ResyncIgdb,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """
+    Atualiza um game a partir da IGDB (docs/CATALOGO_JOGOS_SPEC.md 8.5)
+    — mesmo gate de edição do catálogo global (Fase 6). Dois casos:
+
+    - Game já ancorado (`igdb_id` preenchido) ou `body.igdb_id`
+      informado: busca por ID exato e sobrescreve todos os campos de
+      origem IGDB (8.5.2), nunca nome/slug.
+    - Game manual sem `igdb_id` nem `body.igdb_id`: sem ID pra buscar
+      direto, então busca por nome e devolve candidatos pro super
+      escolher (8.5.3) — não aplica nada ainda, é uma segunda chamada
+      (com `body.igdb_id` do candidato escolhido) que de fato atualiza.
+    """
+    _exigir_super_editar_game(admin)
+
+    game = await game_repo.buscar_por_id(pool, str(game_id))
+    if not game:
+        raise HTTPException(status_code=404, detail="Jogo não encontrado")
+
+    alvo_igdb_id = body.igdb_id or game["igdb_id"]
+
+    if not alvo_igdb_id:
+        try:
+            candidatos = await igdb.buscar(game["nome"], limite=5)
+        except (igdb.IGDBNaoConfigurado, igdb.IGDBIndisponivel):
+            raise HTTPException(
+                status_code=503,
+                detail="Busca por jogo temporariamente indisponível — tente de novo em instantes",
+            )
+        return {"candidatos": candidatos}
+
+    # Um game manual sendo ancorado agora (não tinha igdb_id) não pode
+    # roubar o igdb_id de outro game já existente no catálogo — mesma
+    # dedup estrutural da criação (5.1), aplicada aqui pra não deixar
+    # dois registros disputando a mesma fonte externa.
+    if not game["igdb_id"]:
+        conflito = await game_repo.buscar_por_igdb_id(pool, alvo_igdb_id)
+        if conflito and str(conflito["id"]) != str(game_id):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Esse jogo da IGDB já está vinculado a '{conflito['nome']}' no catálogo",
+            )
+
+    try:
+        detalhe = await igdb.buscar_por_id(alvo_igdb_id)
+    except (igdb.IGDBNaoConfigurado, igdb.IGDBIndisponivel):
+        raise HTTPException(
+            status_code=503,
+            detail="Busca por jogo temporariamente indisponível — tente de novo em instantes",
+        )
+    if not detalhe:
+        raise HTTPException(
+            status_code=404,
+            detail="Jogo não encontrado na IGDB — pode ter sido removido/mesclado lá",
+        )
+
+    return await game_repo.atualizar_de_igdb(pool, str(game_id), detalhe)
+
+
 @router.get("/games-todos")
 async def listar_games_todos(
     pool=Depends(get_pool),

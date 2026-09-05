@@ -1,6 +1,9 @@
 # Catálogo de jogos: admissão, integração IGDB e jornada de cadastro/seleção
 
-> Status: **Todas as fases fechadas** (1, 2, 3, 4, 5, 6 e 7). Revisa o
+> Status: Fases 1-7 fechadas, **Fase 8 implementada** (§8 abaixo),
+> **pendente de validação manual em navegador** — enriquecimento de
+> metadado do card + resync dos jogos já cadastrados contra a IGDB,
+> motivado por pedido do Bruno em 2026-09-04. Revisa o
 > item 3.1 do `docs/BACKLOG_2026.md`
 > (decisão anterior: "sem integração externa... processo à parte, fora
 > do projeto") — reaberta aqui por pedido explícito, não por
@@ -211,3 +214,133 @@ Implementação: `backend/migrations/031_generos_geracoes_jogos.sql`,
 `backend/routers/admin.py` (`CriarJogo`/`AtualizarJogo`),
 `frontend/admin-jogos.html` (filtro por gênero/geração na busca de jogo
 existente, badges nos resultados da IGDB).
+
+---
+
+## 8. Fase 8 — Enriquecimento de metadado do card + resync do catálogo existente (2026-09-04)
+
+Motivada pelo Bruno depois de ver a listagem nova do §11 do
+`PAINEIS_ADMIN_SPEC.md`: "cada card tem que trazer todas as informações
+referentes ao jogo... quero identificar quais as informações existentes
+na IGDB pra melhorar o card". Inclui pedido explícito de resync — os 12
+jogos já cadastrados (a maioria via IGDB desde a Fase 5, alguns
+manuais) podem ser reencontrados na IGDB pra atualizar campos e imagens
+(capa e "imagens de gameplay para referência").
+
+### 8.1 Achado que corrige o registro
+
+O §5.2 deste documento afirma que "a IGDB não fornece" imagem de
+gameplay — **isso é factualmente errado**, verificado agora contra o
+schema real da IGDB (tipos oficiais, não suposição, mesma disciplina do
+§7): a IGDB tem `screenshots[]` (capturas reais do jogo rodando) e
+`videos[]` (trailers/gameplay, ID de vídeo do YouTube) por jogo, desde
+sempre. A decisão original nunca foi verificada contra o schema —
+ficou base pra `gameplay_url` ser 100% manual até hoje.
+
+### 8.2 Achado do bug de busca (§11.3 do PAINEIS_ADMIN_SPEC.md, retomado)
+
+Testado agora `services/igdb.buscar()` diretamente contra a IGDB real
+(credenciais de `backend/.env`, mesma função que a rota usa) — **funciona
+normalmente**, resultado real pra "street fighter" com capa/gênero/geração
+corretos. Ou seja: credenciais, Apicalypse e mapeamento não estão
+quebrados. O bug real é de **UX de diagnóstico**, achado lendo
+`admin-jogos.html`:
+
+- `buscarIgdb()` (linha ~580) trava `igdbIndisponivel = true` na
+  **primeira** resposta 503 (rede instável, rate limit da IGDB, timeout)
+  e nunca reseta sozinho — só um reload de página desfaz. O toast
+  "Busca por jogo indisponível" só aparece **nessa primeira vez**; toda
+  tentativa seguinte na mesma sessão do navegador (linha 582, `if
+  (igdbIndisponivel) return`) sai **sem nenhum feedback visual** — parece
+  que a busca simplesmente não faz nada, não que "está indisponível".
+  Isso bate exatamente com a queixa "nenhuma das minhas tentativas
+  encontrou resultado" — uma falha transitória isolada (rede, rate
+  limit) trava a sessão inteira sem avisar de novo.
+- Reforça: qualquer resposta não-200 e não-503 (erro 500, JSON
+  malformado) cai no mesmo `catch`/`if (!resp.ok)` que também limpa o
+  container **sem toast nenhum** — indistinguível de "não achei nada
+  pra esse nome".
+
+| # | Tópico | Decisão |
+|---|---|---|
+| 8.B1 | Latch de indisponibilidade | Vira temporário (ex.: 30s) em vez de "pro resto da sessão" — uma falha transitória não deve exigir reload de página pra tentar de novo |
+| 8.B2 | Feedback em toda falha | Toast de indisponibilidade aparece **toda vez** que uma busca falha (rede/503/erro inesperado), não só na primeira — nunca mais silencioso |
+| 8.B3 | Diagnóstico no backend | `services/igdb.py` passa a logar o status HTTP e corpo da resposta de erro da IGDB/Twitch (hoje só loga a exceção genérica) — se acontecer de novo em produção, dá pra saber a causa real pelos logs do Railway em vez de reproduzir manualmente |
+
+### 8.3 Campos novos — decisão fechada com o Bruno
+
+| Campo IGDB | Coluna nova em `games` | Exibição |
+|---|---|---|
+| `summary` | `resumo text` | Só no detalhe expandido |
+| `involved_companies` (`developer`/`publisher`) | `desenvolvedora text`, `publicadora text` (join por vírgula se mais de uma empresa, mesmo padrão de `plataforma`) | Só no detalhe expandido |
+| `game_modes[].name` | `modos_jogo text[]` | Só no detalhe expandido |
+| `multiplayer_modes` (achatado das flags booleanas) | `modos_multiplayer text[]` (ex.: `{Co-op offline, Split-screen, Online}`) | Só no detalhe expandido |
+| `franchises[].name` (+ `franchise` principal) | `franquias text[]` | Só no detalhe expandido |
+| `total_rating` (média ponderada de usuários+crítica IGDB — mais estável que `rating` isolado) | `rating_igdb smallint` (0-100, arredondado) | Só no detalhe expandido, **rotulado "Nota IGDB"**, nunca ao lado do ranking real da plataforma — ver 8.4 |
+| `age_ratings` (achatado `organization.name: rating_category.rating`) | `classificacoes_etarias text[]` (ex.: `{"ESRB: T", "PEGI: 12"}`) | Só no detalhe expandido |
+| `screenshots[0].image_id` (primeira só, por pedido do Bruno) | `screenshot_url text` | Só no detalhe expandido |
+| `keywords[].name` | `palavras_chave text[]` — **não exibido**, só amplia o filtro local de texto (`renderResultadosCatalogo`) | — |
+| `alternative_names[].name` | `nomes_alternativos text[]` — **não exibido**, mesmo uso (achar "Rockman" buscando por "Megaman") | — |
+| `themes`, `player_perspectives`, `artworks` | **Fora** — redundante com gênero (themes) ou baixo valor pro catálogo retro/luta (perspectiva/arte promocional), decisão do Bruno | — |
+
+Card da **listagem** (`resultado-card`) continua enxuto — nome, capa,
+badges de gênero/geração, como está desde o §11 do
+`PAINEIS_ADMIN_SPEC.md`. Os campos acima só aparecem ao expandir um
+jogo específico (decisão do Bruno: evita pesar a listagem de até 60
+itens com resumo/galeria/etc de cada um).
+
+### 8.4 Por que `rating_igdb` é isolado e rotulado
+
+Risco de produto identificado: a plataforma vende "ranking dos seus
+próprios jogadores" como proposta de valor central
+([[project_arena_pivot]]). Importar e exibir a nota de crítica/usuário
+de **outra** plataforma, sem deixar clara a origem, dilui essa proposta
+— pareceria que o "rating" do jogo é parte do produto, quando é
+metadado de terceiro copiado por curadoria. Mitigação: nome de coluna
+(`rating_igdb`, nunca `rating`/`nota` puro), rótulo fixo "Nota IGDB" na
+UI, e nunca no mesmo componente visual que mostra o ranking de scores
+reais de um evento.
+
+### 8.5 Migração de dados dos 12 jogos existentes (resync)
+
+| # | Tópico | Decisão |
+|---|---|---|
+| 8.5.1 | Escopo | Todo jogo do catálogo (`games`), IGDB ou manual, ganha ação "Atualizar da IGDB" no detalhe expandido (super-only, mesmo gate de edição do catálogo global, Fase 6) |
+| 8.5.2 | Jogo já ancorado (`igdb_id` preenchido) | Resync direto: busca por ID (`GET .../games` com `where id = igdb_id`), sem ambiguidade — sobrescreve **todos** os campos de origem IGDB (inclusive os já existentes: plataforma/ano/capa/gênero/geração), nunca `nome`/`slug` (editorial, Fase 6, decisão do Bruno de sempre preservar controle manual sobre identidade do registro) |
+| 8.5.3 | Jogo manual (`igdb_id` nulo) | Busca por nome (`services.igdb.buscar`) e **sempre** apresenta candidato(s) pro super escolher antes de aplicar — nunca decide sozinho qual jogo da IGDB corresponde, mesmo com 1 resultado só (pedido explícito do Bruno: "se ficar em dúvida... me pergunte" — tratado aqui como "sempre confirmar", já que vincular `igdb_id` errado a um jogo manual existente seria pior que não vincular: contaminaria o catálogo com metadado do jogo errado) |
+| 8.5.4 | Zero resultado na busca por nome (manual) | Fica como está — sem IGDB pra ancorar, super decide se corrige o nome e tenta de novo ou deixa manual mesmo |
+| 8.5.5 | Endpoint | `POST /api/admin/games/{id}/resync-igdb` novo — não reaproveita `PATCH /games/{id}` porque a semântica é diferente (busca+substitui em massa vs. edição pontual de um campo) |
+
+### Implementação
+
+- [x] Migração 032 (`backend/migrations/032_enriquecimento_igdb_jogos.sql`)
+  — aplicada em produção em 2026-09-04 (leitura antes/depois confirmou
+  12 jogos preservados, colunas novas nascendo `NULL`, mesmo processo de
+  validação da Fase 0 do `PAINEIS_ADMIN_SPEC.md`)
+- [x] `backend/services/igdb.py`: campos leves (`_CAMPOS_LEVES`, busca
+  por nome, sem mudança de payload) separados dos completos
+  (`_CAMPOS_COMPLETOS`, só buscados sob demanda via `buscar_por_id`) —
+  `_mapear_detalhe` extrai/achata tudo (`total_rating`→`rating_igdb`,
+  `age_ratings` via enums flat category/rating→`classificacoes_etarias`,
+  `multiplayer_modes`→`modos_multiplayer`). Testado contra a IGDB real
+  (credenciais de `backend/.env`) antes de escrever os testes mockados —
+  `Street Fighter III: 3rd Strike` (id 6710) confere: resumo, Capcom
+  como dev/publisher, franquia, nota 86, screenshot, todos corretos
+- [x] Correção do bug de UX (8.2/8.B1-8.B3): `igdbIndisponivel` (latch
+  permanente) virou `igdbIndisponivelAte` (cooldown de 30s), toast em
+  toda falha (503, não-2xx, exceção de rede), backend loga status+corpo
+  da resposta de erro da IGDB
+- [x] `POST /api/admin/games/{id}/resync-igdb` (8.5.5) — resync direto
+  por `igdb_id` quando já ancorado, candidatos por nome + confirmação
+  obrigatória quando manual (8.5.3), 409 se o `igdb_id` escolhido já
+  ancora outro game do catálogo
+- [x] Detalhe expandido do card em `admin-jogos.html` (8.3) — botão
+  "▾ Detalhes" por jogo, "Nota IGDB" sempre rotulada e isolada (8.4),
+  botão "Atualizar da IGDB" só pra super (`souSuper()`, mesmo gate do
+  backend)
+- [x] Testes novos: `test_igdb_service.py` (+6, mapeamento de detalhe +
+  log de erro HTTP), `test_admin_games_resync.py` (+8, os 3 caminhos do
+  endpoint + 403/404/409/503). Suíte completa: 716 passando
+  (`pytest tests/ --ignore=tests/smoke`)
+- [ ] Validação manual em navegador — pendente (mesma ressalva de
+  sempre, [[project_sandbox_env_constraints]])
