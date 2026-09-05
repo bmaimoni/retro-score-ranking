@@ -231,6 +231,51 @@ async def listar_todos(pool: Pool) -> list[dict]:
     )
     return [dict(r) for r in rows]
 
+
+# ── Deleção física real (SUPER_SPEC.md §7, Fase 4) ──────────────
+
+async def contar_uso(pool: Pool, game_id: str) -> dict:
+    """entries.game_id é CASCADE — apagar um game com pontuação
+    registrada destruiria o recorde real de jogador. event_games.game_id
+    já é RESTRICT (bloqueia sozinho), mas contar os dois aqui dá uma
+    mensagem de erro específica em vez de deixar a exceção de FK
+    estourar crua."""
+    entries    = await pool.fetchval("SELECT COUNT(*) FROM entries WHERE game_id = $1", game_id)
+    vinculos   = await pool.fetchval("SELECT COUNT(*) FROM event_games WHERE game_id = $1", game_id)
+    return {"entries": entries, "vinculos": vinculos}
+
+
+async def deletar_se_sem_uso(pool: Pool, game_id: str) -> bool:
+    """Apaga o game só se não tiver nenhuma entry nem nenhum vínculo de
+    event — checagem e exclusão na mesma query (atômico)."""
+    row = await pool.fetchrow(
+        """
+        DELETE FROM games
+        WHERE id = $1
+          AND NOT EXISTS (SELECT 1 FROM entries WHERE game_id = $1)
+          AND NOT EXISTS (SELECT 1 FROM event_games WHERE game_id = $1)
+        RETURNING id
+        """,
+        game_id,
+    )
+    return row is not None
+
+
+async def listar_sem_uso(pool: Pool) -> list[dict]:
+    """Games sem nenhuma entry e sem nenhum vínculo de event — únicos
+    candidatos seguros a apagar de vez (console.html só oferece o botão
+    pra esses)."""
+    rows = await pool.fetch(
+        """
+        SELECT id, nome, slug, criado_em
+        FROM games g
+        WHERE NOT EXISTS (SELECT 1 FROM entries en WHERE en.game_id = g.id)
+          AND NOT EXISTS (SELECT 1 FROM event_games eg WHERE eg.game_id = g.id)
+        ORDER BY criado_em DESC
+        """
+    )
+    return [dict(r) for r in rows]
+
 # ── Aprovação pro catálogo global (migration 018) ──────────────
 
 async def listar_pendentes_aprovacao(pool: Pool) -> list[dict]:

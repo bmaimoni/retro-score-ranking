@@ -778,3 +778,71 @@ async def test_admin_nao_ordena_games_de_event_de_outra_arena(client):
         )
 
     assert resp.status_code == 403
+
+
+# ── Deleção física real (SUPER_SPEC.md §7, Fase 4) ──────────────
+
+@pytest.mark.asyncio
+async def test_super_apaga_event_vazio(client):
+    event = _event(arena_id=ARENA_A, slug="teste-descartavel")
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=event)), \
+         patch("repositories.event.contar_entries", AsyncMock(return_value=0)), \
+         patch("repositories.event.deletar_se_sem_entries", AsyncMock(return_value=True)):
+        resp = await client.request("DELETE", f"/api/admin/events/{event['id']}",
+            json={"confirmar_slug": "teste-descartavel"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_apagar_event_com_entries_bloqueado(client):
+    event = _event(arena_id=ARENA_A, slug="canal3-expo-2024")
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=event)), \
+         patch("repositories.event.contar_entries", AsyncMock(return_value=42)):
+        resp = await client.request("DELETE", f"/api/admin/events/{event['id']}",
+            json={"confirmar_slug": "canal3-expo-2024"})
+
+    assert resp.status_code == 409
+    assert "42 pontua" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_apagar_event_slug_confirmacao_errado(client):
+    event = _event(arena_id=ARENA_A, slug="canal3-expo-2024")
+    app.dependency_overrides[require_admin] = lambda: SUPER_CTX
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.event.buscar_por_id", AsyncMock(return_value=event)):
+        resp = await client.request("DELETE", f"/api/admin/events/{event['id']}",
+            json={"confirmar_slug": "nome-errado"})
+
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_nao_super_nao_apaga_event(client):
+    event = _event(arena_id=ARENA_A)
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.request("DELETE", f"/api/admin/events/{event['id']}",
+        json={"confirmar_slug": "qualquer"})
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_listar_events_vazios_exige_super(client):
+    app.dependency_overrides[require_admin] = lambda: admin_ctx(arena_id=ARENA_A)
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.get("/api/admin/events/vazios")
+
+    assert resp.status_code == 403

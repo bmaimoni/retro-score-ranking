@@ -1124,3 +1124,90 @@ async def test_revogar_parceria_inexistente_retorna_404(client):
             headers=AUTH_HEADER)
 
     assert resp.status_code == 404
+
+
+# ── Deleção física real (SUPER_SPEC.md §7, Fase 4) ──────────────
+
+@pytest.mark.asyncio
+async def test_super_apaga_arena_vazia(client):
+    arena = _arena(slug="teste-descartavel")
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.arena.buscar_por_id", AsyncMock(return_value=arena)), \
+         patch("repositories.arena.contar_events", AsyncMock(return_value=0)), \
+         patch("repositories.arena.deletar_se_sem_events", AsyncMock(return_value=True)):
+        resp = await client.request("DELETE", f"/api/admin/arenas/{arena['id']}",
+            json={"confirmar_slug": "teste-descartavel"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_apagar_arena_com_events_bloqueada(client):
+    """Achado real contra o schema de produção: events.arena_id é
+    SET NULL numa coluna NOT NULL — sem essa checagem de aplicação, a
+    tentativa bateria erro de constraint no banco em vez de um 409
+    limpo."""
+    arena = _arena(slug="canal3")
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.arena.buscar_por_id", AsyncMock(return_value=arena)), \
+         patch("repositories.arena.contar_events", AsyncMock(return_value=3)):
+        resp = await client.request("DELETE", f"/api/admin/arenas/{arena['id']}",
+            json={"confirmar_slug": "canal3"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 409
+    assert "3 event" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_apagar_arena_slug_confirmacao_errado(client):
+    arena = _arena(slug="canal3")
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.arena.buscar_por_id", AsyncMock(return_value=arena)):
+        resp = await client.request("DELETE", f"/api/admin/arenas/{arena['id']}",
+            json={"confirmar_slug": "nome-errado"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_apagar_arena_inexistente_404(client):
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    with patch("repositories.arena.buscar_por_id", AsyncMock(return_value=None)):
+        resp = await client.request("DELETE", f"/api/admin/arenas/{make_uuid()}",
+            json={"confirmar_slug": "qualquer"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_nao_super_nao_apaga_arena(client):
+    admin_de_a = AdminContext(
+        identificador="admin-a@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"arena_id": "a1", "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_a
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.request("DELETE", f"/api/admin/arenas/{make_uuid()}",
+        json={"confirmar_slug": "qualquer"}, headers=AUTH_HEADER)
+
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_listar_arenas_vazias_exige_super(client):
+    admin_de_a = AdminContext(
+        identificador="admin-a@x.com", user_id=make_uuid(), super=False,
+        vinculos=[{"arena_id": "a1", "role": "admin"}],
+    )
+    app.dependency_overrides[require_admin] = lambda: admin_de_a
+    app.dependency_overrides[get_pool] = lambda: MagicMock()
+
+    resp = await client.get("/api/admin/arenas/vazias", headers=AUTH_HEADER)
+
+    assert resp.status_code == 403

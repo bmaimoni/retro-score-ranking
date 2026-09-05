@@ -504,6 +504,59 @@ async def atualizar_game(
     return game
 
 
+# ── Deleção física real (SUPER_SPEC.md §7, Fase 4) ──────────────
+
+@router.get("/games/sem-uso")
+async def listar_games_sem_uso(pool=Depends(get_pool), admin: AdminContext = Depends(require_admin)):
+    """Games sem nenhuma entry e sem nenhum vínculo de event — únicos
+    candidatos seguros a apagar de vez. Console só oferece o botão de
+    deleção física pra esses."""
+    _exigir_super_editar_game(admin)
+    return await game_repo.listar_sem_uso(pool)
+
+
+class DeletarGameBody(BaseModel):
+    confirmar_slug: str
+
+
+@router.delete("/games/{game_id}")
+async def deletar_game(
+    game_id: UUID4,
+    body: DeletarGameBody,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """DELETE físico real — só quando o game não tem nenhuma entry nem
+    vínculo de event (docs/SUPER_SPEC.md §7, S.3). entries.game_id é
+    CASCADE: sem essa guarda, apagar um game com pontuação registrada
+    destruiria recorde real de jogador. Exige digitar o slug exato como
+    confirmação (S.5)."""
+    _exigir_super_editar_game(admin)
+
+    game = await game_repo.buscar_por_id(pool, str(game_id))
+    if not game:
+        raise HTTPException(status_code=404, detail="Jogo não encontrado")
+    if body.confirmar_slug != game["slug"]:
+        raise HTTPException(status_code=400, detail="Slug de confirmação não confere")
+
+    uso = await game_repo.contar_uso(pool, str(game_id))
+    if uso["entries"] > 0 or uso["vinculos"] > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Jogo tem {uso['entries']} pontuação(ões) e {uso['vinculos']} vínculo(s) de event — "
+                   "não pode ser apagado permanentemente",
+        )
+
+    ok = await game_repo.deletar_se_sem_uso(pool, str(game_id))
+    if not ok:
+        raise HTTPException(
+            status_code=409,
+            detail="Jogo passou a ter uso entre a checagem e a exclusão — tente de novo",
+        )
+    log.warning("game_deletado_permanente", game_id=str(game_id), slug=game["slug"], super_admin=admin.identificador)
+    return {"ok": True}
+
+
 class ResyncIgdb(BaseModel):
     # Preenchido pelo frontend só depois que o super confirma qual jogo
     # da IGDB corresponde a um game manual (8.5.3) — ausente na primeira

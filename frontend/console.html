@@ -231,6 +231,45 @@
         </button>
       </div>
     </div>
+
+    <!-- docs/SUPER_SPEC.md §7 (Fase 4) — deleção física real, não
+         arquivamento. Só oferece o que já é estruturalmente seguro de
+         apagar (zero uso); nunca lista Arena/Event/Game com histórico
+         real, mesmo que o super insista. -->
+    <div class="manut-card manut-danger">
+      <h3 class="manut-titulo">⚠️ Apagar sem uso (permanente)</h3>
+      <p class="manut-desc">
+        Deleção física real, <strong>não</strong> arquivamento — irreversível. Só permite
+        apagar Arena sem nenhum event, Event sem nenhuma pontuação, ou Game sem nenhuma
+        pontuação nem vínculo de event. A lista abaixo só mostra o que já é seguro apagar.
+      </p>
+
+      <div class="field" style="margin-bottom:var(--space-sm)">
+        <label class="field-label" for="apagar-tipo">Tipo</label>
+        <select class="field-input" id="apagar-tipo" onchange="popularCandidatosApagar()">
+          <option value="arenas">Arena</option>
+          <option value="events">Event</option>
+          <option value="games">Game</option>
+        </select>
+      </div>
+
+      <div class="field" style="margin-bottom:var(--space-sm)">
+        <label class="field-label" for="apagar-select">Candidato (sem uso)</label>
+        <select class="field-input" id="apagar-select">
+          <option value="">Carregando…</option>
+        </select>
+      </div>
+
+      <div class="field" style="margin-bottom:var(--space-sm)">
+        <label class="field-label" for="apagar-confirmar">Digite o slug exato pra confirmar</label>
+        <input class="field-input" type="text" id="apagar-confirmar" placeholder="slug-da-entidade" autocomplete="off">
+      </div>
+
+      <button class="btn-action btn-rejeitar" style="width:100%;background:rgba(240,64,96,0.25)"
+              onclick="apagarCandidatoSelecionado()">
+        🗑 Apagar permanentemente
+      </button>
+    </div>
   </div>
 
   <!-- ── ABA: ARENAS (moderação, docs/PAINEIS_ADMIN_SPEC.md II.2/III.2) ── -->
@@ -344,6 +383,7 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
   carregarConfig();
   carregarAvatares();
   carregarGamesParaManutencao();
+  carregarCandidatosApagar();
   carregarArenasPendentes();
   carregarArenasSuspensas();
   // pendentes depende do catálogo carregado (select de "mesclar com") — sequencial, não paralelo
@@ -513,6 +553,58 @@ async function restaurarGeral() {
     const data = await resp.json();
     showToast(`${data.total_restauradas} entries restauradas`, 'success');
   } catch { showToast('Erro ao restaurar', 'error'); }
+}
+
+// ── DELEÇÃO FÍSICA REAL — SÓ SEM USO (docs/SUPER_SPEC.md §7, Fase 4) ───────────
+let candidatosApagar = { arenas: [], events: [], games: [] };
+
+const ENDPOINTS_APAGAR = {
+  arenas: { listar: '/api/admin/arenas/vazias', deletar: id => `/api/admin/arenas/${id}`, rotulo: 'Arena' },
+  events: { listar: '/api/admin/events/vazios', deletar: id => `/api/admin/events/${id}`, rotulo: 'Event' },
+  games:  { listar: '/api/admin/games/sem-uso', deletar: id => `/api/admin/games/${id}`, rotulo: 'Game' },
+};
+
+async function carregarCandidatosApagar() {
+  for (const tipo of Object.keys(ENDPOINTS_APAGAR)) {
+    try {
+      const resp = await apiFetch(ENDPOINTS_APAGAR[tipo].listar);
+      candidatosApagar[tipo] = resp.ok ? await resp.json() : [];
+    } catch { candidatosApagar[tipo] = []; }
+  }
+  popularCandidatosApagar();
+}
+
+function popularCandidatosApagar() {
+  const tipo  = document.getElementById('apagar-tipo').value;
+  const sel   = document.getElementById('apagar-select');
+  const itens = candidatosApagar[tipo] || [];
+  document.getElementById('apagar-confirmar').value = '';
+  sel.innerHTML = itens.length === 0
+    ? '<option value="">Nada sem uso pra apagar</option>'
+    : itens.map(i => `<option value="${i.id}" data-slug="${escapar(i.slug)}">${escapar(i.nome)} (${escapar(i.slug)})</option>`).join('');
+}
+
+async function apagarCandidatoSelecionado() {
+  const tipo = document.getElementById('apagar-tipo').value;
+  const sel  = document.getElementById('apagar-select');
+  const id   = sel.value;
+  const slugEsperado  = sel.selectedOptions[0]?.dataset.slug;
+  const confirmarSlug = document.getElementById('apagar-confirmar').value.trim();
+
+  if (!id) { showToast('Selecione um candidato', 'error'); return; }
+  if (confirmarSlug !== slugEsperado) { showToast('Slug de confirmação não confere', 'error'); return; }
+  if (!confirm(`Apagar "${sel.selectedOptions[0].text}" PERMANENTEMENTE? Não é reversível.`)) return;
+
+  try {
+    const resp = await apiFetch(ENDPOINTS_APAGAR[tipo].deletar(id), 'DELETE', { confirmar_slug: confirmarSlug });
+    if (resp.ok) {
+      showToast(`${ENDPOINTS_APAGAR[tipo].rotulo} apagado(a) permanentemente`, 'success');
+      await carregarCandidatosApagar();
+    } else {
+      const d = await resp.json();
+      showToast(d.detail || 'Erro ao apagar', 'error');
+    }
+  } catch { showToast('Erro ao apagar', 'error'); }
 }
 
 // ── ARENAS — moderação (docs/PAINEIS_ADMIN_SPEC.md II.2/III.2) ─────────────────

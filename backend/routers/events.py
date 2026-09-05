@@ -7,6 +7,7 @@ Ver docs/PERMISSOES_SPEC.md §4: criar/editar event (e os games dele)
 só super opera fora dela. arena_id é obrigatório desde a migration 019
 (decisão #6: todo event exige arena, mesmo os de edição única).
 """
+import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from datetime import datetime
@@ -17,6 +18,7 @@ import repositories.event      as event_repo
 import repositories.event_game as event_game_repo
 
 router = APIRouter(prefix="/api/admin/events", tags=["admin-events"])
+log = structlog.get_logger()
 
 
 TIPOGRAFIAS_VALIDAS = {"arcade", "futurista", "terminal"}
@@ -151,6 +153,55 @@ async def atualizar_event(
     if not event:
         raise HTTPException(status_code=404, detail="Evento não encontrado")
     return event
+
+
+# ── Deleção física real (SUPER_SPEC.md §7, Fase 4) ──────────────
+
+@router.get("/vazios")
+async def listar_events_vazios(pool=Depends(get_pool), admin: AdminContext = Depends(require_admin)):
+    """Events sem nenhuma entry — únicos candidatos seguros a apagar de
+    vez. Console só oferece o botão de deleção física pra esses."""
+    if not admin.super:
+        raise HTTPException(status_code=403, detail="Só super-admin pode listar events sem uso")
+    return await event_repo.listar_vazios(pool)
+
+
+class DeletarEventBody(BaseModel):
+    confirmar_slug: str
+
+
+@router.delete("/{event_id}")
+async def deletar_event(
+    event_id: str,
+    dados: DeletarEventBody,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """DELETE físico real — só quando o event não tem nenhuma entry
+    (docs/SUPER_SPEC.md §7, S.3). Diferente de arquivar: não é
+    reversível. Exige digitar o slug exato como confirmação (S.5)."""
+    if not admin.super:
+        raise HTTPException(status_code=403, detail="Só super-admin pode apagar um event permanentemente")
+
+    event = await _resolver_event_ou_404(pool, event_id)
+    if dados.confirmar_slug != event["slug"]:
+        raise HTTPException(status_code=400, detail="Slug de confirmação não confere")
+
+    qtd_entries = await event_repo.contar_entries(pool, event_id)
+    if qtd_entries > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Event tem {qtd_entries} pontuação(ões) registrada(s) — não pode ser apagado permanentemente",
+        )
+
+    ok = await event_repo.deletar_se_sem_entries(pool, event_id)
+    if not ok:
+        raise HTTPException(
+            status_code=409,
+            detail="Event passou a ter pontuação entre a checagem e a exclusão — tente de novo",
+        )
+    log.warning("event_deletado_permanente", event_id=event_id, slug=event["slug"], super_admin=admin.identificador)
+    return {"ok": True}
 
 
 # ── Gestão de games por event ────────────────────────────────

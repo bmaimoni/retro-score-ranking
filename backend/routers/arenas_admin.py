@@ -7,6 +7,7 @@ primária, tipografia e logo herdam pra event quando o event não
 define os seus (event → arena → default da plataforma).
 """
 import filetype
+import structlog
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, EmailStr, field_validator
 import repositories.arena as arena_repo
@@ -22,6 +23,7 @@ from utils.db import get_pool
 from middleware.auth import require_admin, require_super_or_authenticated_user, AdminContext
 
 router = APIRouter(prefix="/api/admin/arenas", tags=["admin-arenas"])
+log = structlog.get_logger()
 
 TIPOGRAFIAS_VALIDAS = {"arcade", "futurista", "terminal"}
 
@@ -323,6 +325,54 @@ async def atualizar_arena(
     if not arena:
         raise HTTPException(status_code=404, detail="Marca não encontrada")
     return arena
+
+
+# ── Deleção física real (SUPER_SPEC.md §7, Fase 4) ──────────────
+
+@router.get("/vazias")
+async def listar_arenas_vazias(pool=Depends(get_pool), admin: AdminContext = Depends(require_admin)):
+    """Arenas sem nenhum event — únicas candidatas seguras a apagar de
+    vez. Console só oferece o botão de deleção física pra essas."""
+    _exigir_super(admin)
+    return await arena_repo.listar_vazias(pool)
+
+
+class DeletarComConfirmacao(BaseModel):
+    confirmar_slug: str
+
+
+@router.delete("/{arena_id}")
+async def deletar_arena(
+    arena_id: str,
+    dados: DeletarComConfirmacao,
+    pool=Depends(get_pool),
+    admin: AdminContext = Depends(require_admin),
+):
+    """DELETE físico real — só quando a arena não tem nenhum event
+    (docs/SUPER_SPEC.md §7, S.3). Diferente de suspender/arquivar: não
+    é reversível. Exige digitar o slug exato como confirmação (S.5)."""
+    _exigir_super(admin)
+    arena = await arena_repo.buscar_por_id(pool, arena_id)
+    if not arena:
+        raise HTTPException(status_code=404, detail="Arena não encontrada")
+    if dados.confirmar_slug != arena["slug"]:
+        raise HTTPException(status_code=400, detail="Slug de confirmação não confere")
+
+    qtd_events = await arena_repo.contar_events(pool, arena_id)
+    if qtd_events > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Arena tem {qtd_events} event(s) — não pode ser apagada permanentemente",
+        )
+
+    ok = await arena_repo.deletar_se_sem_events(pool, arena_id)
+    if not ok:
+        raise HTTPException(
+            status_code=409,
+            detail="Arena passou a ter event(s) entre a checagem e a exclusão — tente de novo",
+        )
+    log.warning("arena_deletada_permanente", arena_id=arena_id, slug=arena["slug"], super_admin=admin.identificador)
+    return {"ok": True}
 
 
 @router.post("/{arena_id}/logo")

@@ -177,3 +177,41 @@ async def atualizar(pool: Pool, event_id: str, dados: dict) -> dict | None:
         dados.get("data_fim"),
     )
     return dict(row) if row else None
+
+
+# ── Deleção física real (SUPER_SPEC.md §7, Fase 4) ──────────────
+
+async def contar_entries(pool: Pool, event_id: str) -> int:
+    """Qualquer entry, arquivada ou não — usado pra decidir se o event
+    pode ser apagado de vez (só quando zero)."""
+    return await pool.fetchval("SELECT COUNT(*) FROM entries WHERE event_id = $1", event_id)
+
+
+async def deletar_se_sem_entries(pool: Pool, event_id: str) -> bool:
+    """Apaga o event só se não tiver nenhuma entry — checagem e exclusão
+    na mesma query (atômico). entries.event_id já é NO ACTION (bloqueia
+    a nível de banco), mas essa guarda evita depender só do erro de FK
+    e dá uma resposta 409 limpa em vez de um 500."""
+    row = await pool.fetchrow(
+        """
+        DELETE FROM events
+        WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM entries WHERE event_id = $1)
+        RETURNING id
+        """,
+        event_id,
+    )
+    return row is not None
+
+
+async def listar_vazios(pool: Pool) -> list[dict]:
+    """Events sem nenhuma entry — únicos candidatos seguros a apagar de
+    vez (console.html só oferece o botão pra esses)."""
+    rows = await pool.fetch(
+        """
+        SELECT e.id, e.nome, e.slug, e.arena_id, e.criado_em
+        FROM events e
+        WHERE NOT EXISTS (SELECT 1 FROM entries en WHERE en.event_id = e.id)
+        ORDER BY e.criado_em DESC
+        """
+    )
+    return [dict(r) for r in rows]

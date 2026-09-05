@@ -290,3 +290,42 @@ async def resolver_identidade_visual(pool: Pool, event_slug: str) -> dict | None
         event_slug,
     )
     return dict(row) if row else None
+
+
+# ── Deleção física real (SUPER_SPEC.md §7, Fase 4) ──────────────
+
+async def contar_events(pool: Pool, arena_id: str) -> int:
+    """Qualquer event, ativo ou arquivado — usado pra decidir se a
+    arena pode ser apagada de vez (só quando zero)."""
+    return await pool.fetchval("SELECT COUNT(*) FROM events WHERE arena_id = $1", arena_id)
+
+
+async def deletar_se_sem_events(pool: Pool, arena_id: str) -> bool:
+    """Apaga a arena só se ela não tiver nenhum event — checagem e
+    exclusão na mesma query (atômico), sem race entre contar e apagar.
+    events.arena_id é NOT NULL (migration 019): sem essa guarda, apagar
+    uma arena com event bateria erro de constraint no banco (a FK é
+    SET NULL, mas a coluna não aceita NULL), não um estado limpo."""
+    row = await pool.fetchrow(
+        """
+        DELETE FROM arenas
+        WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM events WHERE arena_id = $1)
+        RETURNING id
+        """,
+        arena_id,
+    )
+    return row is not None
+
+
+async def listar_vazias(pool: Pool) -> list[dict]:
+    """Arenas sem nenhum event — únicas candidatas seguras a apagar de
+    vez (console.html só oferece o botão pra essas)."""
+    rows = await pool.fetch(
+        """
+        SELECT a.id, a.nome, a.slug, a.criado_em
+        FROM arenas a
+        WHERE NOT EXISTS (SELECT 1 FROM events e WHERE e.arena_id = a.id)
+        ORDER BY a.criado_em DESC
+        """
+    )
+    return [dict(r) for r in rows]
