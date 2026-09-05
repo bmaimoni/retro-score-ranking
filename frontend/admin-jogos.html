@@ -207,13 +207,43 @@
       cursor: zoom-out;
       padding: var(--space-lg);
     }
-    .lightbox-overlay img {
+    .lightbox-frame {
+      position: relative;
       max-width: 90vw;
       max-height: 90vh;
-      object-fit: contain;
+      padding: var(--space-lg);
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
       border-radius: var(--radius-md);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      display: flex;
     }
+    .lightbox-frame img {
+      max-width: 100%;
+      max-height: 80vh;
+      object-fit: contain;
+      border-radius: var(--radius-sm);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      display: block;
+    }
+    .lightbox-close {
+      position: absolute;
+      top: -14px;
+      right: -14px;
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    .lightbox-close:hover { background: rgba(0,0,0,0.9); }
     .carregando-igdb { animation: pulse 1.2s ease-in-out infinite; }
     .aviso-nome-existente { color: var(--color-warning, #e6a23c); margin-top: 2px; }
   </style>
@@ -468,7 +498,12 @@ function urlImagemOriginal(url) {
 function abrirLightbox(url) {
   const overlay = document.createElement('div');
   overlay.className = 'lightbox-overlay';
-  overlay.innerHTML = `<img src="${escapar(urlImagemOriginal(url))}" alt="">`;
+  overlay.innerHTML = `
+    <div class="lightbox-frame">
+      <img src="${escapar(urlImagemOriginal(url))}" alt="">
+      <button type="button" class="lightbox-close" aria-label="Fechar" title="Fechar">✕</button>
+    </div>
+  `;
 
   const fechar = () => {
     overlay.remove();
