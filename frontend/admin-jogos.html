@@ -365,14 +365,20 @@ let jogoDetalheAbertoId  = null;
   document.getElementById('jogos-loading').style.display = 'none';
   document.getElementById('pagina').style.display = 'grid';
 
-  await inicializarArenaAtiva(document.getElementById('arena-selector'));
+  // Catálogo é global (não depende de arena) — carrega em paralelo com a
+  // inicialização da arena ativa, em vez de esperar uma terminar pra
+  // começar a outra. Reduz a cadeia de round-trips sequenciais na
+  // primeira carga, quando o cold start do backend já pesa sozinho.
+  await Promise.all([
+    inicializarArenaAtiva(document.getElementById('arena-selector')),
+    carregarCatalogo(),
+  ]);
 
   if (!getArenaAtual()) {
     document.getElementById('jogos-sem-arena').style.display = 'block';
     return;
   }
 
-  await carregarCatalogo();
   popularFiltros();
   ligarBusca();
   atualizarVisibilidadeBusca();
