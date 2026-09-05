@@ -34,6 +34,12 @@
 > (`admin-common.js`) e primeiro canto migrado (`admin-jogos.html`),
 > em paralelo à aba antiga (rollout sem big-bang, sem staging). Pendente
 > de validação manual em navegador.
+> **Fase VI (§11)** — queixa concreta do Bruno em 2026-09-04: a busca
+> IGDB não estava funcionando nas tentativas dele (achado registrado,
+> investigação adiada por pedido explícito — ver §11.3), e antes disso
+> a listagem de `admin-jogos.html` não servia pra responder "quais jogos
+> existem na plataforma", só "quais estão vinculados a este evento" (e
+> com "event" em inglês na prosa). Corrigido — ver §11.
 
 ---
 
@@ -552,3 +558,72 @@ Implementação: `admin-common.js` (`montarDropdownPill`, `inicializarArenaAtiva
   fase, `[[project_sandbox_env_constraints]]`): sintaxe checada com
   `node --check`, mas o comportamento visual do painel (posicionamento,
   fechar ao clicar fora) não foi exercitado num navegador real.
+
+---
+
+## 11. Fase VI — Catálogo da plataforma como listagem própria (2026-09-04)
+
+Queixa do Bruno: "esta tela traz uma lista de 'jogos deste event' (...)
+e não uma listagem de forma que facilite a entender quais os jogos
+existentes na plataforma". Pedido explícito de tratar isso **antes** de
+investigar por que a busca IGDB não retornava resultado nas tentativas
+dele (§11.3, adiado).
+
+### 11.1 Achado
+
+`admin-jogos.html` já buscava o catálogo inteiro da plataforma
+(`GET /api/admin/games-todos`, sem escopo de arena — `games` é catálogo
+global por desenho, `SPEC.md` §5.4) em `carregarCatalogo()`, mas só
+usava esse dado nos bastidores pra casar contra termo de busca.
+`renderResultadosCatalogo()` tinha `if (!termo && !genero && !geracao) {
+container.innerHTML = ''; return; }` — ficava em branco sem filtro
+nenhum — e excluía qualquer jogo já vinculado ao evento em contexto
+(`!idsNoEvento.has(g.id)`). Ou seja: os dados pra responder "o que existe
+na plataforma" já chegavam ao navegador, só nunca eram exibidos como
+listagem, só como sugestão de busca. Some-se o bug de rótulo: a seção
+dizia "Jogos deste **event**" (inglês em prosa, inconsistente com a
+convenção do projeto — identificador de código nasce em inglês, prosa
+de UI continua em português).
+
+### 11.2 Decisão (fechada com o Bruno, 3 alternativas apresentadas)
+
+| # | Tópico | Decisão |
+|---|---|---|
+| VI.1 | Estrutura da tela | **Duas seções**, não uma tabela fundida nem só o texto corrigido. "Catálogo da plataforma" (`resultados-catalogo`, sempre populado com o catálogo completo, filtrável por nome/gênero/geração, sem excluir jogo já vinculado) fica acima; "Vinculados a este evento" (`games-list`, com toggle ativo/reordenar) continua abaixo, sem mudança de comportamento — só de rótulo |
+| VI.2 | Por que não a tabela fundida | Fundir as duas listas (uma linha por jogo do catálogo, com toggle/setas quando vinculado ao evento) resolveria a duplicação de lógica entre `renderJogos`/`renderResultadosCatalogo`, mas exige decidir ordenação mista (vinculados agrupados por `ordem` + resto por nome) e mexe na reordenação já validada em produção (Fase I) — mais risco sem ganho proporcional agora. Registrado como alternativa não escolhida, não descartada de vez |
+| VI.3 | Jogo já vinculado ao evento, na listagem de catálogo | Não desaparece mais (antes sumia via `!idsNoEvento.has`) — mostra selo "✓ Vinculado" no lugar do botão "+ Vincular". Esconder de novo repetiria o mesmo bug relatado, só que dentro da própria seção nova |
+| VI.4 | Jogo desativado globalmente (`ativo=false`), na listagem de catálogo | Continua aparecendo (mesmo raciocínio de VI.3), com o mesmo selo "Oculto globalmente" que `renderJogos` já usa — consistência visual entre as duas seções |
+| VI.5 | Jogo `pendente_aprovacao`, na listagem de catálogo | Continua fora (filtro pré-existente mantido) — fila de aprovação é escopo do canto Catálogo do Console (super-only, `CATALOGO_JOGOS_SPEC.md` Fase 2), vincular um jogo ainda não aprovado a um evento pela tela de Arena contornaria essa fila |
+| VI.6 | Limite de itens exibidos | 60 (era 12, pensado só pra sugestão de busca). Sem paginação server-side — mesma decisão e mesmo gatilho de reavaliação do `CATALOGO_JOGOS_SPEC.md` 7.5 (dataset de dezenas hoje, 12 jogos em produção) |
+| VI.7 | Vincular um jogo não limpa mais o termo/filtro digitado | Comportamento antigo (`limparBusca()` após vincular) fazia sentido quando a lista só existia durante uma busca pontual. Com listagem permanente, limpar o filtro depois de cada clique obrigaria redigitar pra vincular o próximo jogo do mesmo filtro (ex.: vincular 3 jogos "de luta" em sequência) — trocado por só atualizar o catálogo/vínculo in-place, mantendo o filtro |
+| VI.8 | Rótulo | "Jogos deste event" → "Vinculados a este evento" (também corrige o bug de idioma). Toda string de UI/toast/`title` com "event" em prosa corrigida pra "evento" no mesmo arquivo (identificadores de código como `eventoAtual`/`event-selector` não mudam, por convenção) |
+
+### 11.3 Fora desta rodada — busca IGDB não retornando resultado
+
+Bruno reportou que nenhuma busca dele encontrou resultado na IGDB.
+Investigação adiada por pedido explícito dele — tratar a listagem do
+catálogo interno vinha primeiro. Fica registrado como próximo item:
+possíveis causas a checar (`backend/services/igdb.py`) — credencial
+Twitch expirada/ausente em produção, token OAuth2 não renovando,
+Apicalypse mal formado, ou `resp.status === 503` sempre disparando
+(`igdbIndisponivel` trava a busca pro resto da sessão assim que acontece
+uma vez).
+
+### Implementação
+
+`frontend/admin-jogos.html` — `renderResultadosCatalogo()` reescrita
+(lista o catálogo completo por padrão, mostra vinculado/oculto em vez de
+esconder, sem `limparBusca()` após vincular), `limparBusca()` continua
+usada só nos fluxos de cadastro (manual/IGDB), textos de UI corrigidos
+(`event`→`evento`), CSS `.badge-vinculado` novo. Sem mudança de backend
+— `GET /api/admin/games-todos` já trazia todo o dado necessário.
+
+- [ ] Validação manual em navegador — pendente. Sintaxe checada com
+  `node --check` (extraindo o `<script type="module">`), mas o
+  comportamento visual (posicionamento dos selos, seção sempre populada,
+  vincular em sequência sem perder o filtro) não foi exercitado num
+  navegador real neste sandbox — mesma ressalva das fases anteriores
+  (`[[project_sandbox_env_constraints]]`).
+- [ ] Sem testes automatizados novos — mudança é só de apresentação
+  (frontend, sem rota nova nem lógica de autorização), mesmo padrão já
+  aceito nas Fases IV/V desta tela.

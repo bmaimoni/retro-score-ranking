@@ -8,11 +8,16 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="admin-common.css">
   <style>
-    /* docs/PAINEIS_ADMIN_SPEC.md §9/§10, docs/CATALOGO_JOGOS_SPEC.md Fase 7 —
-       canto "Jogos": busca lidera (catálogo local + IGDB, com filtro de
-       gênero/geração), vínculo a Arena/evento vem depois de achar o jogo,
-       não antes. Reordenado a partir de feedback de uso real do Bruno —
-       antes exigia escolher event primeiro pra poder buscar qualquer coisa. */
+    /* docs/PAINEIS_ADMIN_SPEC.md §9/§10/§11, docs/CATALOGO_JOGOS_SPEC.md
+       Fase 7 — canto "Jogos": duas seções distintas, não uma. "Catálogo da
+       plataforma" é sempre uma listagem completa (filtrável/buscável) de
+       todo jogo que existe, vinculado a este evento ou não — resolve
+       "quais jogos existem na plataforma", que a busca-só-com-termo não
+       resolvia. "Vinculados a este evento" é o vínculo (ativo/ordem) do
+       evento em contexto, escopo mais estreito. Vínculo a Arena/evento
+       exige evento selecionado; catálogo funciona sem isso. Reordenado a
+       partir de feedback de uso real do Bruno — antes exigia escolher
+       evento primeiro pra poder buscar qualquer coisa. */
     .admin-page {
       min-height: 100dvh;
       display: grid;
@@ -150,6 +155,17 @@
       background: var(--color-bg-surface2);
       color: var(--color-text-muted);
     }
+    .badge-vinculado {
+      font-size: 10px;
+      font-weight: var(--weight-bold);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: rgba(95,187,80,0.12);
+      color: var(--color-success);
+      padding: 3px 10px;
+      border-radius: var(--radius-full, 999px);
+      white-space: nowrap;
+    }
 
     .empty-admin { text-align: center; padding: var(--space-2xl) var(--space-lg); color: var(--color-text-muted); }
     .empty-admin-icon { font-size: 48px; margin-bottom: var(--space-md); }
@@ -182,20 +198,22 @@
       <a href="admin.html" style="color:var(--color-primary)">Voltar ao painel</a>
     </div>
 
-    <!-- Busca lidera a tela — funciona com ou sem event escolhido.
-         Só o VÍNCULO a um event exige ter um selecionado (games-list
-         abaixo, do event ativo, existe independente disso). -->
+    <!-- Catálogo lidera a tela — funciona com ou sem evento escolhido, e
+         lista todo jogo que existe na plataforma por padrão (não só
+         resultado de busca). Só o VÍNCULO a um evento exige ter um
+         selecionado (seção "Vinculados a este evento" abaixo, do evento
+         ativo, existe independente disso). -->
     <div id="busca-secao" style="display:none">
       <div class="caixa-form">
-        <p class="form-title">Buscar jogo</p>
-        <input class="field-input" type="search" id="busca-input" placeholder="Nome do jogo (ex: Street Fighter)…">
+        <p class="form-title">Catálogo da plataforma</p>
+        <input class="field-input" type="search" id="busca-input" placeholder="Filtrar por nome (ex: Street Fighter)…">
         <div class="busca-filtros">
           <select id="filtro-genero"><option value="">Gênero: qualquer</option></select>
           <select id="filtro-geracao"><option value="">Geração: qualquer</option></select>
         </div>
 
         <p class="game-meta" id="sem-event-hint" style="display:none">
-          Selecione um event no topo pra vincular o jogo escolhido — a busca funciona sem isso, só o vínculo espera.
+          Crie um evento nesta Arena pra poder vincular jogos a ele — o catálogo abaixo funciona sem isso, só o vínculo espera.
         </p>
 
         <div id="resultados-catalogo"></div>
@@ -231,7 +249,7 @@
 
     <div id="jogos-conteudo" style="display:none">
       <div class="section-header">
-        <span class="section-title">Jogos deste event</span>
+        <span class="section-title">Vinculados a este evento</span>
       </div>
       <div class="games-grid" id="games-list"></div>
     </div>
@@ -283,9 +301,9 @@ let igdbDebounceTimer  = null;
   await popularSeletorEvento();
 })();
 
-// Moderador só lê — leitura de games do event já é liberada pro
+// Moderador só lê — leitura de games do evento já é liberada pro
 // moderador no backend (docs/PERMISSOES_SPEC.md §7 item 5). A seção de
-// busca inteira (que só serve pra criar/vincular) fica escondida pra
+// catálogo inteira (que só serve pra criar/vincular) fica escondida pra
 // quem não edita, mesmo padrão de antes.
 function podeEditar() {
   const meInfo = getMeInfo();
@@ -316,8 +334,8 @@ async function popularSeletorEvento() {
     document.getElementById('sem-event-hint').style.display = 'block';
     document.getElementById('jogos-conteudo').style.display = 'none';
     eventoAtual = null;
-    jogosCache  = []; // sem event, nada está "já vinculado" pra filtrar
-    renderResultadosCatalogo(); // reflete a falta de event nos botões
+    jogosCache  = []; // sem evento, nada está "já vinculado" pra filtrar
+    renderResultadosCatalogo(); // reflete a falta de evento nos botões
     return;
   }
 
@@ -335,6 +353,7 @@ async function popularSeletorEvento() {
   });
 
   await carregarJogos();
+  renderResultadosCatalogo(); // catálogo reflete o vínculo do evento agora carregado
 }
 
 function pillEvento(e) {
@@ -346,7 +365,7 @@ async function carregarJogos() {
   if (!eventoAtual) return;
   try {
     const resp = await apiFetch(`/api/admin/events/${eventoAtual}/games`);
-    if (!resp.ok) { document.getElementById('games-list').innerHTML = emptyState('Erro ao carregar jogos deste event'); return; }
+    if (!resp.ok) { document.getElementById('games-list').innerHTML = emptyState('Erro ao carregar jogos deste evento'); return; }
     renderJogos(await resp.json());
   } catch { /* silencioso */ }
 }
@@ -364,7 +383,7 @@ function renderJogos(games) {
   const editavel = podeEditar();
 
   if (games.length === 0) {
-    container.innerHTML = emptyState('Nenhum jogo vinculado a este event ainda — use a busca acima');
+    container.innerHTML = emptyState('Nenhum jogo vinculado a este evento ainda — use o catálogo acima');
     return;
   }
 
@@ -388,7 +407,7 @@ function renderJogos(games) {
         <button class="btn-action btn-ocultar btn-reordenar" data-id="${j.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''} title="Mover pra cima" style="padding:2px 8px">↑</button>
         <button class="btn-action btn-ocultar btn-reordenar" data-id="${j.id}" data-dir="1" ${i === ordenados.length - 1 ? 'disabled' : ''} title="Mover pra baixo" style="padding:2px 8px">↓</button>
         <div class="toggle-ativo ${j.ativo ? 'on' : ''}" data-id="${j.id}" data-ativo="${j.ativo}"
-             title="${j.ativo ? 'Ativo neste event — clique para desativar' : 'Inativo neste event — clique para ativar'}"></div>
+             title="${j.ativo ? 'Ativo neste evento — clique para desativar' : 'Inativo neste evento — clique para ativar'}"></div>
         ` : ''}
       </div>
     </div>
@@ -399,7 +418,7 @@ function renderJogos(games) {
       const id = toggle.dataset.id, ativo = toggle.dataset.ativo === 'true';
       try {
         await apiFetch(`/api/admin/events/${eventoAtual}/games/${id}`, 'PATCH', { ativo: !ativo });
-        showToast(!ativo ? 'Jogo ativado neste event' : 'Jogo desativado neste event', 'success');
+        showToast(!ativo ? 'Jogo ativado neste evento' : 'Jogo desativado neste evento', 'success');
         carregarJogos();
       } catch { showToast('Erro ao atualizar jogo', 'error'); }
     });
@@ -472,43 +491,62 @@ function ligarBusca() {
   document.getElementById('manual-criar-btn').addEventListener('click', criarJogoManual);
 }
 
-// Busca local no catálogo já carregado — instantânea, sem debounce.
-// Funciona com só filtro (sem termo digitado) pra permitir "navegar por
-// gênero/geração" sem precisar saber o nome do jogo — pedido do Bruno.
+// Listagem do catálogo completo da plataforma — sempre populada, com ou
+// sem termo/filtro (docs/PAINEIS_ADMIN_SPEC.md §11: resolve "quais jogos
+// existem na plataforma", que antes só aparecia como resultado de busca
+// e ficava em branco sem termo digitado). Busca local, instantânea, sem
+// debounce — só a chamada IGDB (função seguinte) é debounced. Jogo já
+// vinculado ao evento atual continua na lista (não desaparece), só troca
+// o botão "+Vincular" por um selo — omitir esconderia justamente o que a
+// tela existe pra mostrar.
 function renderResultadosCatalogo() {
   const container = document.getElementById('resultados-catalogo');
   const termo    = document.getElementById('busca-input').value.trim().toLowerCase();
   const genero   = document.getElementById('filtro-genero').value;
   const geracaoV = document.getElementById('filtro-geracao').value;
   const geracao  = geracaoV ? parseInt(geracaoV, 10) : null;
-
-  if (!termo && !genero && !geracao) { container.innerHTML = ''; return; }
+  const filtrando = !!(termo || genero || geracao);
 
   const idsNoEvento = new Set((jogosCache || []).map(j => j.id));
   const achados = catalogoCache
-    .filter(g => !g.pendente_aprovacao && !idsNoEvento.has(g.id))
+    .filter(g => !g.pendente_aprovacao) // fila de aprovação vive no console, não aqui
     .filter(g => !termo    || g.nome.toLowerCase().includes(termo))
     .filter(g => !genero   || (g.generos  || []).includes(genero))
     .filter(g => !geracao  || (g.geracoes || []).includes(geracao))
-    .slice(0, 12);
+    .slice(0, 60); // dataset pequeno hoje (dezenas) — reavaliar se crescer (CATALOGO_JOGOS_SPEC.md 7.5)
 
   if (achados.length === 0) {
-    container.innerHTML = '<p class="resultados-grupo-titulo">Nada no catálogo bate com isso</p>';
+    container.innerHTML = filtrando
+      ? '<p class="resultados-grupo-titulo">Nada no catálogo bate com isso</p>'
+      : '<p class="resultados-grupo-titulo">Catálogo da plataforma vazio</p>';
     return;
   }
 
-  container.innerHTML = '<p class="resultados-grupo-titulo">Já no catálogo</p>' + achados.map(g => `
+  const titulo = filtrando
+    ? `${achados.length} jogo${achados.length === 1 ? '' : 's'} encontrado${achados.length === 1 ? '' : 's'}`
+    : `Catálogo da plataforma — ${achados.length} jogo${achados.length === 1 ? '' : 's'}`;
+
+  container.innerHTML = `<p class="resultados-grupo-titulo">${titulo}</p>` + achados.map(g => {
+    const vinculado = idsNoEvento.has(g.id);
+    const acao = !eventoAtual
+      ? ''
+      : vinculado
+        ? '<span class="badge-vinculado">✓ Vinculado</span>'
+        : `<button class="btn-action btn-reativar btn-vincular-catalogo" data-id="${g.id}">+ Vincular</button>`;
+    return `
     <div class="resultado-card">
       ${g.capa_url ? `<img src="${escapar(g.capa_url)}" alt="" style="width:36px;height:48px;object-fit:cover;border-radius:4px">` : ''}
       <div style="flex:1;min-width:0">
-        <div class="game-nome" style="font-size:var(--text-sm)">${escapar(g.nome)}</div>
+        <div class="game-nome" style="font-size:var(--text-sm)">
+          ${escapar(g.nome)}
+          ${g.ativo === false ? '<span class="badge-pendente-game" title="Desativado no catálogo global por super">Oculto globalmente</span>' : ''}
+        </div>
+        <div class="game-meta">${escapar(g.plataforma || '')} ${g.ano_lancamento || ''}</div>
         ${badgesMetadado(g)}
       </div>
-      ${eventoAtual
-        ? `<button class="btn-action btn-reativar btn-vincular-catalogo" data-id="${g.id}">+ Vincular</button>`
-        : ''}
-    </div>
-  `).join('');
+      ${acao}
+    </div>`;
+  }).join('');
 
   container.querySelectorAll('.btn-vincular-catalogo').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -520,9 +558,12 @@ function renderResultadosCatalogo() {
           showToast(err.detail || 'Erro ao vincular jogo', 'error');
           return;
         }
-        showToast('Jogo vinculado ao event', 'success');
-        limparBusca();
+        showToast('Jogo vinculado ao evento', 'success');
+        // Sem limparBusca() aqui de propósito — preserva o termo/filtro
+        // atual, pra permitir vincular vários jogos do mesmo filtro em
+        // sequência (ex.: todos os "de luta") sem redigitar cada vez.
         await carregarJogos();
+        renderResultadosCatalogo();
       } catch { showToast('Erro ao vincular jogo', 'error'); }
     });
   });
@@ -604,11 +645,12 @@ async function selecionarJogoIgdb(resultado) {
   const resp = await apiFetch('/api/admin/games', 'POST', body);
 
   if (resp.ok) {
-    showToast(`"${resultado.nome}" cadastrado${eventoAtual ? ' e vinculado' : ' — vincule a um event quando quiser'}!`, 'success');
+    showToast(`"${resultado.nome}" cadastrado${eventoAtual ? ' e vinculado' : ' — vincule a um evento quando quiser'}!`, 'success');
     limparBusca();
     catalogoCache = null;
     await carregarCatalogo();
     if (eventoAtual) await carregarJogos();
+    renderResultadosCatalogo();
   } else {
     const d = await resp.json();
     showToast(d.detail || 'Erro ao cadastrar jogo', 'error');
@@ -640,6 +682,7 @@ async function criarJogoManual() {
     catalogoCache = null;
     await carregarCatalogo();
     if (eventoAtual) await carregarJogos();
+    renderResultadosCatalogo();
   } else {
     const d = await resp.json();
     showToast(d.detail || 'Erro ao cadastrar jogo', 'error');
