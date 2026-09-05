@@ -351,5 +351,51 @@ reais de um evento.
   — pedido do Bruno pra conseguir ver a capa ampliada (resolução
   `t_original` da IGDB, não só esticada por CSS) antes de confirmar um
   candidato de resync (8.5.3)
+- [x] Indicador de carregando na busca IGDB (`marcarCarregandoIgdb`) +
+  resultado/candidatos ordenados do mais antigo pro mais novo
+  (`ordenarPorAnoAntigo`) — original tende a ser o candidato certo, não
+  remaster/relançamento no meio da lista
 - [ ] Validação manual em navegador — pendente (mesma ressalva de
   sempre, [[project_sandbox_env_constraints]])
+
+### 8.6 Incidente real em produção (2026-09-05) — duplicata do River Raid
+
+Sequência de achados testando a Fase 8 em produção pela primeira vez,
+todos no mesmo dia:
+
+1. **Slug colidindo sem desambiguar**: `selecionarJogoIgdb()` gerava o
+   slug só a partir do nome — nome repetido entre jogos diferentes é
+   comum na IGDB (ex.: "Donkey Kong" tem registro separado pro arcade
+   original e pra versão de Game Boy), e ao colidir com slug já em uso
+   o `POST /games` inteiro falhava com 409, sem cadastrar nem vincular
+   nada. Corrigido: desambigua com ano de lançamento (ou `igdb_id` sem
+   isso) antes de tentar.
+2. **Duplicata real com dado de produção**: a correção acima resolveu
+   o 409, mas expôs um problema pior — dedup por `igdb_id` (5.1) não
+   cobre jogo manual com o **mesmo nome**. Resultado real: "River Raid"
+   manual (15 recordes de jogador reais + vínculo a evento ativo desde
+   2026-03) e um "River Raid" novo via IGDB viraram dois registros
+   separados no catálogo. Corrigido nos dois níveis:
+   - **Dado já duplicado**: mesclado via `POST /games/{id}/mesclar`
+     (origem = manual antigo com os 15 recordes, destino = novo com
+     metadado da IGDB) — 15 recordes e o vínculo de evento migrados,
+     origem arquivada (nunca apagada). Efeito colateral conhecido, não
+     é bug novo: o vínculo antigo (`event_games`) continua aparecendo
+     em "Vinculados a este evento" no admin com selo "Oculto
+     globalmente" — `listar_por_event_admin` mostra vínculo mesmo de
+     jogo desativado globalmente, de propósito (Fase I do
+     `PAINEIS_ADMIN_SPEC.md`), pra dar chance de reverter uma
+     desativação por engano.
+   - **Prevenção**: `buscarIgdb()` agora avisa (`acharNoCatalogoPorNome`,
+     comparação simples case/trim-insensitive) quando o nome do
+     resultado da IGDB já existe no catálogo, sugerindo "Atualizar da
+     IGDB" no registro existente em vez de cadastrar outro. Não
+     bloqueia — vira botão "Cadastrar mesmo assim", já que nome igual
+     pode legitimamente ser jogo diferente (ex.: duas versões de
+     "Frogger" bem distintas entre si).
+
+Nenhuma migração nova — mudança de comportamento em
+`frontend/admin-jogos.html` e uma mesclagem pontual de dado via
+`repositories.game.mesclar` (mesma função já usada pelo console.html,
+chamada aqui direto contra produção, mesmo processo de leitura+ação
+autorizada usado pra migração 032).
