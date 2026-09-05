@@ -135,8 +135,20 @@
       align-items: center;
     }
     .resultado-card {
+      min-height: 48px;
       padding: 8px 0;
       border-bottom: var(--border-width) solid var(--color-border);
+    }
+    /* Reserva o espaço da capa mesmo quando o jogo não tem imagem
+       (cadastro manual) — sem isso a linha desse jogo encolhia bem
+       menos que a de um jogo com capa, quebrando o ritmo da tabela. */
+    .resultado-card-capa {
+      width: 36px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
     .resultado-header {
       padding: 0 0 4px;
@@ -662,7 +674,7 @@ function renderResultadosCatalogo() {
     const aberto = jogoDetalheAbertoId === g.id;
     return `
     <div class="resultado-card">
-      <div>${imgAmpliavel(g.capa_url, 'width:36px;height:48px;object-fit:cover;border-radius:4px')}</div>
+      <div class="resultado-card-capa">${imgAmpliavel(g.capa_url, 'width:36px;height:48px;object-fit:cover;border-radius:4px')}</div>
       <div style="min-width:0">
         <div class="game-nome" style="font-size:var(--text-sm)">
           ${escapar(g.nome)}
